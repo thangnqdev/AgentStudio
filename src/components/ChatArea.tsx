@@ -58,6 +58,8 @@ function UserMessage({ msg }: { msg: Message }) {
 }
 
 function AgentMessage({ msg }: { msg: Message }) {
+  if (!msg.content && msg.status === 'sending') return null;
+
   return (
     <div className="pl-8 border-l border-outline-variant relative py-2">
       <div className="absolute -left-[17px] top-4 w-8 h-8 rounded-full bg-surface border border-outline-variant flex items-center justify-center text-secondary bg-surface-bright shadow-sm">

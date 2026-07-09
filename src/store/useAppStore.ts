@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export type ViewId = 'tasks' | 'workspace' | 'knowledge' | 'files' | 'agents' | 'settings';
 
@@ -24,8 +23,8 @@ export interface AIProvider {
   id: string;
   name: string;
   baseUrl: string;
-  apiKey: string;
   models: string[];
+  hasApiKey?: boolean;
 }
 
 export interface AppSettings {
@@ -54,66 +53,60 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>()(
-  persist(
-    (set) => ({
-      projectPath: 'agent-desktop',
-      activeTask: 'Xây dựng luồng xác thực',
-      messages: [],
-      isAgentTyping: false,
-      activeView: 'tasks',
-      settings: {
-        providers: [
+  (set) => ({
+    projectPath: 'agent-desktop',
+    activeTask: 'Xây dựng luồng xác thực',
+    messages: [],
+    isAgentTyping: false,
+    activeView: 'tasks',
+    settings: {
+      providers: [
+        {
+          id: 'default-openai',
+          name: 'OpenAI (Default)',
+          baseUrl: 'https://api.openai.com/v1',
+          models: [],
+          hasApiKey: false,
+        }
+      ],
+      activeProviderId: 'default-openai',
+      activeModelId: 'gpt-3.5-turbo',
+    },
+
+    setProjectPath: (path) => set({ projectPath: path }),
+    setActiveTask: (task) => set({ activeTask: task }),
+
+    addMessage: (msg) => {
+      const newId = msg.id ?? crypto.randomUUID();
+      set((state) => ({
+        messages: [
+          ...state.messages,
           {
-            id: 'default-openai',
-            name: 'OpenAI (Default)',
-            baseUrl: 'https://api.openai.com/v1',
-            apiKey: '',
-            models: [],
-          }
+            ...msg,
+            id: newId,
+            timestamp: new Date(),
+            status: msg.status ?? 'done',
+          },
         ],
-        activeProviderId: 'default-openai',
-        activeModelId: 'gpt-3.5-turbo',
-      },
+      }));
+      return newId;
+    },
 
-      setProjectPath: (path) => set({ projectPath: path }),
-      setActiveTask: (task) => set({ activeTask: task }),
+    updateMessage: (id, update) =>
+      set((state) => ({
+        messages: state.messages.map((m) => (m.id === id ? { ...m, ...update } : m)),
+      })),
 
-      addMessage: (msg) => {
-        const newId = msg.id ?? Math.random().toString(36).substring(7);
-        set((state) => ({
-          messages: [
-            ...state.messages,
-            {
-              ...msg,
-              id: newId,
-              timestamp: new Date(),
-              status: msg.status ?? 'done',
-            },
-          ],
-        }));
-        return newId;
-      },
+    appendMessageContent: (id, chunk) =>
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.id === id ? { ...m, content: m.content + chunk } : m
+        ),
+      })),
 
-      updateMessage: (id, update) =>
-        set((state) => ({
-          messages: state.messages.map((m) => (m.id === id ? { ...m, ...update } : m)),
-        })),
-
-      appendMessageContent: (id, chunk) =>
-        set((state) => ({
-          messages: state.messages.map((m) =>
-            m.id === id ? { ...m, content: m.content + chunk } : m
-          ),
-        })),
-
-      clearMessages: () => set({ messages: [] }),
-      setIsAgentTyping: (typing) => set({ isAgentTyping: typing }),
-      setActiveView: (view) => set({ activeView: view }),
-      setSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
-    }),
-    {
-      name: 'architect-app-settings',
-      partialize: (state) => ({ settings: state.settings }),
-    }
-  )
+    clearMessages: () => set({ messages: [] }),
+    setIsAgentTyping: (typing) => set({ isAgentTyping: typing }),
+    setActiveView: (view) => set({ activeView: view }),
+    setSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
+  })
 );

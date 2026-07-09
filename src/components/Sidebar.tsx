@@ -1,4 +1,9 @@
+import type { CSSProperties } from 'react';
 import { useAppStore, type ViewId } from '../store/useAppStore';
+
+type ElectronDragStyle = CSSProperties & {
+  WebkitAppRegion: 'drag' | 'no-drag';
+};
 
 interface NavItem {
   id: ViewId;
@@ -24,7 +29,7 @@ export function Sidebar() {
       {/* Spacer for macOS native traffic lights / draggable region */}
       <div
         className="w-full h-12 shrink-0"
-        style={{ WebkitAppRegion: 'drag' } as any}
+        style={{ WebkitAppRegion: 'drag' } as ElectronDragStyle}
       ></div>
 
       {/* Header Info */}

@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useAppStore, type AIProvider } from '../store/useAppStore';
-import { fetchAvailableModels } from '../services/ai';
+
+type EditableProvider = Partial<AIProvider> & {
+  apiKey?: string;
+};
 
 export function SettingsView() {
   const settings = useAppStore((s) => s.settings);
   const setSettings = useAppStore((s) => s.setSettings);
 
-  const [editingProvider, setEditingProvider] = useState<Partial<AIProvider> | null>(null);
+  const [editingProvider, setEditingProvider] = useState<EditableProvider | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -16,39 +19,44 @@ export function SettingsView() {
 
   const handleAddNew = () => {
     setEditingProvider({
-      id: Math.random().toString(36).substring(7),
+      id: crypto.randomUUID(),
       name: 'New Provider',
       baseUrl: 'https://api.openai.com/v1',
       apiKey: '',
       models: [],
+      hasApiKey: false,
     });
     setErrorMsg('');
     setSuccessMsg('');
   };
 
   const handleEdit = (p: AIProvider) => {
-    setEditingProvider({ ...p });
+    setEditingProvider({ ...p, apiKey: '' });
     setErrorMsg('');
     setSuccessMsg('');
   };
 
-  const handleDelete = (id: string) => {
-    const newProviders = providers.filter(p => p.id !== id);
-    let newActiveId = settings.activeProviderId;
-    if (newActiveId === id) {
-      newActiveId = newProviders.length > 0 ? newProviders[0].id : null;
-    }
-    setSettings({ 
-      providers: newProviders,
-      activeProviderId: newActiveId
-    });
-    if (editingProvider?.id === id) {
-      setEditingProvider(null);
+  const handleDelete = async (id: string) => {
+    try {
+      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+      const nextSettings = await window.agentStudio.deleteProvider(id);
+      setSettings(nextSettings);
+      if (editingProvider?.id === id) {
+        setEditingProvider(null);
+      }
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Xóa provider thất bại.');
     }
   };
 
-  const handleSetDefault = (id: string) => {
-    setSettings({ activeProviderId: id });
+  const handleSetDefault = async (id: string) => {
+    try {
+      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+      const nextSettings = await window.agentStudio.setActiveProvider(id);
+      setSettings(nextSettings);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Đặt provider mặc định thất bại.');
+    }
   };
 
   const handleSaveAndScan = async () => {
@@ -59,62 +67,21 @@ export function SettingsView() {
     setSuccessMsg('');
     
     try {
-      let finalUrl = (editingProvider.baseUrl || '').trim();
-      if (finalUrl && !/^https?:\/\//i.test(finalUrl)) {
-        finalUrl = 'http://' + finalUrl;
-      }
-      
-      const apiKey = editingProvider.apiKey || '';
-      const name = editingProvider.name || 'Unnamed';
-
-      // Scan models
-      let models: string[] = [];
-      try {
-        models = await fetchAvailableModels(finalUrl, apiKey);
-      } catch (e) {
-        throw new Error(`Quét model thất bại: ${e instanceof Error ? e.message : 'Unknown'}`);
-      }
-
-      const updatedProvider: AIProvider = {
+      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+      const nextSettings = await window.agentStudio.saveProviderAndScan({
         id: editingProvider.id,
-        name,
-        baseUrl: finalUrl,
-        apiKey,
-        models,
-      };
-
-      const existingIndex = providers.findIndex(p => p.id === updatedProvider.id);
-      let newProviders = [...providers];
-      
-      if (existingIndex >= 0) {
-        newProviders[existingIndex] = updatedProvider;
-      } else {
-        newProviders.push(updatedProvider);
-      }
-
-      let newActiveId = settings.activeProviderId;
-      if (!newActiveId || existingIndex < 0 && providers.length === 0) {
-        newActiveId = updatedProvider.id;
-      }
-      
-      // Select first model if none active, or current is invalid
-      let newActiveModel = settings.activeModelId;
-      if (newActiveId === updatedProvider.id) {
-         if (models.length > 0 && !models.includes(newActiveModel || '')) {
-           newActiveModel = models[0];
-         } else if (models.length > 0 && !newActiveModel) {
-           newActiveModel = models[0];
-         }
-      }
-
-      setSettings({
-        providers: newProviders,
-        activeProviderId: newActiveId,
-        activeModelId: newActiveModel
+        name: editingProvider.name,
+        baseUrl: editingProvider.baseUrl,
+        apiKey: editingProvider.apiKey,
       });
+      setSettings(nextSettings);
       
-      setSuccessMsg(`Lưu thành công. Đã tìm thấy ${models.length} model.`);
-      setEditingProvider(updatedProvider); // keep it open
+      const updatedProvider = nextSettings.providers.find((provider) => provider.id === editingProvider.id)
+        ?? nextSettings.providers.at(-1);
+      setSuccessMsg(`Lưu thành công. Đã tìm thấy ${updatedProvider?.models.length ?? 0} model.`);
+      if (updatedProvider) {
+        setEditingProvider({ ...updatedProvider, apiKey: '' });
+      }
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Lỗi không xác định.');
     } finally {
@@ -244,7 +211,7 @@ export function SettingsView() {
                   className="w-full bg-surface-container border border-outline-variant rounded-lg px-4 py-2 text-[14px] focus:border-secondary outline-none"
                   value={editingProvider.apiKey || ''}
                   onChange={(e) => setEditingProvider({...editingProvider, apiKey: e.target.value})}
-                  placeholder="Để trống nếu không cần"
+                  placeholder={editingProvider.hasApiKey ? 'Để trống để giữ khóa hiện tại' : 'Để trống nếu không cần'}
                 />
               </div>
               
@@ -271,4 +238,3 @@ export function SettingsView() {
     </div>
   );
 }
-

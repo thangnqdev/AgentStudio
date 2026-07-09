@@ -1,9 +1,15 @@
 import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from 'react';
 import { useAppStore, type Attachment } from '../store/useAppStore';
 
+type PendingAttachment = Attachment & {
+  isLoading: boolean;
+  file?: File;
+  error?: string;
+};
+
 export function PromptComposer() {
   const [input, setInput] = useState('');
-  const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<PendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -13,6 +19,7 @@ export function PromptComposer() {
   const updateMessage = useAppStore((s) => s.updateMessage);
   const settings = useAppStore((s) => s.settings);
   const setSettings = useAppStore((s) => s.setSettings);
+  const isAgentBusy = useAppStore((s) => s.messages.some((m) => m.sender === 'agent' && m.status === 'sending'));
 
   // Auto-resize textarea as content grows
   useEffect(() => {
@@ -46,14 +53,14 @@ export function PromptComposer() {
     if (validFiles.length === 0) return;
 
     // Add placeholders with loading state
-    const newAttachments = validFiles.map(file => {
+    const newAttachments: PendingAttachment[] = validFiles.map(file => {
       const type = file.type.startsWith('image/') ? 'image' : 
                    file.type.startsWith('audio/') ? 'audio' : 
                    file.type.startsWith('video/') ? 'video' : 'text';
       return { 
-        id: Math.random().toString(36).substring(7), 
+        id: crypto.randomUUID(),
         name: file.name, 
-        type: type as any, 
+        type,
         data: '', 
         isLoading: true,
         file // temporary reference
@@ -72,11 +79,21 @@ export function PromptComposer() {
           ));
         }
       };
+      reader.onerror = () => {
+        setAttachedFiles(prev => prev.map(f =>
+          f.id === att.id ? { ...f, isLoading: false, error: 'Không đọc được tệp.' } : f
+        ));
+      };
+      reader.onabort = () => {
+        setAttachedFiles(prev => prev.map(f =>
+          f.id === att.id ? { ...f, isLoading: false, error: 'Đã hủy đọc tệp.' } : f
+        ));
+      };
 
       if (att.type === 'image' || att.type === 'audio' || att.type === 'video') {
-        reader.readAsDataURL(att.file);
+        reader.readAsDataURL(att.file as File);
       } else {
-        reader.readAsText(att.file);
+        reader.readAsText(att.file as File);
       }
     });
     
@@ -92,14 +109,23 @@ export function PromptComposer() {
 
   const handleSubmit = async () => {
     const trimmed = input.trim();
-    if (!trimmed && attachedFiles.length === 0) return;
+    const isProcessingFiles = attachedFiles.some((file) => file.isLoading);
+    const hasFileErrors = attachedFiles.some((file) => file.error);
+    if ((!trimmed && attachedFiles.length === 0) || isProcessingFiles || hasFileErrors || isAgentBusy) return;
+
+    const messageAttachments: Attachment[] = attachedFiles.map(({ id, name, type, data }) => ({
+      id,
+      name,
+      type,
+      data,
+    }));
 
     // Add user message
     addMessage({ 
       sender: 'user', 
       content: trimmed, 
       type: 'text', 
-      attachments: attachedFiles.length > 0 ? attachedFiles : undefined 
+      attachments: messageAttachments.length > 0 ? messageAttachments : undefined 
     });
     
     setInput('');
@@ -115,20 +141,9 @@ export function PromptComposer() {
 
     try {
       const { streamChatCompletion } = await import('../services/ai');
-      
-      const activeProvider = settings.providers?.find(p => p.id === settings.activeProviderId);
-      const baseUrl = activeProvider?.baseUrl || '';
-      const apiKey = activeProvider?.apiKey || '';
-      const model = settings.activeModelId || '';
-
-      if (!baseUrl) {
-        throw new Error('Chưa cấu hình Base URL. Vui lòng vào Cài đặt để cấu hình AI.');
-      }
 
       await streamChatCompletion(
         messagesToSend,
-        baseUrl,
-        apiKey,
         (chunk) => {
           setIsAgentTyping(false); // Stop typing indicator once we get first chunk
           appendMessageContent(agentMsgId, chunk);
@@ -140,8 +155,7 @@ export function PromptComposer() {
         (error) => {
           updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error' });
           setIsAgentTyping(false);
-        },
-        model
+        }
       );
     } catch (e) {
       updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${e instanceof Error ? e.message : e}`, status: 'error' });
@@ -150,14 +164,28 @@ export function PromptComposer() {
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return;
+    
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
   };
 
-  const isProcessingFiles = attachedFiles.some((f: any) => f.isLoading);
-  const canSubmit = (input.trim().length > 0 || attachedFiles.length > 0) && !isProcessingFiles;
+  const isProcessingFiles = attachedFiles.some((file) => file.isLoading);
+  const hasFileErrors = attachedFiles.some((file) => file.error);
+  const canSubmit = (input.trim().length > 0 || attachedFiles.length > 0) && !isProcessingFiles && !hasFileErrors && !isAgentBusy;
+
+  const handleModelChange = async (modelId: string) => {
+    setSettings({ activeModelId: modelId });
+    try {
+      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+      const nextSettings = await window.agentStudio.setActiveModel(modelId);
+      setSettings(nextSettings);
+    } catch (error) {
+      console.error('Failed to save active model', error);
+    }
+  };
 
   return (
     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-[800px] px-6">
@@ -180,11 +208,13 @@ export function PromptComposer() {
                 key={file.id} 
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-code-base bg-surface-container text-on-surface-variant border border-outline-variant/50"
               >
-                {(file as any).isLoading ? (
+                {file.isLoading ? (
                   <div className="relative flex h-3 w-3 items-center justify-center">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-on-surface-variant opacity-40"></span>
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-on-surface-variant"></span>
                   </div>
+                ) : file.error ? (
+                  <span className="material-symbols-outlined text-[12px] text-error">error</span>
                 ) : file.type === 'image' ? (
                   <span className="material-symbols-outlined text-[12px]">image</span>
                 ) : file.type === 'audio' ? (
@@ -194,9 +224,10 @@ export function PromptComposer() {
                 ) : (
                   <span className="material-symbols-outlined text-[12px]">description</span>
                 )}
-                <span className={((file as any).isLoading) ? 'opacity-50' : ''}>
+                <span className={file.isLoading || file.error ? 'opacity-50' : ''} title={file.error}>
                   {file.name}
-                  {((file as any).isLoading) && ' (Đang đọc...)'}
+                  {file.isLoading && ' (Đang đọc...)'}
+                  {file.error && ' (Lỗi)'}
                 </span>
                 <button 
                   onClick={() => removeFile(file.id)}
@@ -241,7 +272,7 @@ export function PromptComposer() {
                   ? 'bg-secondary text-white hover:bg-[#7D2C11] cursor-pointer'
                   : 'bg-surface-container text-on-surface-variant/40 cursor-not-allowed'
                 }`}
-              title={canSubmit ? 'Gửi tin nhắn (Enter)' : 'Nhập tin nhắn trước'}
+              title={canSubmit ? 'Gửi tin nhắn (Enter)' : isAgentBusy ? 'Đợi phản hồi hiện tại hoàn tất' : 'Nhập tin nhắn trước'}
             >
               <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
             </button>
@@ -261,7 +292,7 @@ export function PromptComposer() {
             return models.length > 0 ? (
               <select
                 value={settings.activeModelId || ''}
-                onChange={(e) => setSettings({ activeModelId: e.target.value })}
+                onChange={(e) => handleModelChange(e.target.value)}
                 className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[150px] truncate"
                 title={`Chọn Model (${activeProvider?.name})`}
               >
