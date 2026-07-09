@@ -25,6 +25,7 @@ function createWindow() {
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      webSecurity: false,
     },
     width: 1440,
     height: 900,

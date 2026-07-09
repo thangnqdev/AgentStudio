@@ -3,6 +3,13 @@ import { persist } from 'zustand/middleware';
 
 export type ViewId = 'tasks' | 'workspace' | 'knowledge' | 'files' | 'agents' | 'settings';
 
+export interface Attachment {
+  id: string;
+  name: string;
+  type: 'text' | 'image' | 'audio' | 'video';
+  data: string;
+}
+
 export interface Message {
   id: string;
   sender: 'user' | 'agent';
@@ -10,11 +17,14 @@ export interface Message {
   type?: 'text' | 'code' | 'permission_request';
   status?: 'sending' | 'done' | 'error';
   timestamp: Date;
+  attachments?: Attachment[];
 }
 
 export interface AppSettings {
   baseUrl: string;
   apiKey: string;
+  models: string[];
+  selectedModel: string;
 }
 
 interface AppState {
@@ -27,7 +37,9 @@ interface AppState {
 
   setProjectPath: (path: string) => void;
   setActiveTask: (task: string) => void;
-  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
+  addMessage: (message: Omit<Message, 'id' | 'timestamp'> & { id?: string }) => string;
+  updateMessage: (id: string, update: Partial<Message>) => void;
+  appendMessageContent: (id: string, chunk: string) => void;
   clearMessages: () => void;
   setIsAgentTyping: (typing: boolean) => void;
   setActiveView: (view: ViewId) => void;
@@ -45,22 +57,39 @@ export const useAppStore = create<AppState>()(
       settings: {
         baseUrl: 'https://api.openai.com/v1',
         apiKey: '',
+        models: [],
+        selectedModel: 'gpt-3.5-turbo',
       },
 
       setProjectPath: (path) => set({ projectPath: path }),
       setActiveTask: (task) => set({ activeTask: task }),
 
-      addMessage: (msg) =>
+      addMessage: (msg) => {
+        const newId = msg.id ?? Math.random().toString(36).substring(7);
         set((state) => ({
           messages: [
             ...state.messages,
             {
               ...msg,
-              id: Math.random().toString(36).substring(7),
+              id: newId,
               timestamp: new Date(),
               status: msg.status ?? 'done',
             },
           ],
+        }));
+        return newId;
+      },
+
+      updateMessage: (id, update) =>
+        set((state) => ({
+          messages: state.messages.map((m) => (m.id === id ? { ...m, ...update } : m)),
+        })),
+
+      appendMessageContent: (id, chunk) =>
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === id ? { ...m, content: m.content + chunk } : m
+          ),
         })),
 
       clearMessages: () => set({ messages: [] }),

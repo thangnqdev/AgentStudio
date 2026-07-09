@@ -7,11 +7,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'workspace', label: 'Không gian làm việc',     icon: 'folder_open' },
-  { id: 'tasks',     label: 'Tác vụ hiện tại',  icon: 'bolt' },
+  { id: 'workspace', label: 'Không gian làm việc', icon: 'folder_open' },
+  { id: 'tasks', label: 'Tác vụ hiện tại', icon: 'bolt' },
   { id: 'knowledge', label: 'Cơ sở tri thức', icon: 'menu_book' },
-  { id: 'files',     label: 'Quản lý tệp tin', icon: 'description' },
-  { id: 'agents',    label: 'Trợ lý AI',        icon: 'smart_toy' },
+  { id: 'files', label: 'Quản lý tệp tin', icon: 'description' },
+  { id: 'agents', label: 'Trợ lý AI', icon: 'smart_toy' },
 ];
 
 export function Sidebar() {
@@ -22,8 +22,8 @@ export function Sidebar() {
     <nav className="flex flex-col pb-6 px-4 h-screen w-[260px] border-r border-outline-variant bg-surface-container-low/95 backdrop-blur-xl transition-all duration-200 ease-in-out shrink-0">
 
       {/* Spacer for macOS native traffic lights / draggable region */}
-      <div 
-        className="w-full h-12 shrink-0" 
+      <div
+        className="w-full h-12 shrink-0"
         style={{ WebkitAppRegion: 'drag' } as any}
       ></div>
 
@@ -45,7 +45,7 @@ export function Sidebar() {
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-highest transition-colors font-ui-body text-ui-body"
         >
           <span className="material-symbols-outlined text-[18px]">search</span>
-          <span>Tìm kiếm hoặc đi đến...</span>
+          <span>Tìm kiếm</span>
           <span className="ml-auto font-code-base text-xs border border-outline-variant rounded px-1 text-on-surface-variant/70">⌘K</span>
         </button>
       </div>
@@ -93,11 +93,11 @@ export function Sidebar() {
         </button>
 
         <div className="border-t border-outline-variant pt-4 space-y-1">
-          <button 
+          <button
             onClick={() => setActiveView('settings')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors font-ui-body text-ui-body ${activeView === 'settings' ? 'bg-surface-container-high text-primary font-semibold' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
           >
-            <span 
+            <span
               className="material-symbols-outlined text-[18px]"
               style={activeView === 'settings' ? { fontVariationSettings: "'FILL' 1" } : {}}
             >

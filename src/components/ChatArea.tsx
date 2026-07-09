@@ -9,6 +9,29 @@ function UserMessage({ msg }: { msg: Message }) {
       <div className="absolute -left-3 top-6 w-6 h-6 rounded-full bg-primary-container text-on-primary flex items-center justify-center border-2 border-background z-10">
         <span className="material-symbols-outlined text-[14px]">person</span>
       </div>
+      
+      {msg.attachments && msg.attachments.length > 0 && (
+        <div className="flex flex-wrap gap-3 mb-4">
+          {msg.attachments.map(att => (
+            <div key={att.id} className="relative group">
+              {att.type === 'image' ? (
+                <div className="relative rounded-lg overflow-hidden border border-outline-variant/50 w-32 h-32">
+                  <img src={att.data} alt={att.name} className="w-full h-full object-cover" />
+                  <div className="absolute bottom-0 w-full bg-black/60 text-white text-[10px] truncate px-1.5 py-0.5" title={att.name}>
+                    {att.name}
+                  </div>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-code-base bg-surface text-on-surface-variant border border-outline-variant/50" title={att.name}>
+                  <span className="material-symbols-outlined text-[16px]">description</span>
+                  <span className="max-w-[120px] truncate">{att.name}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <p className="font-ui-body text-ui-body text-on-surface leading-relaxed text-[15px] whitespace-pre-wrap">
         {msg.content}
       </p>
