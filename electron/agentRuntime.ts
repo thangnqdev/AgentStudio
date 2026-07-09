@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { buildSummarySystemMessage, compactContext } from './contextCompaction.js';
 
 export type PermissionMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 
@@ -61,6 +62,14 @@ type StreamingToolCall = {
 type ToolResult = {
   ok: boolean;
   output: string;
+};
+
+type AgentActionPayload = {
+  id: string;
+  toolName: string;
+  args: string;
+  status: 'running' | 'ok' | 'error';
+  output?: string;
 };
 
 const MAX_AGENT_STEPS = 8;
@@ -146,12 +155,17 @@ export async function runAgentSession(
   }
 
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  const compactedContext = compactContext(messages);
   const conversation: ChatMessage[] = [
     {
       role: 'system',
       content: buildAgentSystemPrompt(workspaceRoot, settings.permissionMode),
     },
-    ...formatMessages(messages),
+    ...(compactedContext.summary ? [{
+      role: 'system' as const,
+      content: buildSummarySystemMessage(compactedContext.summary),
+    }] : []),
+    ...formatMessages(compactedContext.recentMessages),
   ];
 
   for (let step = 0; step < MAX_AGENT_STEPS; step += 1) {
@@ -175,10 +189,23 @@ export async function runAgentSession(
     for (const toolCall of toolCalls) {
       const toolName = toolCall.function?.name || '';
       const args = parseToolArguments(toolCall.function?.arguments || '{}');
-      emitChunk(sender, requestId, `\n\n[tool:${toolName}] ${JSON.stringify(args)}\n`);
+      const actionId = toolCall.id || `${requestId}-${toolName}-${step}`;
+      const argsText = JSON.stringify(args);
 
+      emitAction(sender, requestId, {
+        id: actionId,
+        toolName,
+        args: argsText,
+        status: 'running',
+      });
       const result = await executeTool(toolName, args, workspaceRoot, settings.permissionMode);
-      emitChunk(sender, requestId, result.ok ? `[ok]\n${result.output}\n` : `[blocked/error]\n${result.output}\n`);
+      emitAction(sender, requestId, {
+        id: actionId,
+        toolName,
+        args: argsText,
+        status: result.ok ? 'ok' : 'error',
+        output: result.output,
+      });
 
       conversation.push({
         role: 'tool',
@@ -203,6 +230,7 @@ function buildAgentSystemPrompt(workspaceRoot: string, permissionMode: Permissio
     '- workspace-write: read/write only inside workspace; commands run through the sandbox executor.',
     '- danger-full-access: commands run without sandbox and file paths may be absolute.',
     'Do not claim a command or edit succeeded unless the tool result says it did.',
+    'If earlier context was compacted, treat its summary as lossy. Re-read files or rerun lightweight checks when exact details matter.',
   ].join('\n');
 }
 
@@ -613,6 +641,10 @@ function emitChunk(sender: WebContents, requestId: string, chunk: string) {
   if (chunk) {
     sender.send('ai:chat:chunk', { requestId, chunk });
   }
+}
+
+function emitAction(sender: WebContents, requestId: string, action: AgentActionPayload) {
+  sender.send('ai:chat:action', { requestId, action });
 }
 
 function trimOutput(output: string) {

@@ -10,6 +10,22 @@ const noDragStyle = { WebkitAppRegion: 'no-drag' } as ElectronDragStyle;
 
 export function TopAppBar() {
   const projectPath = useAppStore((s) => s.projectPath);
+  const setProjectPath = useAppStore((s) => s.setProjectPath);
+  const setSettings = useAppStore((s) => s.setSettings);
+  const createThread = useAppStore((s) => s.createThread);
+
+  const handleSelectWorkspace = async () => {
+    try {
+      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+      const workspace = await window.agentStudio.selectWorkspace();
+      if (workspace.canceled) return;
+      setProjectPath(workspace.path);
+      setSettings({ workspacePath: workspace.path });
+      createThread(`Workspace: ${workspace.path.split('/').pop() || workspace.path}`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Không chọn được repository.');
+    }
+  };
 
   return (
     <header 
@@ -31,10 +47,11 @@ export function TopAppBar() {
       {/* Right: Actions */}
       <div className="flex items-center gap-1" style={noDragStyle}>
         <button
+          onClick={handleSelectWorkspace}
           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"
-          title="Cây thư mục"
+          title="Chọn repository"
         >
-          <span className="material-symbols-outlined text-[20px]">account_tree</span>
+          <span className="material-symbols-outlined text-[20px]">folder_open</span>
         </button>
         <button
           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"

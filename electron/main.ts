@@ -1,8 +1,10 @@
-import { app, BrowserWindow, ipcMain, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, type OpenDialogOptions } from 'electron';
+import { spawn as spawnChild } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawn as spawnPty } from 'node-pty';
 import { runAgentSession, type AgentStartPayload, type PermissionMode } from './agentRuntime.js';
 
 type PublicProvider = {
@@ -18,6 +20,7 @@ type PublicSettings = {
   activeProviderId: string | null;
   activeModelId: string | null;
   permissionMode: PermissionMode;
+  workspacePath: string;
 };
 
 type StoredProvider = {
@@ -34,6 +37,7 @@ type StoredSettings = {
   activeProviderId: string | null;
   activeModelId: string | null;
   permissionMode: PermissionMode;
+  workspacePath: string;
 };
 
 type SaveProviderPayload = {
@@ -48,6 +52,39 @@ type LegacySettingsPayload = {
   activeProviderId?: string | null;
   activeModelId?: string | null;
   permissionMode?: PermissionMode;
+};
+
+type TerminalCreatePayload = {
+  cols?: number;
+  rows?: number;
+  shellId?: string;
+};
+
+type TerminalTargetPayload = {
+  terminalId?: string;
+};
+
+type TerminalWritePayload = TerminalTargetPayload & {
+  data?: string;
+};
+
+type TerminalResizePayload = TerminalTargetPayload & {
+  cols?: number;
+  rows?: number;
+};
+
+type TerminalProcess = {
+  cols: number;
+  rows: number;
+  write: (data: string) => void;
+  resize: (cols: number, rows: number) => void;
+  kill: () => void;
+};
+
+type CommandShell = {
+  id: string;
+  label: string;
+  command: string;
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -68,11 +105,13 @@ const DEFAULT_SETTINGS: StoredSettings = {
   activeProviderId: 'default-openai',
   activeModelId: 'gpt-3.5-turbo',
   permissionMode: 'workspace-write',
+  workspacePath: process.cwd(),
 };
 
 let win: BrowserWindow | null = null;
 let settingsCache: StoredSettings | null = null;
 const activeAgentControllers = new Map<string, AbortController>();
+const activeTerminals = new Map<string, TerminalProcess>();
 
 function createWindow() {
   win = new BrowserWindow({
@@ -105,8 +144,13 @@ function getSettingsPath() {
   return path.join(app.getPath('userData'), 'settings.json');
 }
 
-function resolveWorkspacePath(inputPath: string) {
-  const workspaceRoot = process.cwd();
+async function getWorkspaceRoot() {
+  const settings = await loadStoredSettings();
+  return settings.workspacePath || process.cwd();
+}
+
+async function resolveWorkspacePath(inputPath: string) {
+  const workspaceRoot = await getWorkspaceRoot();
   const resolved = path.resolve(path.join(workspaceRoot, inputPath));
   const relative = path.relative(workspaceRoot, resolved);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
@@ -115,12 +159,190 @@ function resolveWorkspacePath(inputPath: string) {
   return resolved;
 }
 
+function buildTerminalEnv() {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string') {
+      env[key] = value;
+    }
+  }
+
+  env.TERM = 'xterm-256color';
+  env.COLORTERM = 'truecolor';
+  return env;
+}
+
+async function getAvailableCommandShells(): Promise<CommandShell[]> {
+  const candidates = process.platform === 'win32'
+    ? getWindowsShellCandidates()
+    : getUnixShellCandidates();
+  const shells: CommandShell[] = [];
+  const seenCommands = new Set<string>();
+
+  for (const candidate of candidates) {
+    if (seenCommands.has(candidate.command.toLowerCase())) continue;
+    if (!await shellCommandExists(candidate.command)) continue;
+
+    seenCommands.add(candidate.command.toLowerCase());
+    shells.push(candidate);
+  }
+
+  if (shells.length > 0) return shells;
+
+  const fallback = process.platform === 'win32'
+    ? { id: 'cmd', label: 'Command Prompt', command: process.env.ComSpec || 'cmd.exe' }
+    : { id: 'sh', label: 'sh', command: '/bin/sh' };
+  return [fallback];
+}
+
+function getWindowsShellCandidates(): CommandShell[] {
+  const systemRoot = process.env.SystemRoot || 'C:\\Windows';
+  const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+  const comSpec = process.env.ComSpec || path.join(systemRoot, 'System32', 'cmd.exe');
+
+  return [
+    { id: 'powershell', label: 'Windows PowerShell', command: path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') },
+    { id: 'pwsh', label: 'PowerShell 7+', command: path.join(programFiles, 'PowerShell', '7', 'pwsh.exe') },
+    { id: 'pwsh-path', label: 'PowerShell từ PATH', command: 'pwsh.exe' },
+    { id: 'cmd', label: 'Command Prompt', command: comSpec },
+  ];
+}
+
+function getUnixShellCandidates(): CommandShell[] {
+  const defaultShell = process.env.SHELL;
+  const candidates: CommandShell[] = [];
+
+  if (defaultShell) {
+    candidates.push({ id: 'default', label: `${path.basename(defaultShell)} mặc định`, command: defaultShell });
+  }
+
+  candidates.push(
+    { id: 'zsh', label: 'zsh', command: '/bin/zsh' },
+    { id: 'bash', label: 'bash', command: '/bin/bash' },
+    { id: 'sh', label: 'sh', command: '/bin/sh' },
+    { id: 'fish', label: 'fish', command: '/opt/homebrew/bin/fish' },
+    { id: 'fish-usr', label: 'fish', command: '/usr/local/bin/fish' },
+  );
+
+  return candidates;
+}
+
+async function shellCommandExists(command: string) {
+  if (path.isAbsolute(command)) {
+    return fileExists(command);
+  }
+
+  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const entry of pathEntries) {
+    if (await fileExists(path.join(entry, command))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function fileExists(filePath: string) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveCommandShell(shellId: string) {
+  const shells = await getAvailableCommandShells();
+  return shells.find((shell) => shell.id === shellId) ?? shells[0];
+}
+
+function normalizeTerminalDimension(value: unknown, fallback: number, min: number, max: number) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return fallback;
+  return Math.min(Math.max(Math.floor(numericValue), min), max);
+}
+
+function killAllTerminals() {
+  for (const terminal of activeTerminals.values()) {
+    terminal.kill();
+  }
+  activeTerminals.clear();
+}
+
+function createTerminalProcess(
+  shell: string,
+  cwd: string,
+  cols: number,
+  rows: number,
+  onData: (data: string) => void,
+  onExit: (exitCode: number | undefined, signal: number | string | undefined) => void,
+): TerminalProcess {
+  try {
+    const terminal = spawnPty(shell, [], {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      cwd,
+      env: buildTerminalEnv(),
+    });
+
+    terminal.onData(onData);
+    terminal.onExit(({ exitCode, signal }) => onExit(exitCode, signal));
+
+    return {
+      get cols() {
+        return terminal.cols;
+      },
+      get rows() {
+        return terminal.rows;
+      },
+      write: (data) => terminal.write(data),
+      resize: (nextCols, nextRows) => terminal.resize(nextCols, nextRows),
+      kill: () => terminal.kill(),
+    };
+  } catch (error) {
+    const fallbackArgs = process.platform === 'win32' ? [] : ['-i'];
+    const child = spawnChild(shell, fallbackArgs, {
+      cwd,
+      env: buildTerminalEnv(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let currentCols = cols;
+    let currentRows = rows;
+
+    onData(`\r\n[terminal] PTY không khả dụng, đang dùng shell pipe fallback: ${error instanceof Error ? error.message : String(error)}\r\n`);
+    child.stdout.on('data', (data: Buffer) => onData(data.toString('utf8')));
+    child.stderr.on('data', (data: Buffer) => onData(data.toString('utf8')));
+    child.on('exit', (exitCode, signal) => onExit(exitCode ?? undefined, signal ?? undefined));
+
+    return {
+      get cols() {
+        return currentCols;
+      },
+      get rows() {
+        return currentRows;
+      },
+      write: (data) => {
+        child.stdin.write(data);
+      },
+      resize: (nextCols, nextRows) => {
+        currentCols = nextCols;
+        currentRows = nextRows;
+      },
+      kill: () => {
+        child.kill();
+      },
+    };
+  }
+}
+
 function cloneDefaultSettings(): StoredSettings {
   return {
     providers: DEFAULT_SETTINGS.providers.map((provider) => ({ ...provider, models: [...provider.models] })),
     activeProviderId: DEFAULT_SETTINGS.activeProviderId,
     activeModelId: DEFAULT_SETTINGS.activeModelId,
     permissionMode: DEFAULT_SETTINGS.permissionMode,
+    workspacePath: DEFAULT_SETTINGS.workspacePath,
   };
 }
 
@@ -135,6 +357,7 @@ async function loadStoredSettings(): Promise<StoredSettings> {
       activeProviderId: typeof parsed.activeProviderId === 'string' ? parsed.activeProviderId : null,
       activeModelId: typeof parsed.activeModelId === 'string' ? parsed.activeModelId : null,
       permissionMode: normalizePermissionMode(parsed.permissionMode),
+      workspacePath: typeof parsed.workspacePath === 'string' && parsed.workspacePath ? parsed.workspacePath : process.cwd(),
     };
   } catch {
     settingsCache = cloneDefaultSettings();
@@ -178,6 +401,7 @@ function toPublicSettings(settings: StoredSettings): PublicSettings {
     activeProviderId: settings.activeProviderId,
     activeModelId: settings.activeModelId,
     permissionMode: settings.permissionMode,
+    workspacePath: settings.workspacePath,
   };
 }
 
@@ -291,6 +515,29 @@ function registerIpcHandlers() {
     return toPublicSettings(await loadStoredSettings());
   });
 
+  ipcMain.handle('workspace:get-current', async () => {
+    return { path: await getWorkspaceRoot() };
+  });
+
+  ipcMain.handle('workspace:select-directory', async () => {
+    const dialogOptions: OpenDialogOptions = {
+      title: 'Chọn repository / workspace',
+      properties: ['openDirectory'],
+    };
+    const result = win
+      ? await dialog.showOpenDialog(win, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+
+    if (result.canceled || !result.filePaths[0]) {
+      return { path: await getWorkspaceRoot(), canceled: true };
+    }
+
+    const settings = await loadStoredSettings();
+    settings.workspacePath = result.filePaths[0];
+    await saveStoredSettings(settings);
+    return { path: settings.workspacePath, canceled: false };
+  });
+
   ipcMain.handle('settings:import-legacy', async (_event, rawPayload: LegacySettingsPayload) => {
     if (!isObject(rawPayload) || !Array.isArray(rawPayload.providers)) {
       return toPublicSettings(await loadStoredSettings());
@@ -321,6 +568,7 @@ function registerIpcHandlers() {
         ? legacyActiveModelId
         : activeProvider?.models[0] ?? null,
       permissionMode: normalizePermissionMode(rawPayload.permissionMode),
+      workspacePath: process.cwd(),
     };
 
     await saveStoredSettings(settings);
@@ -410,11 +658,74 @@ function registerIpcHandlers() {
 
   ipcMain.handle('workspace:write-file', async (_event, rawPayload: { path?: string; content?: string }) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
-    const targetPath = resolveWorkspacePath(getString(payload.path));
+    const workspaceRoot = await getWorkspaceRoot();
+    const targetPath = await resolveWorkspacePath(getString(payload.path));
     const content = getString(payload.content);
     await fs.mkdir(path.dirname(targetPath), { recursive: true });
     await fs.writeFile(targetPath, content, 'utf8');
-    return { ok: true, path: path.relative(process.cwd(), targetPath) };
+    return { ok: true, path: path.relative(workspaceRoot, targetPath) };
+  });
+
+  ipcMain.handle('terminal:list-shells', async () => {
+    return getAvailableCommandShells();
+  });
+
+  ipcMain.handle('terminal:create', async (event, rawPayload: TerminalCreatePayload) => {
+    const payload = isObject(rawPayload) ? rawPayload : {};
+    const terminalId = randomUUID();
+    const workspaceRoot = await getWorkspaceRoot();
+    const shell = await resolveCommandShell(getString(payload.shellId));
+    const cols = normalizeTerminalDimension(payload.cols, 100, 20, 400);
+    const rows = normalizeTerminalDimension(payload.rows, 30, 5, 120);
+    const terminal = createTerminalProcess(
+      shell.command,
+      workspaceRoot,
+      cols,
+      rows,
+      (data) => {
+        event.sender.send('terminal:data', { terminalId, data });
+      },
+      (exitCode, signal) => {
+        activeTerminals.delete(terminalId);
+        event.sender.send('terminal:exit', { terminalId, exitCode, signal });
+      },
+    );
+
+    activeTerminals.set(terminalId, terminal);
+
+    return {
+      terminalId,
+      shellId: shell.id,
+      shell: shell.command,
+      shellLabel: shell.label,
+      cwd: workspaceRoot,
+    };
+  });
+
+  ipcMain.on('terminal:write', (_event, rawPayload: TerminalWritePayload) => {
+    const payload = isObject(rawPayload) ? rawPayload : {};
+    const terminalId = getString(payload.terminalId);
+    const data = getString(payload.data);
+    activeTerminals.get(terminalId)?.write(data);
+  });
+
+  ipcMain.on('terminal:resize', (_event, rawPayload: TerminalResizePayload) => {
+    const payload = isObject(rawPayload) ? rawPayload : {};
+    const terminalId = getString(payload.terminalId);
+    const terminal = activeTerminals.get(terminalId);
+    if (!terminal) return;
+
+    terminal.resize(
+      normalizeTerminalDimension(payload.cols, terminal.cols, 20, 400),
+      normalizeTerminalDimension(payload.rows, terminal.rows, 5, 120),
+    );
+  });
+
+  ipcMain.on('terminal:kill', (_event, rawPayload: TerminalTargetPayload) => {
+    const payload = isObject(rawPayload) ? rawPayload : {};
+    const terminalId = getString(payload.terminalId);
+    activeTerminals.get(terminalId)?.kill();
+    activeTerminals.delete(terminalId);
   });
 
   ipcMain.on('ai:chat:stop', (_event, rawPayload: { requestId?: string }) => {
@@ -446,7 +757,7 @@ function registerIpcHandlers() {
         apiKey: decryptApiKey(activeProvider),
         model: settings.activeModelId || '',
         permissionMode: settings.permissionMode,
-      }, process.cwd(), controller.signal);
+      }, settings.workspacePath || process.cwd(), controller.signal);
     } catch (error) {
       if (activeAgentControllers.get(requestId)?.signal.aborted) {
         event.sender.send('ai:chat:chunk', { requestId, chunk: '\n\nĐã dừng phản hồi.' });
@@ -464,6 +775,7 @@ function registerIpcHandlers() {
 }
 
 app.on('window-all-closed', () => {
+  killAllTerminals();
   if (process.platform !== 'darwin') {
     app.quit();
     win = null;

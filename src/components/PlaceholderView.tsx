@@ -22,6 +22,11 @@ const VIEW_CONFIGS: Record<Exclude<ViewId, 'tasks' | 'settings'>, ViewConfig> = 
     title: 'Quản lý tệp tin',
     description: 'Duyệt và quản lý các tệp trong không gian làm việc. Điều hướng cấu trúc dự án của bạn một cách dễ dàng.',
   },
+  terminal: {
+    icon: 'terminal',
+    title: 'Trình lệnh',
+    description: 'Chạy PowerShell, Command Prompt, zsh, bash hoặc shell hệ thống khác trong workspace hiện tại.',
+  },
   agents: {
     icon: 'smart_toy',
     title: 'Trợ lý AI',

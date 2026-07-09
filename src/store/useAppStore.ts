@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type ViewId = 'tasks' | 'workspace' | 'knowledge' | 'files' | 'agents' | 'settings';
+export type ViewId = 'tasks' | 'workspace' | 'knowledge' | 'files' | 'terminal' | 'agents' | 'settings';
 export type PermissionMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 
 export interface Attachment {
@@ -19,6 +19,22 @@ export interface Message {
   status?: 'sending' | 'done' | 'error';
   timestamp: Date;
   attachments?: Attachment[];
+}
+
+export interface AgentAction {
+  id: string;
+  requestId: string;
+  toolName: string;
+  args: string;
+  status: 'running' | 'ok' | 'error';
+  output?: string;
+}
+
+export interface AgentThought {
+  id: string;
+  requestId: string;
+  content: string;
+  timestamp: Date;
 }
 
 export interface ChatThread {
@@ -42,6 +58,7 @@ export interface AppSettings {
   activeProviderId: string | null;
   activeModelId: string | null;
   permissionMode: PermissionMode;
+  workspacePath: string;
 }
 
 interface AppState {
@@ -51,6 +68,9 @@ interface AppState {
   threads: ChatThread[];
   activeThreadId: string | null;
   activeRequestId: string | null;
+  agentActions: AgentAction[];
+  agentThoughts: AgentThought[];
+  agentThoughtStartsNewLine: boolean;
   isAgentTyping: boolean;
   activeView: ViewId;
   settings: AppSettings;
@@ -66,6 +86,10 @@ interface AppState {
   clearMessages: () => void;
   replaceUserMessageAndTrim: (id: string, content: string) => Message[];
   setActiveRequestId: (requestId: string | null) => void;
+  upsertAgentAction: (action: AgentAction) => void;
+  clearAgentActions: () => void;
+  appendAgentThoughtChunk: (requestId: string, chunk: string) => void;
+  clearAgentThoughts: () => void;
   setIsAgentTyping: (typing: boolean) => void;
   setActiveView: (view: ViewId) => void;
   setSettings: (settings: Partial<AppSettings>) => void;
@@ -84,6 +108,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   activeProviderId: 'default-openai',
   activeModelId: 'gpt-3.5-turbo',
   permissionMode: 'workspace-write',
+  workspacePath: 'chưa có dự án',
 };
 
 function createBlankThread(title = 'Tác vụ mới'): ChatThread {
@@ -156,6 +181,9 @@ export const useAppStore = create<AppState>()(
         threads: [initialThread],
         activeThreadId: initialThread.id,
         activeRequestId: null,
+        agentActions: [],
+        agentThoughts: [],
+        agentThoughtStartsNewLine: true,
         isAgentTyping: false,
         activeView: 'tasks',
         settings: DEFAULT_SETTINGS,
@@ -171,6 +199,9 @@ export const useAppStore = create<AppState>()(
             messages: [],
             activeTask: thread.title,
             activeRequestId: null,
+            agentActions: [],
+            agentThoughts: [],
+            agentThoughtStartsNewLine: true,
             isAgentTyping: false,
             activeView: 'tasks',
           }));
@@ -187,6 +218,9 @@ export const useAppStore = create<AppState>()(
               messages: thread.messages,
               activeTask: thread.title,
               activeRequestId: null,
+              agentActions: [],
+              agentThoughts: [],
+              agentThoughtStartsNewLine: true,
               isAgentTyping: false,
               activeView: 'tasks',
             };
@@ -204,6 +238,9 @@ export const useAppStore = create<AppState>()(
               activeThreadId: shouldSwitch ? fallbackThread.id : state.activeThreadId,
               messages: shouldSwitch ? fallbackThread.messages : state.messages,
               activeTask: shouldSwitch ? fallbackThread.title : state.activeTask,
+              agentActions: shouldSwitch ? [] : state.agentActions,
+              agentThoughts: shouldSwitch ? [] : state.agentThoughts,
+              agentThoughtStartsNewLine: shouldSwitch ? true : state.agentThoughtStartsNewLine,
             };
           }),
 
@@ -248,6 +285,58 @@ export const useAppStore = create<AppState>()(
         },
 
         setActiveRequestId: (requestId) => set({ activeRequestId: requestId }),
+        upsertAgentAction: (action) => set((state) => ({
+          agentActions: state.agentActions.some((item) => item.id === action.id)
+            ? state.agentActions.map((item) => (item.id === action.id ? { ...item, ...action } : item))
+            : [...state.agentActions, action],
+        })),
+        clearAgentActions: () => set({ agentActions: [] }),
+        appendAgentThoughtChunk: (requestId, chunk) => set((state) => {
+          const normalizedChunk = chunk.replace(/\r\n/g, '\n');
+          if (!normalizedChunk) return {};
+
+          const thoughts = [...state.agentThoughts];
+          const segments = normalizedChunk.split('\n');
+          let startsNewLine = state.agentThoughtStartsNewLine;
+
+          segments.forEach((segment, index) => {
+            const shouldAppend = !startsNewLine
+              && segment
+              && thoughts.length > 0
+              && thoughts[thoughts.length - 1].requestId === requestId;
+
+            if (shouldAppend) {
+              const lastThought = thoughts[thoughts.length - 1];
+              thoughts[thoughts.length - 1] = {
+                ...lastThought,
+                content: `${lastThought.content}${segment}`,
+                timestamp: new Date(),
+              };
+            } else if (segment.trim()) {
+              thoughts.push({
+                id: crypto.randomUUID(),
+                requestId,
+                content: segment,
+                timestamp: new Date(),
+              });
+            }
+
+            if (segment) {
+              startsNewLine = false;
+            }
+            if (index < segments.length - 1) {
+              startsNewLine = true;
+            }
+          });
+
+          return {
+            agentThoughts: thoughts
+              .filter((thought) => thought.content.trim())
+              .slice(-120),
+            agentThoughtStartsNewLine: startsNewLine,
+          };
+        }),
+        clearAgentThoughts: () => set({ agentThoughts: [], agentThoughtStartsNewLine: true }),
         setIsAgentTyping: (typing) => set({ isAgentTyping: typing }),
         setActiveView: (view) => set({ activeView: view }),
         setSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),

@@ -5,6 +5,7 @@ import { ChatArea } from './components/ChatArea';
 import { PromptComposer } from './components/PromptComposer';
 import { PlaceholderView } from './components/PlaceholderView';
 import { SettingsView } from './components/SettingsView';
+import { TerminalView } from './components/TerminalView';
 import { useAppStore, type AppSettings, type ViewId } from './store/useAppStore';
 
 const LEGACY_SETTINGS_KEY = 'architect-app-settings';
@@ -33,12 +34,16 @@ function MainContent({ view }: { view: ViewId }) {
   if (view === 'settings') {
     return <SettingsView />;
   }
+  if (view === 'terminal') {
+    return <TerminalView />;
+  }
   return <PlaceholderView view={view} />;
 }
 
 function App() {
   const activeView = useAppStore((s) => s.activeView);
   const setSettings = useAppStore((s) => s.setSettings);
+  const setProjectPath = useAppStore((s) => s.setProjectPath);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +67,7 @@ function App() {
       .then((settings) => {
         if (!cancelled) {
           setSettings(settings);
+          setProjectPath(settings.workspacePath);
         }
       })
       .catch((error) => {
@@ -71,7 +77,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [setSettings]);
+  }, [setProjectPath, setSettings]);
 
   return (
     <div className="w-screen h-screen flex text-on-surface font-ui-body bg-background overflow-hidden">

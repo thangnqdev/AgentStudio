@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'tasks', label: 'Tác vụ hiện tại', icon: 'bolt' },
   { id: 'knowledge', label: 'Cơ sở tri thức', icon: 'menu_book' },
   { id: 'files', label: 'Quản lý tệp tin', icon: 'description' },
+  { id: 'terminal', label: 'Trình lệnh', icon: 'terminal' },
   { id: 'agents', label: 'Trợ lý AI', icon: 'smart_toy' },
 ];
 
@@ -142,7 +143,7 @@ export function Sidebar() {
           className="w-full flex justify-center items-center gap-2 py-2 mb-4 bg-primary-container text-on-primary rounded font-ui-label-bold text-ui-label-bold hover:opacity-90 transition-opacity"
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
-          Dự án mới
+          Tác vụ mới
         </button>
 
         <div className="border-t border-outline-variant pt-4 space-y-1">

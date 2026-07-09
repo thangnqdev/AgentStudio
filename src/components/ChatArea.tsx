@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
-import { useAppStore, type Message } from '../store/useAppStore';
+import { useAppStore, type AgentAction, type AgentThought, type Message } from '../store/useAppStore';
 
 type AgentContentPart =
   | { type: 'text'; value: string }
   | { type: 'code'; language: string; value: string };
-
-type TextRenderPart =
-  | { type: 'text'; value: string }
-  | { type: 'action'; toolName: string; args: string; status?: 'ok' | 'error'; output: string };
 
 function UserMessage({ msg, onRegenerate }: { msg: Message; onRegenerate: (message: Message, content: string) => void }) {
   const handleEdit = () => {
@@ -133,51 +129,90 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   );
 }
 
-function ActionBlock({ action }: { action: Extract<TextRenderPart, { type: 'action' }> }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const ok = action.status === 'ok';
-  const hasStatus = Boolean(action.status);
+function AgentActivityPanel({ actions, thoughts }: { actions: AgentAction[]; thoughts: AgentThought[] }) {
+  const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
+  const thoughtsBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    thoughtsBottomRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [thoughts]);
+
+  if (actions.length === 0 && thoughts.length === 0) return null;
 
   return (
-    <div className="my-2 rounded-lg border border-outline-variant/50 bg-surface-container-low overflow-hidden">
-      <button
-        onClick={() => setIsOpen((value) => !value)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left text-[12px] text-on-surface-variant hover:bg-surface-container-high"
-      >
-        <span className={`material-symbols-outlined text-[16px] ${hasStatus ? ok ? 'text-[#27642a]' : 'text-error' : 'text-secondary animate-pulse'}`}>
-          {hasStatus ? ok ? 'check_circle' : 'error' : 'settings'}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="font-ui-label-bold text-on-surface">
-            {hasStatus ? ok ? 'Hoàn tất tool' : 'Tool bị chặn hoặc lỗi' : 'Đang chạy tool'}: {action.toolName}
+    <div className="pl-8 border-l border-outline-variant relative py-2">
+      <div className="absolute -left-[17px] top-4 w-8 h-8 rounded-full bg-surface border border-outline-variant flex items-center justify-center text-secondary bg-surface-bright shadow-sm">
+        <span className="material-symbols-outlined text-[18px]">psychology</span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {thoughts.length > 0 && (
+          <div className="rounded-lg border border-outline-variant/50 bg-surface-container-low overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant/50">
+              <span className="material-symbols-outlined text-[16px] text-secondary animate-pulse">psychology</span>
+              <div className="font-ui-label-bold text-[12px] text-on-surface">Luồng suy nghĩ</div>
+              <div className="ml-auto font-code-base text-[11px] text-on-surface-variant">{thoughts.length} dòng</div>
+            </div>
+            <div className="max-h-[180px] overflow-y-auto px-3 py-2 space-y-1">
+              {thoughts.map((thought) => (
+                <div key={thought.id} className="grid grid-cols-[auto_1fr] gap-2 text-[12px] leading-5 text-on-surface-variant">
+                  <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-secondary/70" />
+                  <span className="whitespace-pre-wrap break-words">{thought.content}</span>
+                </div>
+              ))}
+              <div ref={thoughtsBottomRef} />
+            </div>
           </div>
-          {action.args && <div className="font-code-base text-[11px] truncate">{action.args}</div>}
-        </div>
-        <span className="material-symbols-outlined text-[16px]">{isOpen ? 'expand_less' : 'expand_more'}</span>
-      </button>
+        )}
 
-      {isOpen && (
-        <div className="border-t border-outline-variant/50 px-3 py-2">
-          {action.output ? (
-            <pre className="max-h-[260px] overflow-auto whitespace-pre-wrap font-code-base text-[11px] leading-5 text-on-surface-variant">{action.output}</pre>
-          ) : (
-            <div className="text-[12px] text-on-surface-variant/70">Chưa có output.</div>
-          )}
-        </div>
-      )}
+        {actions.map((action) => {
+          const isOpen = Boolean(openIds[action.id]);
+          const ok = action.status === 'ok';
+          const running = action.status === 'running';
+
+          return (
+            <div key={action.id} className="rounded-lg border border-outline-variant/50 bg-surface-container-low overflow-hidden">
+              <button
+                onClick={() => setOpenIds((current) => ({ ...current, [action.id]: !isOpen }))}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left text-[12px] text-on-surface-variant hover:bg-surface-container-high"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${running ? 'text-secondary animate-pulse' : ok ? 'text-[#27642a]' : 'text-error'}`}>
+                  {running ? 'settings' : ok ? 'check_circle' : 'error'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-ui-label-bold text-on-surface">
+                    {running ? 'Đang chạy tool' : ok ? 'Hoàn tất tool' : 'Tool bị chặn hoặc lỗi'}: {action.toolName}
+                  </div>
+                  {action.args && <div className="font-code-base text-[11px] truncate">{action.args}</div>}
+                </div>
+                <span className="material-symbols-outlined text-[16px]">{isOpen ? 'expand_less' : 'expand_more'}</span>
+              </button>
+
+              {isOpen && (
+                <div className="border-t border-outline-variant/50 px-3 py-2">
+                  {action.output ? (
+                    <pre className="max-h-[260px] overflow-auto whitespace-pre-wrap font-code-base text-[11px] leading-5 text-on-surface-variant">{action.output}</pre>
+                  ) : (
+                    <div className="text-[12px] text-on-surface-variant/70">Đang chờ output.</div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function parseTextRenderParts(text: string): TextRenderPart[] {
-  const parts: TextRenderPart[] = [];
+function stripLegacyActionLogs(text: string) {
   const lines = text.split('\n');
   let textBuffer: string[] = [];
+  const visible: string[] = [];
 
   const flushText = () => {
     if (textBuffer.length === 0) return;
     const value = textBuffer.join('\n');
-    if (value) parts.push({ type: 'text', value });
+    if (value) visible.push(value);
     textBuffer = [];
   };
 
@@ -191,59 +226,46 @@ function parseTextRenderParts(text: string): TextRenderPart[] {
 
     flushText();
 
-    let status: 'ok' | 'error' | undefined;
-    const output: string[] = [];
     let cursor = index + 1;
     while (cursor < lines.length) {
       const nextLine = lines[cursor];
       if (/^\[tool:([^\]]+)\]/.test(nextLine)) break;
-      if (nextLine === '[ok]') {
-        status = 'ok';
-      } else if (nextLine === '[blocked/error]') {
-        status = 'error';
-      } else {
-        output.push(nextLine);
-      }
       cursor += 1;
     }
-
-    parts.push({
-      type: 'action',
-      toolName: toolMatch[1],
-      args: toolMatch[2] || '',
-      status,
-      output: output.join('\n').trim(),
-    });
     index = cursor - 1;
   }
 
   flushText();
-  return parts;
+  return visible.join('\n').trim();
 }
 
 function TextBlock({ text }: { text: string }) {
-  const parts = parseTextRenderParts(text);
+  const visibleText = stripLegacyActionLogs(text);
+  if (!visibleText) return null;
 
   return (
     <div className="font-ui-body text-ui-body text-on-surface-variant leading-relaxed text-[15px] whitespace-pre-wrap">
-      {parts.map((part, index) => (
-        part.type === 'action'
-          ? <ActionBlock key={`action-${part.toolName}-${index}`} action={part} />
-          : <span key={`text-${index}`}>{part.value}</span>
-      ))}
+      {visibleText}
     </div>
   );
+}
+
+function stripThinkingBlocks(content: string) {
+  return content
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
 }
 
 function parseAgentContent(content: string): AgentContentPart[] {
   const parts: AgentContentPart[] = [];
   const codeFenceRegex = /```([\w.+-]*)\n([\s\S]*?)```/g;
+  const visibleContent = stripThinkingBlocks(content);
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = codeFenceRegex.exec(content)) !== null) {
+  while ((match = codeFenceRegex.exec(visibleContent)) !== null) {
     if (match.index > lastIndex) {
-      parts.push({ type: 'text', value: content.slice(lastIndex, match.index) });
+      parts.push({ type: 'text', value: visibleContent.slice(lastIndex, match.index) });
     }
 
     parts.push({
@@ -254,11 +276,11 @@ function parseAgentContent(content: string): AgentContentPart[] {
     lastIndex = match.index + match[0].length;
   }
 
-  if (lastIndex < content.length) {
-    parts.push({ type: 'text', value: content.slice(lastIndex) });
+  if (lastIndex < visibleContent.length) {
+    parts.push({ type: 'text', value: visibleContent.slice(lastIndex) });
   }
 
-  return parts.length > 0 ? parts : [{ type: 'text', value: content }];
+  return parts.length > 0 ? parts : [{ type: 'text', value: visibleContent }];
 }
 
 function AgentMessage({ msg }: { msg: Message }) {
@@ -319,12 +341,18 @@ function EmptyState() {
 export function ChatArea() {
   const messages = useAppStore((s) => s.messages);
   const activeTask = useAppStore((s) => s.activeTask);
+  const agentActions = useAppStore((s) => s.agentActions);
+  const agentThoughts = useAppStore((s) => s.agentThoughts);
   const isAgentTyping = useAppStore((s) => s.isAgentTyping);
   const addMessage = useAppStore((s) => s.addMessage);
   const updateMessage = useAppStore((s) => s.updateMessage);
   const appendMessageContent = useAppStore((s) => s.appendMessageContent);
   const setIsAgentTyping = useAppStore((s) => s.setIsAgentTyping);
   const setActiveRequestId = useAppStore((s) => s.setActiveRequestId);
+  const upsertAgentAction = useAppStore((s) => s.upsertAgentAction);
+  const clearAgentActions = useAppStore((s) => s.clearAgentActions);
+  const appendAgentThoughtChunk = useAppStore((s) => s.appendAgentThoughtChunk);
+  const clearAgentThoughts = useAppStore((s) => s.clearAgentThoughts);
   const replaceUserMessageAndTrim = useAppStore((s) => s.replaceUserMessageAndTrim);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -332,9 +360,11 @@ export function ChatArea() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isAgentTyping]);
+  }, [messages, isAgentTyping, agentActions, agentThoughts]);
 
   const startAgentResponse = async (messagesToSend: Message[]) => {
+    clearAgentActions();
+    clearAgentThoughts();
     setIsAgentTyping(true);
     const agentMsgId = addMessage({ sender: 'agent', content: '', type: 'text', status: 'sending' });
 
@@ -350,18 +380,32 @@ export function ChatArea() {
           updateMessage(agentMsgId, { status: 'done' });
           setIsAgentTyping(false);
           setActiveRequestId(null);
+          clearAgentActions();
+          clearAgentThoughts();
         },
         (error) => {
           updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error' });
           setIsAgentTyping(false);
           setActiveRequestId(null);
+          clearAgentActions();
+          clearAgentThoughts();
         },
         setActiveRequestId,
+        (action) => {
+          setIsAgentTyping(false);
+          upsertAgentAction(action);
+        },
+        (thought, requestId) => {
+          setIsAgentTyping(false);
+          appendAgentThoughtChunk(requestId, thought);
+        },
       );
     } catch (error) {
       updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${error instanceof Error ? error.message : error}`, status: 'error' });
       setIsAgentTyping(false);
       setActiveRequestId(null);
+      clearAgentActions();
+      clearAgentThoughts();
     }
   };
 
@@ -428,6 +472,7 @@ export function ChatArea() {
                 <AgentMessage key={msg.id} msg={msg} />
               )
             )}
+            <AgentActivityPanel actions={agentActions} thoughts={agentThoughts} />
             {isAgentTyping && <TypingIndicator />}
           </>
         )}

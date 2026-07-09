@@ -21,6 +21,10 @@ export function PromptComposer() {
   const setSettings = useAppStore((s) => s.setSettings);
   const activeRequestId = useAppStore((s) => s.activeRequestId);
   const setActiveRequestId = useAppStore((s) => s.setActiveRequestId);
+  const upsertAgentAction = useAppStore((s) => s.upsertAgentAction);
+  const clearAgentActions = useAppStore((s) => s.clearAgentActions);
+  const appendAgentThoughtChunk = useAppStore((s) => s.appendAgentThoughtChunk);
+  const clearAgentThoughts = useAppStore((s) => s.clearAgentThoughts);
   const isAgentBusy = useAppStore((s) => s.messages.some((m) => m.sender === 'agent' && m.status === 'sending'));
 
   // Auto-resize textarea as content grows
@@ -149,6 +153,8 @@ export function PromptComposer() {
     
     setInput('');
     setAttachedFiles([]);
+    clearAgentActions();
+    clearAgentThoughts();
     setIsAgentTyping(true);
 
     const agentMsgId = addMessage({ sender: 'agent', content: '', type: 'text', status: 'sending' });
@@ -171,18 +177,32 @@ export function PromptComposer() {
           updateMessage(agentMsgId, { status: 'done' });
           setIsAgentTyping(false);
           setActiveRequestId(null);
+          clearAgentActions();
+          clearAgentThoughts();
         },
         (error) => {
           updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error' });
           setIsAgentTyping(false);
           setActiveRequestId(null);
+          clearAgentActions();
+          clearAgentThoughts();
         },
-        setActiveRequestId
+        setActiveRequestId,
+        (action) => {
+          setIsAgentTyping(false);
+          upsertAgentAction(action);
+        },
+        (thought, requestId) => {
+          setIsAgentTyping(false);
+          appendAgentThoughtChunk(requestId, thought);
+        },
       );
     } catch (e) {
       updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${e instanceof Error ? e.message : e}`, status: 'error' });
       setIsAgentTyping(false);
       setActiveRequestId(null);
+      clearAgentActions();
+      clearAgentThoughts();
     }
   };
 
