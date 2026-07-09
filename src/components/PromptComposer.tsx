@@ -163,6 +163,7 @@ export function PromptComposer() {
     const currentMessages = useAppStore.getState().messages;
     // Remove the empty agent message from the history we send to the API
     const messagesToSend = currentMessages.filter(m => m.id !== agentMsgId);
+    let hasStartedResponse = false;
 
     try {
       const { streamChatCompletion } = await import('../services/ai');
@@ -170,6 +171,11 @@ export function PromptComposer() {
       await streamChatCompletion(
         messagesToSend,
         (chunk) => {
+          if (!hasStartedResponse) {
+            hasStartedResponse = true;
+            clearAgentActions();
+            clearAgentThoughts();
+          }
           setIsAgentTyping(false); // Stop typing indicator once we get first chunk
           appendMessageContent(agentMsgId, chunk);
         },
@@ -189,10 +195,12 @@ export function PromptComposer() {
         },
         setActiveRequestId,
         (action) => {
+          if (hasStartedResponse) return;
           setIsAgentTyping(false);
           upsertAgentAction(action);
         },
         (thought, requestId) => {
+          if (hasStartedResponse) return;
           setIsAgentTyping(false);
           appendAgentThoughtChunk(requestId, thought);
         },

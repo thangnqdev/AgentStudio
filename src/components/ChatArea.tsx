@@ -14,62 +14,53 @@ function UserMessage({ msg, onRegenerate }: { msg: Message; onRegenerate: (messa
   };
 
   return (
-    <div className="bg-surface-container rounded-xl p-6 border border-outline-variant/50 relative group">
-      <div className="absolute -left-3 top-6 w-6 h-6 rounded-full bg-primary-container text-on-primary flex items-center justify-center border-2 border-background z-10">
-        <span className="material-symbols-outlined text-[14px]">person</span>
-      </div>
+    <div className="group flex justify-end">
+      <div className="relative max-w-[72%] rounded-2xl bg-[#171514] px-4 py-3 text-white shadow-sm">
+        <button
+          onClick={handleEdit}
+          className="absolute -left-9 top-2 w-7 h-7 rounded-full flex items-center justify-center text-on-surface-variant opacity-0 group-hover:opacity-100 hover:bg-surface-container-high transition"
+          title="Sửa và regenerate"
+        >
+          <span className="material-symbols-outlined text-[16px]">edit</span>
+        </button>
 
-      <button
-        onClick={handleEdit}
-        className="absolute right-3 top-3 w-7 h-7 rounded flex items-center justify-center text-on-surface-variant opacity-0 group-hover:opacity-100 hover:bg-surface-container-high transition"
-        title="Sửa và regenerate"
-      >
-        <span className="material-symbols-outlined text-[16px]">edit</span>
-      </button>
-      
-      {msg.attachments && msg.attachments.length > 0 && (
-        <div className="flex flex-wrap gap-3 mb-4">
-          {msg.attachments.map(att => (
-            <div key={att.id} className="relative group">
-              {att.type === 'image' ? (
-                <div className="relative rounded-lg overflow-hidden border border-outline-variant/50 w-32 h-32">
-                  <img src={att.data} alt={att.name} className="w-full h-full object-cover" />
-                  <div className="absolute bottom-0 w-full bg-black/60 text-white text-[10px] truncate px-1.5 py-0.5" title={att.name}>
-                    {att.name}
+        {msg.attachments && msg.attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {msg.attachments.map(att => (
+              <div key={att.id}>
+                {att.type === 'image' ? (
+                  <div className="relative rounded-lg overflow-hidden border border-white/10 w-32 h-32">
+                    <img src={att.data} alt={att.name} className="w-full h-full object-cover" />
+                    <div className="absolute bottom-0 w-full bg-black/60 text-white text-[10px] truncate px-1.5 py-0.5" title={att.name}>
+                      {att.name}
+                    </div>
                   </div>
-                </div>
-              ) : att.type === 'video' ? (
-                <div className="relative rounded-lg overflow-hidden border border-outline-variant/50 w-48 h-32 bg-black flex flex-col">
-                  <video src={att.data} controls className="w-full h-full object-contain" />
-                  <div className="absolute top-0 w-full bg-gradient-to-b from-black/60 to-transparent text-white text-[10px] truncate px-1.5 py-1" title={att.name}>
-                    {att.name}
+                ) : att.type === 'video' ? (
+                  <div className="rounded-lg overflow-hidden border border-white/10 w-48 h-32 bg-black">
+                    <video src={att.data} controls className="w-full h-full object-contain" />
                   </div>
-                </div>
-              ) : att.type === 'audio' ? (
-                <div className="relative rounded-lg overflow-hidden border border-outline-variant/50 bg-surface-container-high p-2 flex flex-col gap-1 w-64">
-                  <div className="text-[11px] font-code-base text-on-surface truncate" title={att.name}>
-                    <span className="material-symbols-outlined text-[12px] align-middle mr-1">audio_file</span>
-                    {att.name}
+                ) : att.type === 'audio' ? (
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-2 w-64">
+                    <audio src={att.data} controls className="w-full h-8" />
                   </div>
-                  <audio src={att.data} controls className="w-full h-8" />
-                </div>
-              ) : (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-code-base bg-surface text-on-surface-variant border border-outline-variant/50" title={att.name}>
-                  <span className="material-symbols-outlined text-[16px]">description</span>
-                  <span className="max-w-[120px] truncate">{att.name}</span>
-                </div>
-              )}
-            </div>
-          ))}
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[12px] font-code-base bg-white/10 text-white/80" title={att.name}>
+                    <span className="material-symbols-outlined text-[15px]">description</span>
+                    <span className="max-w-[160px] truncate">{att.name}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="font-ui-body text-[15px] leading-relaxed whitespace-pre-wrap">
+          {msg.content}
         </div>
-      )}
-
-      <p className="font-ui-body text-ui-body text-on-surface leading-relaxed text-[15px] whitespace-pre-wrap pr-7">
-        {msg.content}
-      </p>
-      <span className="text-[11px] text-on-surface-variant/50 mt-2 block">
-        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-      </span>
+        <span className="text-[10px] text-white/40 mt-1.5 block text-right">
+          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
     </div>
   );
 }
@@ -140,22 +131,25 @@ function AgentActivityPanel({ actions, thoughts }: { actions: AgentAction[]; tho
   if (actions.length === 0 && thoughts.length === 0) return null;
 
   return (
-    <div className="pl-8 border-l border-outline-variant relative py-2">
-      <div className="absolute -left-[17px] top-4 w-8 h-8 rounded-full bg-surface border border-outline-variant flex items-center justify-center text-secondary bg-surface-bright shadow-sm">
-        <span className="material-symbols-outlined text-[18px]">psychology</span>
+    <div className="grid grid-cols-[28px_1fr] gap-3 py-1">
+      <div className="relative flex justify-center">
+        <div className="absolute top-7 bottom-0 w-px bg-outline-variant" />
+        <div className="relative z-10 mt-1 w-5 h-5 rounded-full bg-background border border-outline-variant flex items-center justify-center text-secondary">
+          <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+        </div>
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="min-w-0 flex flex-col gap-3">
         {thoughts.length > 0 && (
-          <div className="rounded-lg border border-outline-variant/50 bg-surface-container-low overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant/50">
-              <span className="material-symbols-outlined text-[16px] text-secondary animate-pulse">psychology</span>
-              <div className="font-ui-label-bold text-[12px] text-on-surface">Luồng suy nghĩ</div>
-              <div className="ml-auto font-code-base text-[11px] text-on-surface-variant">{thoughts.length} dòng</div>
+          <div>
+            <div className="flex items-center gap-2 text-[13px] text-on-surface-variant mb-2">
+              <span className="material-symbols-outlined text-[15px] text-secondary animate-spin">progress_activity</span>
+              <span className="font-ui-label-bold">Đang cân nhắc</span>
+              <span className="ml-auto font-code-base text-[11px] text-on-surface-variant/60">{thoughts.length} dòng</span>
             </div>
-            <div className="max-h-[180px] overflow-y-auto px-3 py-2 space-y-1">
+            <div className="max-h-[180px] overflow-y-auto border border-outline-variant/60 rounded-lg bg-surface-container-low/70 px-3 py-2 space-y-1">
               {thoughts.map((thought) => (
-                <div key={thought.id} className="grid grid-cols-[auto_1fr] gap-2 text-[12px] leading-5 text-on-surface-variant">
-                  <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-secondary/70" />
+                <div key={thought.id} className="grid grid-cols-[18px_1fr] gap-2 text-[13px] leading-5 text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[13px] text-on-surface-variant/55 mt-[3px]">schedule</span>
                   <span className="whitespace-pre-wrap break-words">{thought.content}</span>
                 </div>
               ))}
@@ -170,25 +164,27 @@ function AgentActivityPanel({ actions, thoughts }: { actions: AgentAction[]; tho
           const running = action.status === 'running';
 
           return (
-            <div key={action.id} className="rounded-lg border border-outline-variant/50 bg-surface-container-low overflow-hidden">
+            <div key={action.id} className="group/action">
               <button
                 onClick={() => setOpenIds((current) => ({ ...current, [action.id]: !isOpen }))}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left text-[12px] text-on-surface-variant hover:bg-surface-container-high"
+                className="w-full grid grid-cols-[22px_1fr_auto] items-start gap-2 text-left text-[13px] text-on-surface-variant"
               >
-                <span className={`material-symbols-outlined text-[16px] ${running ? 'text-secondary animate-pulse' : ok ? 'text-[#27642a]' : 'text-error'}`}>
+                <span className={`material-symbols-outlined text-[17px] mt-0.5 ${running ? 'text-secondary animate-spin' : ok ? 'text-[#27642a]' : 'text-error'}`}>
                   {running ? 'settings' : ok ? 'check_circle' : 'error'}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="font-ui-label-bold text-on-surface">
+                  <div className="font-ui-label-bold text-on-surface/85">
                     {running ? 'Đang chạy tool' : ok ? 'Hoàn tất tool' : 'Tool bị chặn hoặc lỗi'}: {action.toolName}
                   </div>
-                  {action.args && <div className="font-code-base text-[11px] truncate">{action.args}</div>}
+                  {action.args && <div className="font-code-base text-[11px] truncate text-on-surface-variant/75 mt-0.5">{action.args}</div>}
                 </div>
-                <span className="material-symbols-outlined text-[16px]">{isOpen ? 'expand_less' : 'expand_more'}</span>
+                <span className="material-symbols-outlined text-[16px] text-on-surface-variant/70 opacity-70 group-hover/action:opacity-100">
+                  {isOpen ? 'expand_less' : 'expand_more'}
+                </span>
               </button>
 
               {isOpen && (
-                <div className="border-t border-outline-variant/50 px-3 py-2">
+                <div className="ml-8 mt-2 rounded-lg border border-outline-variant/60 bg-surface-container-low/70 px-3 py-2">
                   {action.output ? (
                     <pre className="max-h-[260px] overflow-auto whitespace-pre-wrap font-code-base text-[11px] leading-5 text-on-surface-variant">{action.output}</pre>
                   ) : (
@@ -289,11 +285,14 @@ function AgentMessage({ msg }: { msg: Message }) {
   const parts = parseAgentContent(msg.content);
 
   return (
-    <div className="pl-8 border-l border-outline-variant relative py-2">
-      <div className="absolute -left-[17px] top-4 w-8 h-8 rounded-full bg-surface border border-outline-variant flex items-center justify-center text-secondary bg-surface-bright shadow-sm">
-        <span className="material-symbols-outlined text-[18px]">smart_toy</span>
+    <div className="grid grid-cols-[28px_1fr] gap-3 py-1">
+      <div className="relative flex justify-center">
+        <div className="absolute top-7 bottom-0 w-px bg-outline-variant" />
+        <div className="relative z-10 mt-1 w-5 h-5 rounded-full bg-background border border-outline-variant flex items-center justify-center text-secondary">
+          <span className="material-symbols-outlined text-[14px]">smart_toy</span>
+        </div>
       </div>
-      <div className="max-w-none">
+      <div className="min-w-0 max-w-none pt-0.5">
         {parts.map((part, index) => (
           part.type === 'code'
             ? <CodeBlock key={`code-${index}`} language={part.language} code={part.value} />
@@ -309,15 +308,14 @@ function AgentMessage({ msg }: { msg: Message }) {
 
 function TypingIndicator() {
   return (
-    <div className="pl-8 border-l border-outline-variant relative py-2">
-      <div className="absolute -left-[17px] top-4 w-8 h-8 rounded-full bg-surface border border-outline-variant flex items-center justify-center text-secondary bg-surface-bright shadow-sm">
-        <span className="material-symbols-outlined text-[18px]">smart_toy</span>
-      </div>
-      <div className="flex items-center gap-3 text-secondary font-medium py-2">
-        <div className="relative flex h-4 w-4 items-center justify-center">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-20"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
+    <div className="grid grid-cols-[28px_1fr] gap-3 py-1">
+      <div className="relative flex justify-center">
+        <div className="absolute top-7 bottom-0 w-px bg-outline-variant" />
+        <div className="relative z-10 mt-1 w-5 h-5 rounded-full bg-background border border-outline-variant flex items-center justify-center text-secondary">
+          <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
         </div>
+      </div>
+      <div className="flex items-center gap-2 text-secondary font-medium pt-1.5">
         <span className="font-ui-body text-[14px] text-on-surface-variant">AI đang suy nghĩ...</span>
       </div>
     </div>
@@ -367,12 +365,18 @@ export function ChatArea() {
     clearAgentThoughts();
     setIsAgentTyping(true);
     const agentMsgId = addMessage({ sender: 'agent', content: '', type: 'text', status: 'sending' });
+    let hasStartedResponse = false;
 
     try {
       const { streamChatCompletion } = await import('../services/ai');
       await streamChatCompletion(
         messagesToSend,
         (chunk) => {
+          if (!hasStartedResponse) {
+            hasStartedResponse = true;
+            clearAgentActions();
+            clearAgentThoughts();
+          }
           setIsAgentTyping(false);
           appendMessageContent(agentMsgId, chunk);
         },
@@ -392,10 +396,12 @@ export function ChatArea() {
         },
         setActiveRequestId,
         (action) => {
+          if (hasStartedResponse) return;
           setIsAgentTyping(false);
           upsertAgentAction(action);
         },
         (thought, requestId) => {
+          if (hasStartedResponse) return;
           setIsAgentTyping(false);
           appendAgentThoughtChunk(requestId, thought);
         },
@@ -445,7 +451,7 @@ export function ChatArea() {
         </div>
       )}
 
-      <div className="max-w-[900px] mx-auto w-full px-6 pt-8 flex flex-col gap-8">
+      <div className="max-w-[900px] mx-auto w-full px-6 pt-8 flex flex-col gap-5">
         {activeTask && (
           <div className="border-b border-outline-variant pb-6 mb-2">
             <div className="flex items-center gap-2 text-secondary mb-2">

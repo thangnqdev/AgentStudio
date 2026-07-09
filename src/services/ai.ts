@@ -20,8 +20,8 @@ export function streamChatCompletion(
     const requestId = crypto.randomUUID();
     onRequestId?.(requestId);
     const cleanupCallbacks: Array<() => void> = [];
-    const textEmitter = createReadableTextEmitter(onChunk);
-    const thinkingFilter = createThinkingFilter((thought) => onThought?.(thought, requestId));
+    const thoughtEmitter = createBufferedTextEmitter((thought) => onThought?.(thought, requestId), 120);
+    const thinkingFilter = createThinkingFilter((thought) => thoughtEmitter.push(thought));
     let settled = false;
 
     const cleanup = () => {
@@ -35,7 +35,7 @@ export function streamChatCompletion(
         if (payload.requestId === requestId && payload.chunk) {
           const visibleChunk = thinkingFilter.push(payload.chunk);
           if (visibleChunk) {
-            textEmitter.push(visibleChunk);
+            onChunk(visibleChunk);
           }
         }
       }),
@@ -56,7 +56,7 @@ export function streamChatCompletion(
         settled = true;
         cleanup();
         thinkingFilter.flush();
-        textEmitter.clear();
+        thoughtEmitter.clear();
         onError?.(payload.error || 'Unknown error occurred');
         resolve();
       }),
@@ -68,9 +68,9 @@ export function streamChatCompletion(
       cleanup();
       const visibleTail = thinkingFilter.flush();
       if (visibleTail) {
-        textEmitter.push(visibleTail);
+        onChunk(visibleTail);
       }
-      await textEmitter.drain();
+      thoughtEmitter.flushNow();
       onFinish?.();
       resolve();
     }
@@ -150,66 +150,37 @@ function emitThought(onThought: (thought: string) => void, thought: string) {
   }
 }
 
-function createReadableTextEmitter(onChunk: (chunk: string) => void) {
-  const tickMs = 40;
-  const charsPerSecond = 70;
-  const baseCharsPerTick = Math.max(1, Math.round(charsPerSecond * tickMs / 1000));
+function createBufferedTextEmitter(onChunk: (chunk: string) => void, delayMs: number) {
   let queue = '';
   let timer: number | null = null;
-  let drainResolvers: Array<() => void> = [];
 
-  const resolveDrain = () => {
-    if (queue || timer !== null) return;
-    for (const resolver of drainResolvers) {
-      resolver();
-    }
-    drainResolvers = [];
-  };
-
-  const pump = () => {
-    if (!queue) {
+  const flushNow = () => {
+    if (timer !== null) {
+      window.clearTimeout(timer);
       timer = null;
-      resolveDrain();
-      return;
     }
+    if (!queue) return;
 
-    const boost = queue.length > 4000 ? 5 : queue.length > 1800 ? 3 : queue.length > 700 ? 2 : 1;
-    const nextSize = Math.min(queue.length, baseCharsPerTick * boost);
-    const nextChunk = queue.slice(0, nextSize);
-    queue = queue.slice(nextSize);
-    onChunk(nextChunk);
-
-    timer = window.setTimeout(pump, tickMs);
-  };
-
-  const schedule = () => {
-    if (timer === null) {
-      timer = window.setTimeout(pump, tickMs);
-    }
+    const chunk = queue;
+    queue = '';
+    onChunk(chunk);
   };
 
   return {
     push(chunk: string) {
       if (!chunk) return;
       queue += chunk;
-      schedule();
-    },
-    drain() {
-      if (!queue && timer === null) {
-        return Promise.resolve();
+      if (timer === null) {
+        timer = window.setTimeout(flushNow, delayMs);
       }
-
-      return new Promise<void>((resolve) => {
-        drainResolvers.push(resolve);
-      });
     },
+    flushNow,
     clear() {
-      queue = '';
       if (timer !== null) {
         window.clearTimeout(timer);
         timer = null;
       }
-      resolveDrain();
+      queue = '';
     },
   };
 }

@@ -59,6 +59,10 @@ type StreamingToolCall = {
   };
 };
 
+type AssistantResponse = ChatMessage & {
+  finishReason?: string;
+};
+
 type ToolResult = {
   ok: boolean;
   output: string;
@@ -75,6 +79,7 @@ type AgentActionPayload = {
 const MAX_AGENT_STEPS = 8;
 const MAX_FILE_BYTES = 200_000;
 const MAX_COMMAND_OUTPUT = 40_000;
+const MAX_RESPONSE_TOKENS = 8_192;
 
 const TOOL_DEFINITIONS = [
   {
@@ -182,6 +187,11 @@ export async function runAgentSession(
     });
 
     if (toolCalls.length === 0) {
+      if (assistantMessage.finishReason === 'length') {
+        emitChunk(sender, requestId, '\n\n[Phản hồi bị cắt vì chạm giới hạn output token. Hãy gửi "tiếp tục" nếu muốn AI viết tiếp phần còn lại.]');
+      } else if (assistantMessage.finishReason === 'stream_closed') {
+        emitChunk(sender, requestId, '\n\n[Stream từ server đóng trước khi gửi tín hiệu kết thúc. Nội dung phía trên có thể chưa hoàn chỉnh.]');
+      }
       sender.send('ai:chat:done', { requestId });
       return;
     }
@@ -271,7 +281,7 @@ async function requestAssistantMessage(
   sender: WebContents,
   requestId: string,
   signal?: AbortSignal,
-) {
+): Promise<AssistantResponse> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -290,6 +300,7 @@ async function requestAssistantMessage(
       tools: TOOL_DEFINITIONS,
       tool_choice: 'auto',
       stream: true,
+      max_tokens: MAX_RESPONSE_TOKENS,
     }),
   });
 
@@ -307,6 +318,7 @@ async function requestAssistantMessage(
   const toolCalls = new Map<number, StreamingToolCall>();
   let content = '';
   let buffer = '';
+  let finishReason = '';
 
   while (true) {
     if (signal?.aborted) throw new Error('Agent session stopped.');
@@ -326,12 +338,14 @@ async function requestAssistantMessage(
           role: 'assistant' as const,
           content,
           tool_calls: normalizeStreamingToolCalls(toolCalls),
+          finishReason,
         };
       }
 
       const chunk = parseSseJson(trimmed.slice(6));
       if (!chunk) continue;
 
+      finishReason = readChoiceFinishReason(chunk) || finishReason;
       const delta = readChoiceDelta(chunk);
       if (!delta) continue;
 
@@ -352,6 +366,7 @@ async function requestAssistantMessage(
     role: 'assistant' as const,
     content,
     tool_calls: normalizeStreamingToolCalls(toolCalls),
+    finishReason: finishReason || 'stream_closed',
   };
 }
 
@@ -368,6 +383,13 @@ function readChoiceDelta(chunk: unknown): Record<string, unknown> | null {
   const choice = chunk.choices[0];
   if (!isObject(choice) || !isObject(choice.delta)) return null;
   return choice.delta;
+}
+
+function readChoiceFinishReason(chunk: unknown): string {
+  if (!isObject(chunk) || !Array.isArray(chunk.choices)) return '';
+  const choice = chunk.choices[0];
+  if (!isObject(choice)) return '';
+  return typeof choice.finish_reason === 'string' ? choice.finish_reason : '';
 }
 
 function mergeToolCallDeltas(toolCalls: Map<number, StreamingToolCall>, deltas: unknown[]) {

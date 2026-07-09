@@ -1,14 +1,14 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopAppBar } from './components/TopAppBar';
 import { ChatArea } from './components/ChatArea';
 import { PromptComposer } from './components/PromptComposer';
 import { PlaceholderView } from './components/PlaceholderView';
 import { SettingsView } from './components/SettingsView';
-import { TerminalView } from './components/TerminalView';
 import { useAppStore, type AppSettings, type ViewId } from './store/useAppStore';
 
 const LEGACY_SETTINGS_KEY = 'architect-app-settings';
+const TerminalView = lazy(() => import('./components/TerminalView').then((module) => ({ default: module.TerminalView })));
 
 function readLegacySettings(): AppSettings | null {
   const rawSettings = localStorage.getItem(LEGACY_SETTINGS_KEY);
@@ -35,7 +35,11 @@ function MainContent({ view }: { view: ViewId }) {
     return <SettingsView />;
   }
   if (view === 'terminal') {
-    return <TerminalView />;
+    return (
+      <Suspense fallback={<div className="flex-1 bg-[#141312]" />}>
+        <TerminalView />
+      </Suspense>
+    );
   }
   return <PlaceholderView view={view} />;
 }

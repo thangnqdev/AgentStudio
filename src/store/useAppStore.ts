@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 
 export type ViewId = 'tasks' | 'workspace' | 'knowledge' | 'files' | 'terminal' | 'agents' | 'settings';
 export type PermissionMode = 'read-only' | 'workspace-write' | 'danger-full-access';
@@ -111,6 +111,56 @@ const DEFAULT_SETTINGS: AppSettings = {
   workspacePath: 'chưa có dự án',
 };
 
+const CHAT_HISTORY_STORAGE_KEY = 'architect-chat-history';
+const PERSIST_WRITE_DELAY_MS = 750;
+const MAX_PERSISTED_THREADS = 80;
+const MAX_PERSISTED_MESSAGES_PER_THREAD = 120;
+const MAX_PERSISTED_ATTACHMENT_BYTES = 120_000;
+
+function createDebouncedLocalStorage(delayMs: number): StateStorage {
+  const pendingValues = new Map<string, string>();
+  const timers = new Map<string, number>();
+
+  const flush = (name: string) => {
+    const value = pendingValues.get(name);
+    if (value === undefined) return;
+
+    window.localStorage.setItem(name, value);
+    pendingValues.delete(name);
+    timers.delete(name);
+  };
+
+  window.addEventListener('beforeunload', () => {
+    for (const name of pendingValues.keys()) {
+      flush(name);
+    }
+  });
+
+  return {
+    getItem: (name) => {
+      flush(name);
+      return window.localStorage.getItem(name);
+    },
+    setItem: (name, value) => {
+      pendingValues.set(name, value);
+      const existingTimer = timers.get(name);
+      if (existingTimer !== undefined) {
+        window.clearTimeout(existingTimer);
+      }
+      timers.set(name, window.setTimeout(() => flush(name), delayMs));
+    },
+    removeItem: (name) => {
+      const existingTimer = timers.get(name);
+      if (existingTimer !== undefined) {
+        window.clearTimeout(existingTimer);
+      }
+      pendingValues.delete(name);
+      timers.delete(name);
+      window.localStorage.removeItem(name);
+    },
+  };
+}
+
 function createBlankThread(title = 'Tác vụ mới'): ChatThread {
   const now = new Date();
   return {
@@ -119,6 +169,32 @@ function createBlankThread(title = 'Tác vụ mới'): ChatThread {
     messages: [],
     createdAt: now,
     updatedAt: now,
+  };
+}
+
+function compactAttachmentForStorage(attachment: Attachment): Attachment | null {
+  if (attachment.type !== 'text') return null;
+  if (attachment.data.length > MAX_PERSISTED_ATTACHMENT_BYTES) return null;
+  return attachment;
+}
+
+function compactMessageForStorage(message: Message): Message {
+  const attachments = message.attachments
+    ?.map(compactAttachmentForStorage)
+    .filter((attachment): attachment is Attachment => Boolean(attachment));
+
+  return {
+    ...message,
+    attachments: attachments && attachments.length > 0 ? attachments : undefined,
+  };
+}
+
+function compactThreadForStorage(thread: ChatThread): ChatThread {
+  return {
+    ...thread,
+    messages: thread.messages
+      .slice(-MAX_PERSISTED_MESSAGES_PER_THREAD)
+      .map(compactMessageForStorage),
   };
 }
 
@@ -343,9 +419,10 @@ export const useAppStore = create<AppState>()(
       };
     },
     {
-      name: 'architect-chat-history',
+      name: CHAT_HISTORY_STORAGE_KEY,
+      storage: createJSONStorage(() => createDebouncedLocalStorage(PERSIST_WRITE_DELAY_MS)),
       partialize: (state) => ({
-        threads: state.threads,
+        threads: state.threads.slice(0, MAX_PERSISTED_THREADS).map(compactThreadForStorage),
         activeThreadId: state.activeThreadId,
       }),
       merge: (persisted, current) => {
