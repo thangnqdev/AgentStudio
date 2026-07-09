@@ -9,23 +9,23 @@ interface ViewConfig {
 const VIEW_CONFIGS: Record<Exclude<ViewId, 'tasks' | 'settings'>, ViewConfig> = {
   workspace: {
     icon: 'folder_open',
-    title: 'Workspace',
-    description: 'Open a project folder to browse your codebase, manage files, and configure agent context.',
+    title: 'Không gian làm việc',
+    description: 'Mở một thư mục dự án để duyệt mã nguồn, quản lý tệp và cấu hình ngữ cảnh cho AI.',
   },
   knowledge: {
     icon: 'menu_book',
-    title: 'Knowledge Base',
-    description: 'Store documents, notes, and references that the agent can use as context when working on tasks.',
+    title: 'Cơ sở tri thức',
+    description: 'Lưu trữ tài liệu, ghi chú và tài liệu tham khảo để trợ lý AI sử dụng làm ngữ cảnh khi làm việc.',
   },
   files: {
     icon: 'description',
-    title: 'File Explorer',
-    description: 'Browse and manage files within your active workspace. Navigate your project structure with ease.',
+    title: 'Quản lý tệp tin',
+    description: 'Duyệt và quản lý các tệp trong không gian làm việc. Điều hướng cấu trúc dự án của bạn một cách dễ dàng.',
   },
   agents: {
     icon: 'smart_toy',
-    title: 'Agents',
-    description: 'Configure specialized agents, manage active sessions, and monitor agent activity across tasks.',
+    title: 'Trợ lý AI',
+    description: 'Cấu hình các trợ lý AI chuyên biệt, quản lý phiên làm việc và theo dõi hoạt động trên các tác vụ.',
   },
 };
 
@@ -53,7 +53,7 @@ export function PlaceholderView({ view }: { view: Exclude<ViewId, 'tasks' | 'set
       <div className="flex items-center gap-2 mt-2">
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-outline-variant bg-surface text-on-surface-variant font-ui-body text-ui-body cursor-not-allowed opacity-60">
           <span className="material-symbols-outlined text-[16px]">construction</span>
-          Coming soon
+          Sắp ra mắt
         </div>
       </div>
     </div>

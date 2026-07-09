@@ -9,9 +9,9 @@ export function TopAppBar() {
       style={{ WebkitAppRegion: 'drag' } as any}
     >
       {/* Left: Branch/Project Context */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
         <span className="font-ui-label-bold text-ui-label-bold text-primary">
-          {projectPath ?? 'no project'}
+          {projectPath ?? 'chưa có dự án'}
         </span>
         <span className="text-outline-variant">/</span>
         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface border border-outline-variant text-on-surface-variant font-code-base text-code-base">
@@ -24,19 +24,19 @@ export function TopAppBar() {
       <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
         <button
           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"
-          title="Project tree"
+          title="Cây thư mục"
         >
           <span className="material-symbols-outlined text-[20px]">account_tree</span>
         </button>
         <button
           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"
-          title="History"
+          title="Lịch sử"
         >
           <span className="material-symbols-outlined text-[20px]">history</span>
         </button>
         <button
           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"
-          title="More options"
+          title="Tùy chọn khác"
         >
           <span className="material-symbols-outlined text-[20px]">more_vert</span>
         </button>

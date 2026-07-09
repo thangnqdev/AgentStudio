@@ -38,7 +38,7 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       projectPath: 'agent-desktop',
-      activeTask: 'Build authentication flow',
+      activeTask: 'Xây dựng luồng xác thực',
       messages: [],
       isAgentTyping: false,
       activeView: 'tasks',

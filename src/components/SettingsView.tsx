@@ -12,23 +12,23 @@ export function SettingsView() {
         <div className="border-b border-outline-variant pb-6">
           <div className="flex items-center gap-2 text-secondary mb-2">
             <span className="material-symbols-outlined text-[18px]">settings</span>
-            <span className="font-ui-label-caps text-ui-label-caps uppercase tracking-wider">Configuration</span>
+            <span className="font-ui-label-caps text-ui-label-caps uppercase tracking-wider">Cấu hình</span>
           </div>
-          <h2 className="font-display-serif text-[32px] leading-tight text-primary">Settings</h2>
+          <h2 className="font-display-serif text-[32px] leading-tight text-primary">Cài đặt</h2>
           <p className="font-ui-body text-ui-body text-on-surface-variant mt-2">
-            Configure your AI provider settings. These values are stored locally on your machine.
+            Cấu hình nhà cung cấp AI của bạn. Các giá trị này được lưu trữ cục bộ trên máy của bạn.
           </p>
         </div>
 
         {/* AI Provider Settings */}
         <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
-          <h3 className="font-ui-label-bold text-[16px] text-primary mb-6">AI Model Configuration</h3>
+          <h3 className="font-ui-label-bold text-[16px] text-primary mb-6">Cấu hình mô hình AI</h3>
           
           <div className="space-y-6">
             {/* Base URL */}
             <div className="space-y-2">
               <label htmlFor="baseUrl" className="block font-ui-label-bold text-ui-label-bold text-on-surface">
-                Base URL <span className="text-error">*</span>
+                Đường dẫn (Base URL) <span className="text-error">*</span>
               </label>
               <input
                 id="baseUrl"
@@ -40,14 +40,14 @@ export function SettingsView() {
                 onChange={(e) => setSettings({ baseUrl: e.target.value })}
               />
               <p className="text-[12px] text-on-surface-variant">
-                The endpoint URL for the AI provider's API.
+                Đường dẫn gốc (Endpoint URL) tới API của nhà cung cấp AI.
               </p>
             </div>
 
             {/* API Key */}
             <div className="space-y-2">
               <label htmlFor="apiKey" className="block font-ui-label-bold text-ui-label-bold text-on-surface">
-                API Key <span className="text-on-surface-variant/50 font-normal">(Optional)</span>
+                Khóa API (API Key) <span className="text-on-surface-variant/50 font-normal">(Không bắt buộc)</span>
               </label>
               <input
                 id="apiKey"
@@ -58,7 +58,7 @@ export function SettingsView() {
                 onChange={(e) => setSettings({ apiKey: e.target.value })}
               />
               <p className="text-[12px] text-on-surface-variant">
-                Your secret API key. If your endpoint doesn't require authentication, leave this blank.
+                Khóa API bí mật của bạn. Nếu hệ thống không yêu cầu xác thực, hãy để trống.
               </p>
             </div>
           </div>

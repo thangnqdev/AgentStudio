@@ -29,7 +29,7 @@ export function PromptComposer() {
       setIsAgentTyping(false);
       addMessage({
         sender: 'agent',
-        content: `Received your request: "${trimmed}"\n\nAI backend integration coming soon. This is a placeholder response.`,
+        content: `Đã nhận yêu cầu: "${trimmed}"\n\nHệ thống AI đang được tích hợp. Đây chỉ là tin nhắn giữ chỗ.`,
         type: 'text',
       });
     }, 1800);
@@ -67,7 +67,7 @@ export function PromptComposer() {
             ref={textareaRef}
             id="prompt-input"
             className="w-full bg-transparent border-none focus:ring-0 resize-none font-ui-body text-[15px] text-on-surface placeholder:text-on-surface-variant/50 py-2 px-2 max-h-32 outline-none"
-            placeholder="Ask the agent to build, explain, or refactor..."
+            placeholder="Yêu cầu AI xây dựng, giải thích hoặc refactor..."
             rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -77,7 +77,7 @@ export function PromptComposer() {
           <div className="flex items-center gap-1 pb-1 pr-1">
             <button
               className="p-2 text-on-surface-variant hover:text-primary transition-colors rounded-lg hover:bg-surface-container"
-              title="Attach file"
+              title="Đính kèm tệp"
             >
               <span className="material-symbols-outlined text-[20px]">attach_file</span>
             </button>
@@ -91,7 +91,7 @@ export function PromptComposer() {
                   ? 'bg-secondary text-white hover:bg-[#7D2C11] cursor-pointer'
                   : 'bg-surface-container text-on-surface-variant/40 cursor-not-allowed'
                 }`}
-              title={canSubmit ? 'Send message (Enter)' : 'Type a message first'}
+              title={canSubmit ? 'Gửi tin nhắn (Enter)' : 'Nhập tin nhắn trước'}
             >
               <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
             </button>
@@ -100,7 +100,7 @@ export function PromptComposer() {
 
         {/* Hint */}
         <p className="text-[10px] text-on-surface-variant/40 px-2 pb-1 font-ui-body">
-          Enter to send · Shift+Enter for new line
+          Enter để gửi · Shift+Enter để xuống dòng
         </p>
       </div>
     </div>

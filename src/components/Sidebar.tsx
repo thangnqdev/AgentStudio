@@ -7,11 +7,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'workspace', label: 'Workspace',     icon: 'folder_open' },
-  { id: 'tasks',     label: 'Active Tasks',  icon: 'bolt' },
-  { id: 'knowledge', label: 'Knowledge Base', icon: 'menu_book' },
-  { id: 'files',     label: 'File Explorer', icon: 'description' },
-  { id: 'agents',    label: 'Agents',        icon: 'smart_toy' },
+  { id: 'workspace', label: 'Không gian làm việc',     icon: 'folder_open' },
+  { id: 'tasks',     label: 'Tác vụ hiện tại',  icon: 'bolt' },
+  { id: 'knowledge', label: 'Cơ sở tri thức', icon: 'menu_book' },
+  { id: 'files',     label: 'Quản lý tệp tin', icon: 'description' },
+  { id: 'agents',    label: 'Trợ lý AI',        icon: 'smart_toy' },
 ];
 
 export function Sidebar() {
@@ -45,13 +45,13 @@ export function Sidebar() {
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-highest transition-colors font-ui-body text-ui-body"
         >
           <span className="material-symbols-outlined text-[18px]">search</span>
-          <span>Search or jump to...</span>
+          <span>Tìm kiếm hoặc đi đến...</span>
           <span className="ml-auto font-code-base text-xs border border-outline-variant rounded px-1 text-on-surface-variant/70">⌘K</span>
         </button>
       </div>
 
       <div className="mb-2 px-2 font-ui-label-caps text-ui-label-caps text-on-surface-variant uppercase tracking-wider">
-        Primary Navigation
+        Điều hướng chính
       </div>
 
       {/* Nav Items */}
@@ -89,7 +89,7 @@ export function Sidebar() {
           className="w-full flex justify-center items-center gap-2 py-2 mb-4 bg-primary-container text-on-primary rounded font-ui-label-bold text-ui-label-bold hover:opacity-90 transition-opacity"
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
-          New Project
+          Dự án mới
         </button>
 
         <div className="border-t border-outline-variant pt-4 space-y-1">
@@ -103,11 +103,11 @@ export function Sidebar() {
             >
               settings
             </span>
-            Settings
+            Cài đặt
           </button>
           <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors font-ui-body text-ui-body">
             <span className="material-symbols-outlined text-[18px]">help_outline</span>
-            Support
+            Hỗ trợ
           </button>
         </div>
       </div>

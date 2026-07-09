@@ -48,7 +48,7 @@ function TypingIndicator() {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-20"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
         </div>
-        <span className="font-ui-body text-[14px] text-on-surface-variant">Agent is thinking...</span>
+        <span className="font-ui-body text-[14px] text-on-surface-variant">AI đang suy nghĩ...</span>
       </div>
     </div>
   );
@@ -60,9 +60,9 @@ function EmptyState() {
       <div className="w-16 h-16 rounded-full bg-primary-container flex items-center justify-center mb-2">
         <span className="material-symbols-outlined text-[32px] text-on-primary-container">smart_toy</span>
       </div>
-      <h3 className="font-display-serif text-summary-title text-primary">Ready to build</h3>
+      <h3 className="font-display-serif text-summary-title text-primary">Sẵn sàng làm việc</h3>
       <p className="font-ui-body text-ui-body text-on-surface-variant max-w-sm">
-        Describe what you want to build, explain, or refactor. The agent will get to work.
+        Hãy mô tả những gì bạn muốn xây dựng, giải thích hoặc refactor. Trợ lý AI sẽ bắt đầu làm việc.
       </p>
     </div>
   );
@@ -96,7 +96,7 @@ export function ChatArea() {
               >
                 bolt
               </span>
-              <span className="font-ui-label-caps text-ui-label-caps uppercase tracking-wider">Active Task</span>
+              <span className="font-ui-label-caps text-ui-label-caps uppercase tracking-wider">Tác vụ hiện tại</span>
             </div>
             <h2 className="font-display-serif text-[32px] leading-tight text-primary">{activeTask}</h2>
           </div>
