@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+@theme {
+  --color-error: #ba1a1a;
+  --color-surface-dim: #ddd9d8;
+  --color-inverse-surface: #313030;
+  --color-surface-container-low: #f7f3f1;
+  --color-surface: #fdf8f7;
+  --color-on-primary-fixed: #1d1b18;
+  --color-on-error-container: #93000a;
+  --color-inverse-on-surface: #f4f0ef;
+  --color-on-tertiary-fixed: #1d1b17;
+  --color-on-surface: #1c1b1b;
+  --color-on-background: #1c1b1b;
+  --color-primary-fixed: #e7e1dd;
+  --color-on-secondary: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-primary-container: #928e89;
+  --color-surface-container-high: #ebe7e6;
+  --color-inverse-primary: #cbc6c1;
+  --color-tertiary: #14130f;
+  --color-on-primary-fixed-variant: #494643;
+  --color-on-primary: #ffffff;
+  --color-outline-variant: #ccc5bc;
+  --color-primary-container: #292724;
+  --color-tertiary-fixed: #e7e2db;
+  --color-secondary-fixed-dim: #ffb59e;
+  --color-on-tertiary-container: #928e88;
+  --color-surface-tint: #615e5a;
+  --color-surface-bright: #fdf8f7;
+  --color-on-tertiary-fixed-variant: #494641;
+  --color-primary: #141310;
+  --color-surface-container-highest: #e6e2e0;
+  --color-on-error: #ffffff;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #292723;
+  --color-surface-variant: #e6e2e0;
+  --color-surface-container: #f1edec;
+  --color-secondary-fixed: #ffdbd0;
+  --color-secondary-container: #fc8d6a;
+  --color-on-surface-variant: #4a463f;
+  --color-surface-container-lowest: #ffffff;
+  --color-tertiary-fixed-dim: #cbc6bf;
+  --color-secondary: #9c4326;
+  --color-on-secondary-fixed: #3a0b00;
+  --color-on-secondary-container: #73250a;
+  --color-background: #fdf8f7;
+  --color-outline: #7b766f;
+  --color-primary-fixed-dim: #cbc6c1;
+  --color-on-secondary-fixed-variant: #7d2c11;
+
+  --radius-DEFAULT: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 0.75rem;
+
+  --spacing-margin_edge: 24px;
+  --spacing-content_max_width: 900px;
+  --spacing-gutter: 16px;
+  --spacing-sidebar_width: 260px;
+  --spacing-unit: 4px;
+
+  --font-display-serif: "Newsreader";
+  --font-code-base: "JetBrains Mono";
+  --font-ui-label-caps: "Inter";
+  --font-ui-body: "Inter";
+  --font-summary-title: "Newsreader";
+  --font-ui-label-bold: "Inter";
+
+  /* Need to create custom utility classes for font-size since v4 font sizes include line-height in utilities differently, or we can just define CSS classes */
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-on-surface);
+  }
+}
+
+@layer utilities {
+  .mac-window {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0,0,0,0.1);
+  }
+  .canvas-glow {
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.02);
+  }
+  .text-ui-body {
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 450;
+  }
+  .text-display-serif {
+    font-size: 28px;
+    line-height: 36px;
+    letter-spacing: -0.01em;
+    font-weight: 400;
+  }
+  .text-code-base {
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 400;
+  }
+  .text-ui-label-caps {
+    font-size: 11px;
+    line-height: 16px;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  .text-summary-title {
+    font-size: 20px;
+    line-height: 28px;
+    font-weight: 500;
+  }
+  .text-ui-label-bold {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+  }
+  
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.1);
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.2);
+  }
+}
