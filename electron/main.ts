@@ -3,20 +3,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-type Attachment = {
-  id: string;
-  name: string;
-  type: 'text' | 'image' | 'audio' | 'video';
-  data: string;
-};
-
-type Message = {
-  id: string;
-  sender: 'user' | 'agent';
-  content: string;
-  attachments?: Attachment[];
-};
+import { runAgentSession, type AgentStartPayload, type PermissionMode } from './agentRuntime.js';
 
 type PublicProvider = {
   id: string;
@@ -30,6 +17,7 @@ type PublicSettings = {
   providers: PublicProvider[];
   activeProviderId: string | null;
   activeModelId: string | null;
+  permissionMode: PermissionMode;
 };
 
 type StoredProvider = {
@@ -45,6 +33,7 @@ type StoredSettings = {
   providers: StoredProvider[];
   activeProviderId: string | null;
   activeModelId: string | null;
+  permissionMode: PermissionMode;
 };
 
 type SaveProviderPayload = {
@@ -58,11 +47,7 @@ type LegacySettingsPayload = {
   providers?: Array<SaveProviderPayload & { models?: string[] }>;
   activeProviderId?: string | null;
   activeModelId?: string | null;
-};
-
-type ChatStartPayload = {
-  requestId?: string;
-  messages?: Message[];
+  permissionMode?: PermissionMode;
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -82,10 +67,12 @@ const DEFAULT_SETTINGS: StoredSettings = {
   ],
   activeProviderId: 'default-openai',
   activeModelId: 'gpt-3.5-turbo',
+  permissionMode: 'workspace-write',
 };
 
 let win: BrowserWindow | null = null;
 let settingsCache: StoredSettings | null = null;
+const activeAgentControllers = new Map<string, AbortController>();
 
 function createWindow() {
   win = new BrowserWindow({
@@ -118,11 +105,22 @@ function getSettingsPath() {
   return path.join(app.getPath('userData'), 'settings.json');
 }
 
+function resolveWorkspacePath(inputPath: string) {
+  const workspaceRoot = process.cwd();
+  const resolved = path.resolve(path.join(workspaceRoot, inputPath));
+  const relative = path.relative(workspaceRoot, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Path escapes workspace: ${inputPath}`);
+  }
+  return resolved;
+}
+
 function cloneDefaultSettings(): StoredSettings {
   return {
     providers: DEFAULT_SETTINGS.providers.map((provider) => ({ ...provider, models: [...provider.models] })),
     activeProviderId: DEFAULT_SETTINGS.activeProviderId,
     activeModelId: DEFAULT_SETTINGS.activeModelId,
+    permissionMode: DEFAULT_SETTINGS.permissionMode,
   };
 }
 
@@ -136,6 +134,7 @@ async function loadStoredSettings(): Promise<StoredSettings> {
       providers: Array.isArray(parsed.providers) ? parsed.providers.map(normalizeStoredProvider) : [],
       activeProviderId: typeof parsed.activeProviderId === 'string' ? parsed.activeProviderId : null,
       activeModelId: typeof parsed.activeModelId === 'string' ? parsed.activeModelId : null,
+      permissionMode: normalizePermissionMode(parsed.permissionMode),
     };
   } catch {
     settingsCache = cloneDefaultSettings();
@@ -178,7 +177,16 @@ function toPublicSettings(settings: StoredSettings): PublicSettings {
     })),
     activeProviderId: settings.activeProviderId,
     activeModelId: settings.activeModelId,
+    permissionMode: settings.permissionMode,
   };
+}
+
+function normalizePermissionMode(value: unknown): PermissionMode {
+  if (value === 'read-only' || value === 'workspace-write' || value === 'danger-full-access') {
+    return value;
+  }
+
+  return 'workspace-write';
 }
 
 function encryptApiKey(apiKey: string): Pick<StoredProvider, 'encryptedApiKey' | 'plainApiKey'> {
@@ -276,124 +284,6 @@ function readModelId(value: unknown): string | null {
   return null;
 }
 
-function formatMessages(messages: Message[]) {
-  return messages.map((message) => {
-    if (!Array.isArray(message.attachments) || message.attachments.length === 0) {
-      return {
-        role: message.sender === 'user' ? 'user' : 'assistant',
-        content: message.content,
-      };
-    }
-
-    const contentParts: Array<Record<string, unknown>> = [];
-    for (const attachment of message.attachments) {
-      if (attachment.type === 'image') {
-        contentParts.push({ type: 'image_url', image_url: { url: attachment.data } });
-      } else if (attachment.type === 'audio') {
-        contentParts.push({ type: 'audio_url', audio_url: { url: attachment.data } });
-      } else if (attachment.type === 'video') {
-        contentParts.push({ type: 'video_url', video_url: { url: attachment.data } });
-      } else if (attachment.type === 'text') {
-        contentParts.push({ type: 'text', text: `[File: ${attachment.name}]\n\`\`\`\n${attachment.data}\n\`\`\`` });
-      }
-    }
-
-    if (message.content) {
-      contentParts.push({ type: 'text', text: message.content });
-    }
-
-    return {
-      role: message.sender === 'user' ? 'user' : 'assistant',
-      content: contentParts.length > 0 ? contentParts : message.content,
-    };
-  });
-}
-
-async function streamChatCompletion(
-  requestId: string,
-  sender: Electron.WebContents,
-  messages: Message[],
-  settings: StoredSettings,
-) {
-  const activeProvider = settings.providers.find((provider) => provider.id === settings.activeProviderId);
-  if (!activeProvider) {
-    throw new Error('Chưa cấu hình provider AI.');
-  }
-
-  if (!settings.activeModelId) {
-    throw new Error('Chưa chọn model AI.');
-  }
-
-  const apiKey = decryptApiKey(activeProvider);
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  if (apiKey) {
-    headers.Authorization = `Bearer ${apiKey}`;
-  }
-
-  const response = await fetch(buildEndpoint(activeProvider.baseUrl, 'chat/completions'), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: settings.activeModelId,
-      messages: formatMessages(messages),
-      stream: true,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API Error (${response.status}): ${errorText}`);
-  }
-
-  if (!response.body) {
-    throw new Error('No response body returned from the API.');
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      if (trimmed === 'data: [DONE]') {
-        sender.send('ai:chat:done', { requestId });
-        return;
-      }
-
-      if (!trimmed.startsWith('data: ')) continue;
-
-      let data: unknown;
-      try {
-        data = JSON.parse(trimmed.slice(6)) as unknown;
-      } catch {
-        continue;
-      }
-
-      if (!isObject(data) || !Array.isArray(data.choices)) continue;
-      const choice = data.choices[0];
-      if (!isObject(choice) || !isObject(choice.delta)) continue;
-      const content = choice.delta.content;
-      if (typeof content === 'string' && content) {
-        sender.send('ai:chat:chunk', { requestId, chunk: content });
-      }
-    }
-  }
-
-  sender.send('ai:chat:done', { requestId });
-}
-
 function registerIpcHandlers() {
   ipcMain.handle('ping', () => 'pong');
 
@@ -430,6 +320,7 @@ function registerIpcHandlers() {
       activeModelId: activeProvider?.models.includes(legacyActiveModelId)
         ? legacyActiveModelId
         : activeProvider?.models[0] ?? null,
+      permissionMode: normalizePermissionMode(rawPayload.permissionMode),
     };
 
     await saveStoredSettings(settings);
@@ -510,10 +401,31 @@ function registerIpcHandlers() {
     return toPublicSettings(settings);
   });
 
-  ipcMain.on('ai:chat:start', async (event, rawPayload: ChatStartPayload) => {
+  ipcMain.handle('settings:set-permission-mode', async (_event, permissionMode: PermissionMode) => {
+    const settings = await loadStoredSettings();
+    settings.permissionMode = normalizePermissionMode(permissionMode);
+    await saveStoredSettings(settings);
+    return toPublicSettings(settings);
+  });
+
+  ipcMain.handle('workspace:write-file', async (_event, rawPayload: { path?: string; content?: string }) => {
+    const payload = isObject(rawPayload) ? rawPayload : {};
+    const targetPath = resolveWorkspacePath(getString(payload.path));
+    const content = getString(payload.content);
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(targetPath, content, 'utf8');
+    return { ok: true, path: path.relative(process.cwd(), targetPath) };
+  });
+
+  ipcMain.on('ai:chat:stop', (_event, rawPayload: { requestId?: string }) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
     const requestId = getString(payload.requestId);
-    const messages = Array.isArray(payload.messages) ? payload.messages : [];
+    activeAgentControllers.get(requestId)?.abort();
+  });
+
+  ipcMain.on('ai:chat:start', async (event, rawPayload: AgentStartPayload) => {
+    const payload = isObject(rawPayload) ? rawPayload : {};
+    const requestId = getString(payload.requestId);
 
     if (!requestId) {
       event.sender.send('ai:chat:error', { requestId: '', error: 'Thiếu requestId.' });
@@ -521,13 +433,32 @@ function registerIpcHandlers() {
     }
 
     try {
+      const controller = new AbortController();
+      activeAgentControllers.set(requestId, controller);
       const settings = await loadStoredSettings();
-      await streamChatCompletion(requestId, event.sender, messages, settings);
+      const activeProvider = settings.providers.find((provider) => provider.id === settings.activeProviderId);
+      if (!activeProvider) {
+        throw new Error('Chưa cấu hình provider AI.');
+      }
+
+      await runAgentSession(payload, event.sender, {
+        baseUrl: activeProvider.baseUrl,
+        apiKey: decryptApiKey(activeProvider),
+        model: settings.activeModelId || '',
+        permissionMode: settings.permissionMode,
+      }, process.cwd(), controller.signal);
     } catch (error) {
-      event.sender.send('ai:chat:error', {
-        requestId,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-      });
+      if (activeAgentControllers.get(requestId)?.signal.aborted) {
+        event.sender.send('ai:chat:chunk', { requestId, chunk: '\n\nĐã dừng phản hồi.' });
+        event.sender.send('ai:chat:done', { requestId });
+      } else {
+        event.sender.send('ai:chat:error', {
+          requestId,
+          error: error instanceof Error ? error.message : 'Unknown error occurred',
+        });
+      }
+    } finally {
+      activeAgentControllers.delete(requestId);
     }
   });
 }

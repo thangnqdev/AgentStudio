@@ -1,4 +1,4 @@
-import type { AppSettings, Message } from '../store/useAppStore';
+import type { AppSettings, Message, PermissionMode } from '../store/useAppStore';
 
 type SaveProviderPayload = {
   id?: string;
@@ -17,6 +17,7 @@ type LegacySettingsPayload = {
   }>;
   activeProviderId?: string | null;
   activeModelId?: string | null;
+  permissionMode?: PermissionMode;
 };
 
 type ChatEventPayload = {
@@ -26,6 +27,11 @@ type ChatEventPayload = {
 };
 
 type ChatEventListener = (payload: ChatEventPayload) => void;
+
+type WriteWorkspaceFilePayload = {
+  path: string;
+  content: string;
+};
 
 declare global {
   interface Window {
@@ -37,7 +43,10 @@ declare global {
       deleteProvider: (providerId: string) => Promise<AppSettings>;
       setActiveProvider: (providerId: string) => Promise<AppSettings>;
       setActiveModel: (modelId: string) => Promise<AppSettings>;
+      setPermissionMode: (mode: PermissionMode) => Promise<AppSettings>;
+      writeWorkspaceFile: (payload: WriteWorkspaceFilePayload) => Promise<{ ok: boolean; path: string }>;
       startChat: (payload: { requestId: string; messages: Message[] }) => void;
+      stopChat: (requestId: string) => void;
       onChatChunk: (listener: ChatEventListener) => () => void;
       onChatDone: (listener: ChatEventListener) => () => void;
       onChatError: (listener: ChatEventListener) => () => void;

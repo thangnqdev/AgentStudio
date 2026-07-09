@@ -22,6 +22,11 @@ const NAV_ITEMS: NavItem[] = [
 export function Sidebar() {
   const activeView = useAppStore((s) => s.activeView);
   const setActiveView = useAppStore((s) => s.setActiveView);
+  const threads = useAppStore((s) => s.threads);
+  const activeThreadId = useAppStore((s) => s.activeThreadId);
+  const createThread = useAppStore((s) => s.createThread);
+  const switchThread = useAppStore((s) => s.switchThread);
+  const deleteThread = useAppStore((s) => s.deleteThread);
 
   return (
     <nav className="flex flex-col pb-6 px-4 h-screen w-[260px] border-r border-outline-variant bg-surface-container-low/95 backdrop-blur-xl transition-all duration-200 ease-in-out shrink-0">
@@ -60,7 +65,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav Items */}
-      <ul className="space-y-1 mb-8">
+      <ul className="space-y-1 mb-5">
         {NAV_ITEMS.map((item) => {
           const isActive = activeView === item.id;
           return (
@@ -87,10 +92,53 @@ export function Sidebar() {
         })}
       </ul>
 
+      <div className="mb-2 px-2 flex items-center justify-between">
+        <span className="font-ui-label-caps text-ui-label-caps text-on-surface-variant uppercase tracking-wider">
+          Lịch sử chat
+        </span>
+        <button
+          onClick={() => createThread()}
+          className="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant"
+          title="Tạo tác vụ mới"
+        >
+          <span className="material-symbols-outlined text-[16px]">add</span>
+        </button>
+      </div>
+
+      <div className="space-y-1 overflow-y-auto pr-1 mb-4">
+        {threads.map((thread) => {
+          const isActive = thread.id === activeThreadId;
+          return (
+            <div key={thread.id} className="group flex items-center gap-1">
+              <button
+                onClick={() => switchThread(thread.id)}
+                className={`min-w-0 flex-1 text-left px-3 py-2 rounded-lg transition-colors ${isActive ? 'bg-surface-container-high text-primary font-semibold' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+                title={thread.title}
+              >
+                <div className="truncate text-[13px] font-ui-body">{thread.title}</div>
+                <div className="text-[10px] text-on-surface-variant/50">
+                  {thread.messages.length} tin nhắn
+                </div>
+              </button>
+              {threads.length > 1 && (
+                <button
+                  onClick={() => deleteThread(thread.id)}
+                  className="w-7 h-7 rounded hidden group-hover:flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-error/10"
+                  title="Xóa thread"
+                >
+                  <span className="material-symbols-outlined text-[15px]">delete</span>
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
       {/* Bottom actions */}
       <div className="mt-auto px-2">
         <button
           id="new-project-btn"
+          onClick={() => createThread()}
           className="w-full flex justify-center items-center gap-2 py-2 mb-4 bg-primary-container text-on-primary rounded font-ui-label-bold text-ui-label-bold hover:opacity-90 transition-opacity"
         >
           <span className="material-symbols-outlined text-[16px]">add</span>

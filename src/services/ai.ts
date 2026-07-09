@@ -5,6 +5,7 @@ export function streamChatCompletion(
   onChunk: (chunk: string) => void,
   onFinish?: () => void,
   onError?: (error: string) => void,
+  onRequestId?: (requestId: string) => void,
 ) {
   return new Promise<void>((resolve) => {
     const bridge = window.agentStudio;
@@ -15,6 +16,7 @@ export function streamChatCompletion(
     }
 
     const requestId = crypto.randomUUID();
+    onRequestId?.(requestId);
     const cleanupCallbacks: Array<() => void> = [];
 
     const cleanup = () => {
@@ -47,4 +49,8 @@ export function streamChatCompletion(
 
     bridge.startChat({ requestId, messages });
   });
+}
+
+export function stopChatCompletion(requestId: string) {
+  window.agentStudio?.stopChat(requestId);
 }

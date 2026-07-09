@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from 'react';
-import { useAppStore, type Attachment } from '../store/useAppStore';
+import { useAppStore, type Attachment, type PermissionMode } from '../store/useAppStore';
 
 type PendingAttachment = Attachment & {
   isLoading: boolean;
@@ -19,6 +19,8 @@ export function PromptComposer() {
   const updateMessage = useAppStore((s) => s.updateMessage);
   const settings = useAppStore((s) => s.settings);
   const setSettings = useAppStore((s) => s.setSettings);
+  const activeRequestId = useAppStore((s) => s.activeRequestId);
+  const setActiveRequestId = useAppStore((s) => s.setActiveRequestId);
   const isAgentBusy = useAppStore((s) => s.messages.some((m) => m.sender === 'agent' && m.status === 'sending'));
 
   // Auto-resize textarea as content grows
@@ -29,12 +31,25 @@ export function PromptComposer() {
     el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
   }, [input]);
 
+  useEffect(() => {
+    const handleDroppedFiles = (event: Event) => {
+      const files = (event as CustomEvent<File[]>).detail;
+      if (Array.isArray(files)) {
+        addFiles(files);
+      }
+    };
+
+    window.addEventListener('agentstudio:add-files', handleDroppedFiles);
+    return () => {
+      window.removeEventListener('agentstudio:add-files', handleDroppedFiles);
+    };
+  }, []);
+
   const handleFileClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const addFiles = (files: File[]) => {
     if (files.length === 0) return;
 
     const validFiles = files.filter(file => {
@@ -57,11 +72,11 @@ export function PromptComposer() {
       const type = file.type.startsWith('image/') ? 'image' : 
                    file.type.startsWith('audio/') ? 'audio' : 
                    file.type.startsWith('video/') ? 'video' : 'text';
-      return { 
+      return {
         id: crypto.randomUUID(),
-        name: file.name, 
+        name: file.name,
         type,
-        data: '', 
+        data: '',
         isLoading: true,
         file // temporary reference
       };
@@ -96,7 +111,11 @@ export function PromptComposer() {
         reader.readAsText(att.file as File);
       }
     });
-    
+  };
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(e.target.files || []));
+
     // Reset input value so the same file can be selected again if removed
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -151,16 +170,26 @@ export function PromptComposer() {
         () => {
           updateMessage(agentMsgId, { status: 'done' });
           setIsAgentTyping(false);
+          setActiveRequestId(null);
         },
         (error) => {
           updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error' });
           setIsAgentTyping(false);
-        }
+          setActiveRequestId(null);
+        },
+        setActiveRequestId
       );
     } catch (e) {
       updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${e instanceof Error ? e.message : e}`, status: 'error' });
       setIsAgentTyping(false);
+      setActiveRequestId(null);
     }
+  };
+
+  const handleStop = async () => {
+    if (!activeRequestId) return;
+    const { stopChatCompletion } = await import('../services/ai');
+    stopChatCompletion(activeRequestId);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -184,6 +213,17 @@ export function PromptComposer() {
       setSettings(nextSettings);
     } catch (error) {
       console.error('Failed to save active model', error);
+    }
+  };
+
+  const handlePermissionModeChange = async (permissionMode: PermissionMode) => {
+    setSettings({ permissionMode });
+    try {
+      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+      const nextSettings = await window.agentStudio.setPermissionMode(permissionMode);
+      setSettings(nextSettings);
+    } catch (error) {
+      console.error('Failed to save permission mode', error);
     }
   };
 
@@ -265,16 +305,18 @@ export function PromptComposer() {
 
             <button
               id="send-message-btn"
-              onClick={handleSubmit}
-              disabled={!canSubmit}
+              onClick={isAgentBusy ? handleStop : handleSubmit}
+              disabled={!isAgentBusy && !canSubmit}
               className={`w-8 h-8 flex items-center justify-center rounded-full transition-all shadow-sm
-                ${canSubmit
+                ${isAgentBusy
+                  ? 'bg-error text-white hover:bg-error/90 cursor-pointer'
+                  : canSubmit
                   ? 'bg-secondary text-white hover:bg-[#7D2C11] cursor-pointer'
                   : 'bg-surface-container text-on-surface-variant/40 cursor-not-allowed'
                 }`}
-              title={canSubmit ? 'Gửi tin nhắn (Enter)' : isAgentBusy ? 'Đợi phản hồi hiện tại hoàn tất' : 'Nhập tin nhắn trước'}
+              title={isAgentBusy ? 'Dừng phản hồi' : canSubmit ? 'Gửi tin nhắn (Enter)' : 'Nhập tin nhắn trước'}
             >
-              <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
+              <span className="material-symbols-outlined text-[18px]">{isAgentBusy ? 'stop' : 'arrow_upward'}</span>
             </button>
           </div>
         </div>
@@ -285,11 +327,23 @@ export function PromptComposer() {
             Enter để gửi · Shift+Enter để xuống dòng
           </p>
           
-          {(() => {
-            const activeProvider = settings.providers?.find(p => p.id === settings.activeProviderId);
-            const models = activeProvider?.models || [];
-            
-            return models.length > 0 ? (
+          <div className="flex items-center gap-2">
+            <select
+              value={settings.permissionMode}
+              onChange={(e) => handlePermissionModeChange(e.target.value as PermissionMode)}
+              className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[170px]"
+              title="Chế độ quyền agent"
+            >
+              <option value="read-only" className="bg-surface text-on-surface">read-only</option>
+              <option value="workspace-write" className="bg-surface text-on-surface">workspace-write</option>
+              <option value="danger-full-access" className="bg-surface text-on-surface">danger-full-access</option>
+            </select>
+
+            {(() => {
+              const activeProvider = settings.providers?.find(p => p.id === settings.activeProviderId);
+              const models = activeProvider?.models || [];
+              
+              return models.length > 0 ? (
               <select
                 value={settings.activeModelId || ''}
                 onChange={(e) => handleModelChange(e.target.value)}
@@ -300,8 +354,9 @@ export function PromptComposer() {
                   <option key={m} value={m} className="bg-surface text-on-surface">{m}</option>
                 ))}
               </select>
-            ) : null;
-          })()}
+              ) : null;
+            })()}
+          </div>
         </div>
       </div>
     </div>
