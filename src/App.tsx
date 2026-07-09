@@ -3,6 +3,7 @@ import { TopAppBar } from './components/TopAppBar';
 import { ChatArea } from './components/ChatArea';
 import { PromptComposer } from './components/PromptComposer';
 import { PlaceholderView } from './components/PlaceholderView';
+import { SettingsView } from './components/SettingsView';
 import { useAppStore, type ViewId } from './store/useAppStore';
 
 function MainContent({ view }: { view: ViewId }) {
@@ -13,6 +14,9 @@ function MainContent({ view }: { view: ViewId }) {
         <PromptComposer />
       </>
     );
+  }
+  if (view === 'settings') {
+    return <SettingsView />;
   }
   return <PlaceholderView view={view} />;
 }

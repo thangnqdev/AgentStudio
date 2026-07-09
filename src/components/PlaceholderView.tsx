@@ -6,7 +6,7 @@ interface ViewConfig {
   description: string;
 }
 
-const VIEW_CONFIGS: Record<Exclude<ViewId, 'tasks'>, ViewConfig> = {
+const VIEW_CONFIGS: Record<Exclude<ViewId, 'tasks' | 'settings'>, ViewConfig> = {
   workspace: {
     icon: 'folder_open',
     title: 'Workspace',
@@ -29,7 +29,7 @@ const VIEW_CONFIGS: Record<Exclude<ViewId, 'tasks'>, ViewConfig> = {
   },
 };
 
-export function PlaceholderView({ view }: { view: Exclude<ViewId, 'tasks'> }) {
+export function PlaceholderView({ view }: { view: Exclude<ViewId, 'tasks' | 'settings'> }) {
   const config = VIEW_CONFIGS[view];
 
   return (
