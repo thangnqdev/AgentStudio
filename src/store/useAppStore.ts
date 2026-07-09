@@ -20,11 +20,18 @@ export interface Message {
   attachments?: Attachment[];
 }
 
-export interface AppSettings {
+export interface AIProvider {
+  id: string;
+  name: string;
   baseUrl: string;
   apiKey: string;
   models: string[];
-  selectedModel: string;
+}
+
+export interface AppSettings {
+  providers: AIProvider[];
+  activeProviderId: string | null;
+  activeModelId: string | null;
 }
 
 interface AppState {
@@ -55,10 +62,17 @@ export const useAppStore = create<AppState>()(
       isAgentTyping: false,
       activeView: 'tasks',
       settings: {
-        baseUrl: 'https://api.openai.com/v1',
-        apiKey: '',
-        models: [],
-        selectedModel: 'gpt-3.5-turbo',
+        providers: [
+          {
+            id: 'default-openai',
+            name: 'OpenAI (Default)',
+            baseUrl: 'https://api.openai.com/v1',
+            apiKey: '',
+            models: [],
+          }
+        ],
+        activeProviderId: 'default-openai',
+        activeModelId: 'gpt-3.5-turbo',
       },
 
       setProjectPath: (path) => set({ projectPath: path }),

@@ -23,6 +23,10 @@ export async function streamChatCompletion(
       m.attachments.forEach(att => {
         if (att.type === 'image') {
           contentParts.push({ type: 'image_url', image_url: { url: att.data } });
+        } else if (att.type === 'audio') {
+          contentParts.push({ type: 'audio_url', audio_url: { url: att.data } });
+        } else if (att.type === 'video') {
+          contentParts.push({ type: 'video_url', video_url: { url: att.data } });
         } else if (att.type === 'text') {
           contentParts.push({ type: 'text', text: `[File: ${att.name}]\n\`\`\`\n${att.data}\n\`\`\`` });
         }

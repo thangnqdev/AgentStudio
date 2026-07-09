@@ -21,6 +21,21 @@ function UserMessage({ msg }: { msg: Message }) {
                     {att.name}
                   </div>
                 </div>
+              ) : att.type === 'video' ? (
+                <div className="relative rounded-lg overflow-hidden border border-outline-variant/50 w-48 h-32 bg-black flex flex-col">
+                  <video src={att.data} controls className="w-full h-full object-contain" />
+                  <div className="absolute top-0 w-full bg-gradient-to-b from-black/60 to-transparent text-white text-[10px] truncate px-1.5 py-1" title={att.name}>
+                    {att.name}
+                  </div>
+                </div>
+              ) : att.type === 'audio' ? (
+                <div className="relative rounded-lg overflow-hidden border border-outline-variant/50 bg-surface-container-high p-2 flex flex-col gap-1 w-64">
+                  <div className="text-[11px] font-code-base text-on-surface truncate" title={att.name}>
+                    <span className="material-symbols-outlined text-[12px] align-middle mr-1">audio_file</span>
+                    {att.name}
+                  </div>
+                  <audio src={att.data} controls className="w-full h-8" />
+                </div>
               ) : (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-code-base bg-surface text-on-surface-variant border border-outline-variant/50" title={att.name}>
                   <span className="material-symbols-outlined text-[16px]">description</span>

@@ -12,6 +12,7 @@ export function PromptComposer() {
   const appendMessageContent = useAppStore((s) => s.appendMessageContent);
   const updateMessage = useAppStore((s) => s.updateMessage);
   const settings = useAppStore((s) => s.settings);
+  const setSettings = useAppStore((s) => s.setSettings);
 
   // Auto-resize textarea as content grows
   useEffect(() => {
@@ -29,28 +30,53 @@ export function PromptComposer() {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    files.forEach(file => {
-      if (file.type.startsWith('audio/') || file.type.startsWith('video/') || file.name.endsWith('.exe') || file.name.endsWith('.dll')) {
+    const validFiles = files.filter(file => {
+      if (file.name.endsWith('.exe') || file.name.endsWith('.dll')) {
         alert(`Không hỗ trợ đính kèm file định dạng này: ${file.name}`);
-        return;
+        return false;
       }
+      const MAX_SIZE = 20 * 1024 * 1024;
+      if (file.size > MAX_SIZE) {
+        alert(`File ${file.name} quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn file dưới 20MB.`);
+        return false;
+      }
+      return true;
+    });
 
+    if (validFiles.length === 0) return;
+
+    // Add placeholders with loading state
+    const newAttachments = validFiles.map(file => {
+      const type = file.type.startsWith('image/') ? 'image' : 
+                   file.type.startsWith('audio/') ? 'audio' : 
+                   file.type.startsWith('video/') ? 'video' : 'text';
+      return { 
+        id: Math.random().toString(36).substring(7), 
+        name: file.name, 
+        type: type as any, 
+        data: '', 
+        isLoading: true,
+        file // temporary reference
+      };
+    });
+
+    setAttachedFiles(prev => [...prev, ...newAttachments]);
+
+    newAttachments.forEach(att => {
       const reader = new FileReader();
       reader.onload = (event) => {
         const data = event.target?.result as string;
         if (data) {
-          setAttachedFiles(prev => {
-            if (prev.some(f => f.name === file.name)) return prev;
-            const type = file.type.startsWith('image/') ? 'image' : 'text';
-            return [...prev, { id: Math.random().toString(36).substring(7), name: file.name, type, data }];
-          });
+          setAttachedFiles(prev => prev.map(f => 
+            f.id === att.id ? { ...f, data, isLoading: false } : f
+          ));
         }
       };
 
-      if (file.type.startsWith('image/')) {
-        reader.readAsDataURL(file);
+      if (att.type === 'image' || att.type === 'audio' || att.type === 'video') {
+        reader.readAsDataURL(att.file);
       } else {
-        reader.readAsText(file);
+        reader.readAsText(att.file);
       }
     });
     
@@ -90,10 +116,19 @@ export function PromptComposer() {
     try {
       const { streamChatCompletion } = await import('../services/ai');
       
+      const activeProvider = settings.providers?.find(p => p.id === settings.activeProviderId);
+      const baseUrl = activeProvider?.baseUrl || '';
+      const apiKey = activeProvider?.apiKey || '';
+      const model = settings.activeModelId || '';
+
+      if (!baseUrl) {
+        throw new Error('Chưa cấu hình Base URL. Vui lòng vào Cài đặt để cấu hình AI.');
+      }
+
       await streamChatCompletion(
         messagesToSend,
-        settings.baseUrl,
-        settings.apiKey,
+        baseUrl,
+        apiKey,
         (chunk) => {
           setIsAgentTyping(false); // Stop typing indicator once we get first chunk
           appendMessageContent(agentMsgId, chunk);
@@ -106,10 +141,10 @@ export function PromptComposer() {
           updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error' });
           setIsAgentTyping(false);
         },
-        settings.selectedModel
+        model
       );
     } catch (e) {
-      updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${e}`, status: 'error' });
+      updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${e instanceof Error ? e.message : e}`, status: 'error' });
       setIsAgentTyping(false);
     }
   };
@@ -121,7 +156,8 @@ export function PromptComposer() {
     }
   };
 
-  const canSubmit = input.trim().length > 0 || attachedFiles.length > 0;
+  const isProcessingFiles = attachedFiles.some((f: any) => f.isLoading);
+  const canSubmit = (input.trim().length > 0 || attachedFiles.length > 0) && !isProcessingFiles;
 
   return (
     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-[800px] px-6">
@@ -144,12 +180,24 @@ export function PromptComposer() {
                 key={file.id} 
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-code-base bg-surface-container text-on-surface-variant border border-outline-variant/50"
               >
-                {file.type === 'image' ? (
+                {(file as any).isLoading ? (
+                  <div className="relative flex h-3 w-3 items-center justify-center">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-on-surface-variant opacity-40"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-on-surface-variant"></span>
+                  </div>
+                ) : file.type === 'image' ? (
                   <span className="material-symbols-outlined text-[12px]">image</span>
+                ) : file.type === 'audio' ? (
+                  <span className="material-symbols-outlined text-[12px]">audio_file</span>
+                ) : file.type === 'video' ? (
+                  <span className="material-symbols-outlined text-[12px]">video_file</span>
                 ) : (
                   <span className="material-symbols-outlined text-[12px]">description</span>
                 )}
-                {file.name}
+                <span className={((file as any).isLoading) ? 'opacity-50' : ''}>
+                  {file.name}
+                  {((file as any).isLoading) && ' (Đang đọc...)'}
+                </span>
                 <button 
                   onClick={() => removeFile(file.id)}
                   className="ml-1 hover:text-error transition-colors flex items-center justify-center"
@@ -200,10 +248,30 @@ export function PromptComposer() {
           </div>
         </div>
 
-        {/* Hint */}
-        <p className="text-[10px] text-on-surface-variant/40 px-2 pb-1 font-ui-body">
-          Enter để gửi · Shift+Enter để xuống dòng
-        </p>
+        {/* Footer info: Hint + Model Select */}
+        <div className="flex justify-between items-center px-2 pb-1">
+          <p className="text-[10px] text-on-surface-variant/40 font-ui-body">
+            Enter để gửi · Shift+Enter để xuống dòng
+          </p>
+          
+          {(() => {
+            const activeProvider = settings.providers?.find(p => p.id === settings.activeProviderId);
+            const models = activeProvider?.models || [];
+            
+            return models.length > 0 ? (
+              <select
+                value={settings.activeModelId || ''}
+                onChange={(e) => setSettings({ activeModelId: e.target.value })}
+                className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[150px] truncate"
+                title={`Chọn Model (${activeProvider?.name})`}
+              >
+                {models.map(m => (
+                  <option key={m} value={m} className="bg-surface text-on-surface">{m}</option>
+                ))}
+              </select>
+            ) : null;
+          })()}
+        </div>
       </div>
     </div>
   );
