@@ -11,7 +11,10 @@ export type Attachment = {
   id: string;
   name: string;
   type: 'text' | 'image' | 'audio' | 'video';
-  data: string;
+  data?: string;
+  filePath?: string;
+  mimeType?: string;
+  size?: number;
 };
 
 export type Message = {
@@ -78,6 +81,7 @@ type AgentActionPayload = {
 
 const MAX_AGENT_STEPS = 8;
 const MAX_FILE_BYTES = 200_000;
+const MAX_IMAGE_BYTES = 5_000_000;
 const MAX_COMMAND_OUTPUT = 40_000;
 const MAX_RESPONSE_TOKENS = 8_192;
 
@@ -170,7 +174,7 @@ export async function runAgentSession(
       role: 'system' as const,
       content: buildSummarySystemMessage(compactedContext.summary),
     }] : []),
-    ...formatMessages(compactedContext.recentMessages),
+    ...await formatMessages(compactedContext.recentMessages),
   ];
 
   for (let step = 0; step < MAX_AGENT_STEPS; step += 1) {
@@ -244,23 +248,31 @@ function buildAgentSystemPrompt(workspaceRoot: string, permissionMode: Permissio
   ].join('\n');
 }
 
-function formatMessages(messages: Message[]): ChatMessage[] {
-  return messages.map((message) => {
+async function formatMessages(messages: Message[]): Promise<ChatMessage[]> {
+  const formattedMessages: ChatMessage[] = [];
+
+  for (const message of messages) {
     if (!Array.isArray(message.attachments) || message.attachments.length === 0) {
-      return {
+      formattedMessages.push({
         role: message.sender === 'user' ? 'user' : 'assistant',
         content: message.content,
-      };
+      });
+      continue;
     }
 
     const parts: Array<Record<string, unknown>> = [];
     for (const attachment of message.attachments) {
       if (attachment.type === 'image') {
-        parts.push({ type: 'image_url', image_url: { url: attachment.data } });
+        const imageUrl = await readAttachmentImageUrl(attachment);
+        if (imageUrl) {
+          parts.push({ type: 'image_url', image_url: { url: imageUrl } });
+        } else {
+          parts.push({ type: 'text', text: describeAttachment(attachment) });
+        }
       } else if (attachment.type === 'text') {
-        parts.push({ type: 'text', text: `[File: ${attachment.name}]\n\`\`\`\n${attachment.data}\n\`\`\`` });
+        parts.push({ type: 'text', text: await readAttachmentText(attachment) });
       } else {
-        parts.push({ type: 'text', text: `[${attachment.type} attachment: ${attachment.name}]` });
+        parts.push({ type: 'text', text: describeAttachment(attachment) });
       }
     }
 
@@ -268,11 +280,68 @@ function formatMessages(messages: Message[]): ChatMessage[] {
       parts.push({ type: 'text', text: message.content });
     }
 
-    return {
+    formattedMessages.push({
       role: message.sender === 'user' ? 'user' : 'assistant',
       content: parts,
-    };
-  });
+    });
+  }
+
+  return formattedMessages;
+}
+
+async function readAttachmentText(attachment: Attachment) {
+  if (attachment.data) {
+    return `[File: ${attachment.name}]\n\`\`\`\n${attachment.data}\n\`\`\``;
+  }
+
+  if (!attachment.filePath) {
+    return describeAttachment(attachment);
+  }
+
+  try {
+    const stat = await fs.stat(attachment.filePath);
+    if (!stat.isFile()) return `${describeAttachment(attachment)}\nPath is not a file.`;
+    if (stat.size > MAX_FILE_BYTES) {
+      return `${describeAttachment(attachment)}\nFile is too large to inline (${stat.size} bytes). Read it with tools only if needed.`;
+    }
+
+    return `[File: ${attachment.name}]\nPath: ${attachment.filePath}\n\`\`\`\n${await fs.readFile(attachment.filePath, 'utf8')}\n\`\`\``;
+  } catch (error) {
+    return `${describeAttachment(attachment)}\nCould not read file: ${error instanceof Error ? error.message : 'unknown error'}`;
+  }
+}
+
+async function readAttachmentImageUrl(attachment: Attachment) {
+  if (attachment.data) return attachment.data;
+  if (!attachment.filePath) return '';
+
+  try {
+    const stat = await fs.stat(attachment.filePath);
+    if (!stat.isFile() || stat.size > MAX_IMAGE_BYTES) return '';
+    const mimeType = attachment.mimeType || inferMimeType(attachment.name) || 'image/png';
+    const data = await fs.readFile(attachment.filePath);
+    return `data:${mimeType};base64,${data.toString('base64')}`;
+  } catch {
+    return '';
+  }
+}
+
+function describeAttachment(attachment: Attachment) {
+  return [
+    `[${attachment.type} attachment: ${attachment.name}]`,
+    attachment.filePath ? `Path: ${attachment.filePath}` : '',
+    attachment.size ? `Size: ${attachment.size} bytes` : '',
+    attachment.mimeType ? `MIME: ${attachment.mimeType}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+function inferMimeType(fileName: string) {
+  const extension = path.extname(fileName).toLowerCase();
+  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
+  if (extension === '.png') return 'image/png';
+  if (extension === '.gif') return 'image/gif';
+  if (extension === '.webp') return 'image/webp';
+  return '';
 }
 
 async function requestAssistantMessage(
@@ -447,16 +516,16 @@ async function executeTool(
 ): Promise<ToolResult> {
   try {
     if (toolName === 'list_files') {
-      return listFiles(args, workspaceRoot, permissionMode);
+      return await listFiles(args, workspaceRoot, permissionMode);
     }
     if (toolName === 'read_file') {
-      return readFileTool(args, workspaceRoot, permissionMode);
+      return await readFileTool(args, workspaceRoot, permissionMode);
     }
     if (toolName === 'write_file') {
-      return writeFileTool(args, workspaceRoot, permissionMode);
+      return await writeFileTool(args, workspaceRoot, permissionMode);
     }
     if (toolName === 'run_command') {
-      return runCommandTool(args, workspaceRoot, permissionMode);
+      return await runCommandTool(args, workspaceRoot, permissionMode);
     }
 
     return { ok: false, output: `Unknown tool: ${toolName}` };

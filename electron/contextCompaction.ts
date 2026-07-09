@@ -1,7 +1,10 @@
 export type CompactableAttachment = {
   name: string;
   type: 'text' | 'image' | 'audio' | 'video';
-  data: string;
+  data?: string;
+  filePath?: string;
+  mimeType?: string;
+  size?: number;
 };
 
 export type CompactableMessage = {
@@ -79,7 +82,14 @@ export function estimateMessagesTokens(messages: CompactableMessage[]) {
 
 function estimateMessageTokens(message: CompactableMessage) {
   const attachmentText = (message.attachments || [])
-    .map((attachment) => `${attachment.name} ${attachment.type} ${attachment.type === 'text' ? attachment.data : ''}`)
+    .map((attachment) => [
+      attachment.name,
+      attachment.type,
+      attachment.filePath || '',
+      attachment.mimeType || '',
+      attachment.size || '',
+      attachment.type === 'text' ? attachment.data || '' : '',
+    ].join(' '))
     .join('\n');
   return estimateTextTokens(`${message.sender}\n${message.content}\n${attachmentText}`);
 }

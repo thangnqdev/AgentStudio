@@ -12,16 +12,22 @@ export function TopAppBar() {
   const projectPath = useAppStore((s) => s.projectPath);
   const setProjectPath = useAppStore((s) => s.setProjectPath);
   const setSettings = useAppStore((s) => s.setSettings);
-  const createThread = useAppStore((s) => s.createThread);
 
   const handleSelectWorkspace = async () => {
     try {
       if (!window.agentStudio) throw new Error('Electron bridge is not available.');
       const workspace = await window.agentStudio.selectWorkspace();
       if (workspace.canceled) return;
+      const currentState = useAppStore.getState();
+      if (currentState.settings.workspacePath && currentState.settings.workspacePath !== 'chưa có dự án') {
+        await window.agentStudio.saveChatHistory({
+          workspacePath: currentState.settings.workspacePath,
+          threads: currentState.threads,
+          activeThreadId: currentState.activeThreadId,
+        });
+      }
       setProjectPath(workspace.path);
       setSettings({ workspacePath: workspace.path });
-      createThread(`Workspace: ${workspace.path.split('/').pop() || workspace.path}`);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Không chọn được repository.');
     }

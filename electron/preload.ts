@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 type ChatEventPayload = {
   requestId: string;
@@ -63,6 +63,9 @@ contextBridge.exposeInMainWorld('agentStudio', {
   getCurrentWorkspace: () => ipcRenderer.invoke('workspace:get-current'),
   selectWorkspace: () => ipcRenderer.invoke('workspace:select-directory'),
   writeWorkspaceFile: (payload: unknown) => ipcRenderer.invoke('workspace:write-file', payload),
+  getFilePath: (file: unknown) => webUtils.getPathForFile(file as File),
+  loadChatHistory: (workspacePath: string) => ipcRenderer.invoke('chat:load-workspace', workspacePath),
+  saveChatHistory: (payload: unknown) => ipcRenderer.invoke('chat:save-workspace', payload),
 
   startChat: (payload: unknown) => ipcRenderer.send('ai:chat:start', payload),
   stopChat: (requestId: string) => ipcRenderer.send('ai:chat:stop', { requestId }),

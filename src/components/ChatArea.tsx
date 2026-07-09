@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
-import { useAppStore, type AgentAction, type AgentThought, type Message } from '../store/useAppStore';
+import { useAppStore, type AgentAction, type Message } from '../store/useAppStore';
 
 type AgentContentPart =
   | { type: 'text'; value: string }
-  | { type: 'code'; language: string; value: string };
+  | { type: 'code'; language: string; value: string }
+  | { type: 'think'; value: string }
+  | { type: 'tool'; actionId: string };
 
 function UserMessage({ msg, onRegenerate }: { msg: Message; onRegenerate: (message: Message, content: string) => void }) {
   const handleEdit = () => {
@@ -30,18 +32,34 @@ function UserMessage({ msg, onRegenerate }: { msg: Message; onRegenerate: (messa
               <div key={att.id}>
                 {att.type === 'image' ? (
                   <div className="relative rounded-lg overflow-hidden border border-white/10 w-32 h-32">
-                    <img src={att.data} alt={att.name} className="w-full h-full object-cover" />
+                    {att.previewUrl || att.data ? (
+                      <img src={att.previewUrl || att.data} alt={att.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-white/10">
+                        <span className="material-symbols-outlined text-[22px] text-white/70">image</span>
+                      </div>
+                    )}
                     <div className="absolute bottom-0 w-full bg-black/60 text-white text-[10px] truncate px-1.5 py-0.5" title={att.name}>
                       {att.name}
                     </div>
                   </div>
                 ) : att.type === 'video' ? (
                   <div className="rounded-lg overflow-hidden border border-white/10 w-48 h-32 bg-black">
-                    <video src={att.data} controls className="w-full h-full object-contain" />
+                    {att.previewUrl || att.data ? (
+                      <video src={att.previewUrl || att.data} controls className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white/70">
+                        <span className="material-symbols-outlined text-[22px]">video_file</span>
+                      </div>
+                    )}
                   </div>
                 ) : att.type === 'audio' ? (
                   <div className="rounded-lg border border-white/10 bg-white/5 p-2 w-64">
-                    <audio src={att.data} controls className="w-full h-8" />
+                    {att.previewUrl || att.data ? (
+                      <audio src={att.previewUrl || att.data} controls className="w-full h-8" />
+                    ) : (
+                      <div className="text-[12px] text-white/70 truncate">{att.name}</div>
+                    )}
                   </div>
                 ) : (
                   <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[12px] font-code-base bg-white/10 text-white/80" title={att.name}>
@@ -120,81 +138,100 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   );
 }
 
-function AgentActivityPanel({ actions, thoughts }: { actions: AgentAction[]; thoughts: AgentThought[] }) {
-  const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
-  const thoughtsBottomRef = useRef<HTMLDivElement>(null);
+function ThinkStep({ text }: { text: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  if (!text.trim()) return null;
 
-  useEffect(() => {
-    thoughtsBottomRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [thoughts]);
+  const preview = text.trim().split('\n')[0].slice(0, 120);
 
-  if (actions.length === 0 && thoughts.length === 0) return null;
+  return (
+    <div className="my-2 rounded-lg border border-outline-variant/60 bg-surface-container-low overflow-hidden">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-container transition-colors"
+      >
+        <span className="material-symbols-outlined text-[16px] text-secondary">lightbulb</span>
+        <span className="font-ui-label-bold text-[12px] text-on-surface/80">Suy nghĩ</span>
+        <span className="flex-1 truncate font-ui-body text-[11px] text-on-surface-variant/60 ml-1">{preview}</span>
+        <span className="material-symbols-outlined text-[14px] text-on-surface-variant/50">
+          {isOpen ? 'expand_less' : 'expand_more'}
+        </span>
+      </button>
+      {isOpen && (
+        <div className="px-3 pb-2 border-t border-outline-variant/40">
+          <div className="text-[12px] leading-5 text-on-surface-variant whitespace-pre-wrap font-ui-body pt-2">{text}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToolStep({ action }: { action: AgentAction }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ok = action.status === 'ok';
+  const running = action.status === 'running';
+
+  return (
+    <div className="my-2 rounded-lg border border-outline-variant/60 bg-surface-container-low overflow-hidden">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-container transition-colors"
+      >
+        <span className={`material-symbols-outlined text-[16px] ${running ? 'text-secondary animate-spin' : ok ? 'text-[#27642a]' : 'text-error'}`}>
+          {running ? 'settings' : ok ? 'check_circle' : 'error'}
+        </span>
+        <span className="font-ui-label-bold text-[12px] text-on-surface/80">
+          {running ? 'Đang chạy' : ok ? 'Hoàn tất' : 'Lỗi'}:
+        </span>
+        <span className="font-code-base text-[12px] text-primary">{action.toolName}</span>
+        {action.args && <span className="flex-1 truncate font-code-base text-[10px] text-on-surface-variant/50 ml-1">{action.args}</span>}
+        <span className="material-symbols-outlined text-[14px] text-on-surface-variant/50">
+          {isOpen ? 'expand_less' : 'expand_more'}
+        </span>
+      </button>
+      {isOpen && (
+        <div className="px-3 pb-2 border-t border-outline-variant/40">
+          {action.output ? (
+            <pre className="max-h-[260px] overflow-auto whitespace-pre-wrap font-code-base text-[11px] leading-5 text-on-surface-variant pt-2">{action.output}</pre>
+          ) : (
+            <div className="text-[12px] text-on-surface-variant/70 pt-2">Đang chờ output...</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentMessage({ msg }: { msg: Message }) {
+  const activeActions = useAppStore((s) => s.agentActions);
+  
+  if (!msg.content && msg.status === 'sending') return null;
+
+  const parts = parseAgentContent(msg.content);
+  const actionsToDisplay = msg.status === 'sending' ? activeActions : (msg.actions || []);
+  const actionsMap = new Map(actionsToDisplay.map(a => [a.id, a]));
 
   return (
     <div className="grid grid-cols-[28px_1fr] gap-3 py-1">
       <div className="relative flex justify-center">
         <div className="absolute top-7 bottom-0 w-px bg-outline-variant" />
         <div className="relative z-10 mt-1 w-5 h-5 rounded-full bg-background border border-outline-variant flex items-center justify-center text-secondary">
-          <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+          <span className="material-symbols-outlined text-[14px]">smart_toy</span>
         </div>
       </div>
-      <div className="min-w-0 flex flex-col gap-3">
-        {thoughts.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 text-[13px] text-on-surface-variant mb-2">
-              <span className="material-symbols-outlined text-[15px] text-secondary animate-spin">progress_activity</span>
-              <span className="font-ui-label-bold">Đang cân nhắc</span>
-              <span className="ml-auto font-code-base text-[11px] text-on-surface-variant/60">{thoughts.length} dòng</span>
-            </div>
-            <div className="max-h-[180px] overflow-y-auto border border-outline-variant/60 rounded-lg bg-surface-container-low/70 px-3 py-2 space-y-1">
-              {thoughts.map((thought) => (
-                <div key={thought.id} className="grid grid-cols-[18px_1fr] gap-2 text-[13px] leading-5 text-on-surface-variant">
-                  <span className="material-symbols-outlined text-[13px] text-on-surface-variant/55 mt-[3px]">schedule</span>
-                  <span className="whitespace-pre-wrap break-words">{thought.content}</span>
-                </div>
-              ))}
-              <div ref={thoughtsBottomRef} />
-            </div>
-          </div>
-        )}
-
-        {actions.map((action) => {
-          const isOpen = Boolean(openIds[action.id]);
-          const ok = action.status === 'ok';
-          const running = action.status === 'running';
-
-          return (
-            <div key={action.id} className="group/action">
-              <button
-                onClick={() => setOpenIds((current) => ({ ...current, [action.id]: !isOpen }))}
-                className="w-full grid grid-cols-[22px_1fr_auto] items-start gap-2 text-left text-[13px] text-on-surface-variant"
-              >
-                <span className={`material-symbols-outlined text-[17px] mt-0.5 ${running ? 'text-secondary animate-spin' : ok ? 'text-[#27642a]' : 'text-error'}`}>
-                  {running ? 'settings' : ok ? 'check_circle' : 'error'}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="font-ui-label-bold text-on-surface/85">
-                    {running ? 'Đang chạy tool' : ok ? 'Hoàn tất tool' : 'Tool bị chặn hoặc lỗi'}: {action.toolName}
-                  </div>
-                  {action.args && <div className="font-code-base text-[11px] truncate text-on-surface-variant/75 mt-0.5">{action.args}</div>}
-                </div>
-                <span className="material-symbols-outlined text-[16px] text-on-surface-variant/70 opacity-70 group-hover/action:opacity-100">
-                  {isOpen ? 'expand_less' : 'expand_more'}
-                </span>
-              </button>
-
-              {isOpen && (
-                <div className="ml-8 mt-2 rounded-lg border border-outline-variant/60 bg-surface-container-low/70 px-3 py-2">
-                  {action.output ? (
-                    <pre className="max-h-[260px] overflow-auto whitespace-pre-wrap font-code-base text-[11px] leading-5 text-on-surface-variant">{action.output}</pre>
-                  ) : (
-                    <div className="text-[12px] text-on-surface-variant/70">Đang chờ output.</div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
+      <div className="min-w-0 max-w-none pt-0.5">
+        {parts.map((part, index) => {
+          if (part.type === 'think') return <ThinkStep key={`think-${index}`} text={part.value} />;
+          if (part.type === 'tool') {
+            const action = actionsMap.get(part.actionId);
+            return action ? <ToolStep key={`tool-${index}`} action={action} /> : null;
+          }
+          if (part.type === 'code') return <CodeBlock key={`code-${index}`} language={part.language} code={part.value} />;
+          return <TextBlock key={`text-${index}`} text={part.value} />;
         })}
+        <span className="text-[11px] text-on-surface-variant/50 mt-2 block">
+          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
       </div>
     </div>
   );
@@ -246,24 +283,18 @@ function TextBlock({ text }: { text: string }) {
   );
 }
 
-function stripThinkingBlocks(content: string) {
-  return content
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
-}
 
-function parseAgentContent(content: string): AgentContentPart[] {
+
+function parseTextAndCode(content: string): AgentContentPart[] {
   const parts: AgentContentPart[] = [];
-  const codeFenceRegex = /```([\w.+-]*)\n([\s\S]*?)```/g;
-  const visibleContent = stripThinkingBlocks(content);
+  const codeFenceRegex = /```([\w.+-]*)\n([\s\S]*?)(?:```|$)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = codeFenceRegex.exec(visibleContent)) !== null) {
+  while ((match = codeFenceRegex.exec(content)) !== null) {
     if (match.index > lastIndex) {
-      parts.push({ type: 'text', value: visibleContent.slice(lastIndex, match.index) });
+      parts.push({ type: 'text', value: content.slice(lastIndex, match.index) });
     }
-
     parts.push({
       type: 'code',
       language: match[1] || 'text',
@@ -271,40 +302,42 @@ function parseAgentContent(content: string): AgentContentPart[] {
     });
     lastIndex = match.index + match[0].length;
   }
+  if (lastIndex < content.length) {
+    parts.push({ type: 'text', value: content.slice(lastIndex) });
+  }
+  return parts;
+}
 
-  if (lastIndex < visibleContent.length) {
-    parts.push({ type: 'text', value: visibleContent.slice(lastIndex) });
+function parseAgentContent(content: string): AgentContentPart[] {
+  const parts: AgentContentPart[] = [];
+  const pattern = /(?:<(?:think|thinking)>([\s\S]*?)(?:<\/(?:think|thinking)>|$))|(?:\[tool:([^\]]+)\])/gi;
+  
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(...parseTextAndCode(content.slice(lastIndex, match.index)));
+    }
+    
+    if (match[1] !== undefined) {
+      parts.push({ type: 'think', value: match[1] });
+    } else if (match[2] !== undefined) {
+      parts.push({ type: 'tool', actionId: match[2] });
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  if (lastIndex < content.length) {
+    parts.push(...parseTextAndCode(content.slice(lastIndex)));
   }
 
-  return parts.length > 0 ? parts : [{ type: 'text', value: visibleContent }];
+  return parts.length > 0 ? parts : [{ type: 'text', value: content }];
 }
 
-function AgentMessage({ msg }: { msg: Message }) {
-  if (!msg.content && msg.status === 'sending') return null;
 
-  const parts = parseAgentContent(msg.content);
 
-  return (
-    <div className="grid grid-cols-[28px_1fr] gap-3 py-1">
-      <div className="relative flex justify-center">
-        <div className="absolute top-7 bottom-0 w-px bg-outline-variant" />
-        <div className="relative z-10 mt-1 w-5 h-5 rounded-full bg-background border border-outline-variant flex items-center justify-center text-secondary">
-          <span className="material-symbols-outlined text-[14px]">smart_toy</span>
-        </div>
-      </div>
-      <div className="min-w-0 max-w-none pt-0.5">
-        {parts.map((part, index) => (
-          part.type === 'code'
-            ? <CodeBlock key={`code-${index}`} language={part.language} code={part.value} />
-            : <TextBlock key={`text-${index}`} text={part.value} />
-        ))}
-        <span className="text-[11px] text-on-surface-variant/50 mt-2 block">
-          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 function TypingIndicator() {
   return (
@@ -374,21 +407,21 @@ export function ChatArea() {
         (chunk) => {
           if (!hasStartedResponse) {
             hasStartedResponse = true;
-            clearAgentActions();
-            clearAgentThoughts();
           }
           setIsAgentTyping(false);
           appendMessageContent(agentMsgId, chunk);
         },
         () => {
-          updateMessage(agentMsgId, { status: 'done' });
+          const finalActions = useAppStore.getState().agentActions;
+          updateMessage(agentMsgId, { status: 'done', actions: finalActions });
           setIsAgentTyping(false);
           setActiveRequestId(null);
           clearAgentActions();
           clearAgentThoughts();
         },
         (error) => {
-          updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error' });
+          const finalActions = useAppStore.getState().agentActions;
+          updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error', actions: finalActions });
           setIsAgentTyping(false);
           setActiveRequestId(null);
           clearAgentActions();
@@ -396,18 +429,17 @@ export function ChatArea() {
         },
         setActiveRequestId,
         (action) => {
-          if (hasStartedResponse) return;
           setIsAgentTyping(false);
           upsertAgentAction(action);
         },
         (thought, requestId) => {
-          if (hasStartedResponse) return;
           setIsAgentTyping(false);
           appendAgentThoughtChunk(requestId, thought);
         },
       );
     } catch (error) {
-      updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${error instanceof Error ? error.message : error}`, status: 'error' });
+      const finalActions = useAppStore.getState().agentActions;
+      updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${error instanceof Error ? error.message : error}`, status: 'error', actions: finalActions });
       setIsAgentTyping(false);
       setActiveRequestId(null);
       clearAgentActions();
@@ -478,7 +510,6 @@ export function ChatArea() {
                 <AgentMessage key={msg.id} msg={msg} />
               )
             )}
-            <AgentActivityPanel actions={agentActions} thoughts={agentThoughts} />
             {isAgentTyping && <TypingIndicator />}
           </>
         )}

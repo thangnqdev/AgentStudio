@@ -1,4 +1,4 @@
-import type { AppSettings, Message, PermissionMode } from '../store/useAppStore';
+import type { AppSettings, ChatThread, Message, PermissionMode } from '../store/useAppStore';
 
 type SaveProviderPayload = {
   id?: string;
@@ -76,6 +76,11 @@ type WorkspacePayload = {
   canceled?: boolean;
 };
 
+type ChatHistoryPayload = {
+  threads: ChatThread[];
+  activeThreadId: string | null;
+};
+
 declare global {
   interface Window {
     agentStudio?: {
@@ -90,6 +95,9 @@ declare global {
       getCurrentWorkspace: () => Promise<WorkspacePayload>;
       selectWorkspace: () => Promise<WorkspacePayload>;
       writeWorkspaceFile: (payload: WriteWorkspaceFilePayload) => Promise<{ ok: boolean; path: string }>;
+      getFilePath: (file: File) => string;
+      loadChatHistory: (workspacePath: string) => Promise<ChatHistoryPayload>;
+      saveChatHistory: (payload: { workspacePath: string; threads: ChatThread[]; activeThreadId: string | null }) => Promise<{ ok: boolean }>;
       startChat: (payload: { requestId: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;
       onChatChunk: (listener: ChatEventListener) => () => void;

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, type OpenDialogOptions } from 'electron';
 import { spawn as spawnChild } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,6 +52,12 @@ type LegacySettingsPayload = {
   activeProviderId?: string | null;
   activeModelId?: string | null;
   permissionMode?: PermissionMode;
+};
+
+type ChatHistoryPayload = {
+  workspacePath?: string;
+  threads?: unknown[];
+  activeThreadId?: string | null;
 };
 
 type TerminalCreatePayload = {
@@ -142,6 +148,16 @@ function createWindow() {
 
 function getSettingsPath() {
   return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function getChatHistoryDir() {
+  return path.join(app.getPath('userData'), 'chat-history');
+}
+
+function getChatHistoryPath(workspacePath: string) {
+  const normalizedPath = path.resolve(workspacePath || process.cwd());
+  const hash = createHash('sha256').update(normalizedPath).digest('hex').slice(0, 24);
+  return path.join(getChatHistoryDir(), `${hash}.json`);
 }
 
 async function getWorkspaceRoot() {
@@ -376,6 +392,36 @@ async function saveStoredSettings(settings: StoredSettings) {
   settingsCache = settings;
   await fs.mkdir(path.dirname(getSettingsPath()), { recursive: true });
   await fs.writeFile(getSettingsPath(), JSON.stringify(settings, null, 2), 'utf8');
+}
+
+async function loadWorkspaceChatHistory(workspacePath: string) {
+  try {
+    const raw = await fs.readFile(getChatHistoryPath(workspacePath), 'utf8');
+    const parsed = JSON.parse(raw) as ChatHistoryPayload;
+    return {
+      threads: Array.isArray(parsed.threads) ? parsed.threads : [],
+      activeThreadId: typeof parsed.activeThreadId === 'string' ? parsed.activeThreadId : null,
+    };
+  } catch {
+    return {
+      threads: [],
+      activeThreadId: null,
+    };
+  }
+}
+
+async function saveWorkspaceChatHistory(payload: ChatHistoryPayload) {
+  const workspacePath = getString(payload.workspacePath) || await getWorkspaceRoot();
+  const history = {
+    threads: Array.isArray(payload.threads) ? payload.threads : [],
+    activeThreadId: typeof payload.activeThreadId === 'string' ? payload.activeThreadId : null,
+    savedAt: new Date().toISOString(),
+    workspacePath,
+  };
+
+  await fs.mkdir(getChatHistoryDir(), { recursive: true });
+  await fs.writeFile(getChatHistoryPath(workspacePath), JSON.stringify(history), 'utf8');
+  return { ok: true };
 }
 
 function normalizeStoredProvider(provider: Partial<StoredProvider>): StoredProvider {
@@ -664,6 +710,15 @@ function registerIpcHandlers() {
     await fs.mkdir(path.dirname(targetPath), { recursive: true });
     await fs.writeFile(targetPath, content, 'utf8');
     return { ok: true, path: path.relative(workspaceRoot, targetPath) };
+  });
+
+  ipcMain.handle('chat:load-workspace', async (_event, rawWorkspacePath?: string) => {
+    return loadWorkspaceChatHistory(getString(rawWorkspacePath) || await getWorkspaceRoot());
+  });
+
+  ipcMain.handle('chat:save-workspace', async (_event, rawPayload: ChatHistoryPayload) => {
+    const payload = isObject(rawPayload) ? rawPayload : {};
+    return saveWorkspaceChatHistory(payload);
   });
 
   ipcMain.handle('terminal:list-shells', async () => {

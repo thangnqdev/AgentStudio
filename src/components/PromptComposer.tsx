@@ -2,8 +2,6 @@ import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } fro
 import { useAppStore, type Attachment, type PermissionMode } from '../store/useAppStore';
 
 type PendingAttachment = Attachment & {
-  isLoading: boolean;
-  file?: File;
   error?: string;
 };
 
@@ -53,7 +51,7 @@ export function PromptComposer() {
     fileInputRef.current?.click();
   };
 
-  const addFiles = (files: File[]) => {
+  const addFiles = async (files: File[]) => {
     if (files.length === 0) return;
 
     const validFiles = files.filter(file => {
@@ -61,60 +59,31 @@ export function PromptComposer() {
         alert(`Không hỗ trợ đính kèm file định dạng này: ${file.name}`);
         return false;
       }
-      const MAX_SIZE = 20 * 1024 * 1024;
-      if (file.size > MAX_SIZE) {
-        alert(`File ${file.name} quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn file dưới 20MB.`);
-        return false;
-      }
       return true;
     });
 
     if (validFiles.length === 0) return;
 
-    // Add placeholders with loading state
-    const newAttachments: PendingAttachment[] = validFiles.map(file => {
+    const newAttachments: PendingAttachment[] = await Promise.all(validFiles.map(async file => {
       const type = file.type.startsWith('image/') ? 'image' : 
                    file.type.startsWith('audio/') ? 'audio' : 
                    file.type.startsWith('video/') ? 'video' : 'text';
+      const filePath = window.agentStudio?.getFilePath(file) || '';
       return {
         id: crypto.randomUUID(),
         name: file.name,
         type,
-        data: '',
-        isLoading: true,
-        file // temporary reference
+        filePath,
+        mimeType: file.type,
+        size: file.size,
+        previewUrl: type === 'image' || type === 'audio' || type === 'video'
+          ? URL.createObjectURL(file)
+          : undefined,
+        error: filePath ? undefined : 'Không lấy được đường dẫn tệp.',
       };
-    });
+    }));
 
     setAttachedFiles(prev => [...prev, ...newAttachments]);
-
-    newAttachments.forEach(att => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const data = event.target?.result as string;
-        if (data) {
-          setAttachedFiles(prev => prev.map(f => 
-            f.id === att.id ? { ...f, data, isLoading: false } : f
-          ));
-        }
-      };
-      reader.onerror = () => {
-        setAttachedFiles(prev => prev.map(f =>
-          f.id === att.id ? { ...f, isLoading: false, error: 'Không đọc được tệp.' } : f
-        ));
-      };
-      reader.onabort = () => {
-        setAttachedFiles(prev => prev.map(f =>
-          f.id === att.id ? { ...f, isLoading: false, error: 'Đã hủy đọc tệp.' } : f
-        ));
-      };
-
-      if (att.type === 'image' || att.type === 'audio' || att.type === 'video') {
-        reader.readAsDataURL(att.file as File);
-      } else {
-        reader.readAsText(att.file as File);
-      }
-    });
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -127,20 +96,28 @@ export function PromptComposer() {
   };
 
   const removeFile = (id: string) => {
-    setAttachedFiles(prev => prev.filter(f => f.id !== id));
+    setAttachedFiles(prev => {
+      const removed = prev.find((file) => file.id === id);
+      if (removed?.previewUrl) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      return prev.filter(f => f.id !== id);
+    });
   };
 
   const handleSubmit = async () => {
     const trimmed = input.trim();
-    const isProcessingFiles = attachedFiles.some((file) => file.isLoading);
     const hasFileErrors = attachedFiles.some((file) => file.error);
-    if ((!trimmed && attachedFiles.length === 0) || isProcessingFiles || hasFileErrors || isAgentBusy) return;
+    if ((!trimmed && attachedFiles.length === 0) || hasFileErrors || isAgentBusy) return;
 
-    const messageAttachments: Attachment[] = attachedFiles.map(({ id, name, type, data }) => ({
+    const messageAttachments: Attachment[] = attachedFiles.map(({ id, name, type, filePath, mimeType, size, previewUrl }) => ({
       id,
       name,
       type,
-      data,
+      filePath,
+      mimeType,
+      size,
+      previewUrl,
     }));
 
     // Add user message
@@ -173,21 +150,21 @@ export function PromptComposer() {
         (chunk) => {
           if (!hasStartedResponse) {
             hasStartedResponse = true;
-            clearAgentActions();
-            clearAgentThoughts();
           }
           setIsAgentTyping(false); // Stop typing indicator once we get first chunk
           appendMessageContent(agentMsgId, chunk);
         },
         () => {
-          updateMessage(agentMsgId, { status: 'done' });
+          const finalActions = useAppStore.getState().agentActions;
+          updateMessage(agentMsgId, { status: 'done', actions: finalActions });
           setIsAgentTyping(false);
           setActiveRequestId(null);
           clearAgentActions();
           clearAgentThoughts();
         },
         (error) => {
-          updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error' });
+          const finalActions = useAppStore.getState().agentActions;
+          updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error', actions: finalActions });
           setIsAgentTyping(false);
           setActiveRequestId(null);
           clearAgentActions();
@@ -195,18 +172,17 @@ export function PromptComposer() {
         },
         setActiveRequestId,
         (action) => {
-          if (hasStartedResponse) return;
           setIsAgentTyping(false);
           upsertAgentAction(action);
         },
         (thought, requestId) => {
-          if (hasStartedResponse) return;
           setIsAgentTyping(false);
           appendAgentThoughtChunk(requestId, thought);
         },
       );
     } catch (e) {
-      updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${e instanceof Error ? e.message : e}`, status: 'error' });
+      const finalActions = useAppStore.getState().agentActions;
+      updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${e instanceof Error ? e.message : e}`, status: 'error', actions: finalActions });
       setIsAgentTyping(false);
       setActiveRequestId(null);
       clearAgentActions();
@@ -229,9 +205,8 @@ export function PromptComposer() {
     }
   };
 
-  const isProcessingFiles = attachedFiles.some((file) => file.isLoading);
   const hasFileErrors = attachedFiles.some((file) => file.error);
-  const canSubmit = (input.trim().length > 0 || attachedFiles.length > 0) && !isProcessingFiles && !hasFileErrors && !isAgentBusy;
+  const canSubmit = (input.trim().length > 0 || attachedFiles.length > 0) && !hasFileErrors && !isAgentBusy;
 
   const handleModelChange = async (modelId: string) => {
     setSettings({ activeModelId: modelId });
@@ -276,12 +251,7 @@ export function PromptComposer() {
                 key={file.id} 
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-code-base bg-surface-container text-on-surface-variant border border-outline-variant/50"
               >
-                {file.isLoading ? (
-                  <div className="relative flex h-3 w-3 items-center justify-center">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-on-surface-variant opacity-40"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-on-surface-variant"></span>
-                  </div>
-                ) : file.error ? (
+                {file.error ? (
                   <span className="material-symbols-outlined text-[12px] text-error">error</span>
                 ) : file.type === 'image' ? (
                   <span className="material-symbols-outlined text-[12px]">image</span>
@@ -292,9 +262,8 @@ export function PromptComposer() {
                 ) : (
                   <span className="material-symbols-outlined text-[12px]">description</span>
                 )}
-                <span className={file.isLoading || file.error ? 'opacity-50' : ''} title={file.error}>
+                <span className={file.error ? 'opacity-50' : ''} title={file.error || file.filePath}>
                   {file.name}
-                  {file.isLoading && ' (Đang đọc...)'}
                   {file.error && ' (Lỗi)'}
                 </span>
                 <button 
