@@ -79,7 +79,7 @@ type AgentActionPayload = {
   output?: string;
 };
 
-const MAX_AGENT_STEPS = 8;
+const MAX_AGENT_STEPS = 30;
 const MAX_FILE_BYTES = 200_000;
 const MAX_IMAGE_BYTES = 5_000_000;
 const MAX_COMMAND_OUTPUT = 40_000;
