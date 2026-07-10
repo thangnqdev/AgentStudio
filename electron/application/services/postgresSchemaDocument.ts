@@ -13,6 +13,7 @@ export function formatPostgresSchemaDocument(source: string) {
 
   const comments = readTableComments(source);
   const constraints = readStatementsByTable(source, /ALTER TABLE ONLY\s+([^\s]+)[\s\S]*?;/gi);
+  const foreignKeys = readPostgresForeignKeys(source);
   const indexes = readStatementsByTable(source, /CREATE (?:UNIQUE )?INDEX\s+[\s\S]*?;/gi, (statement) => {
     return /\bON\s+(?:ONLY\s+)?([^\s(]+)/i.exec(statement)?.[1];
   });
@@ -22,7 +23,7 @@ export function formatPostgresSchemaDocument(source: string) {
     '',
     'Schema-only extraction from SQL DDL. Table data and COPY blocks are intentionally excluded.',
     '',
-    ...tables.flatMap((table) => formatTable(table, comments.get(table.name), constraints.get(table.name), indexes.get(table.name))),
+    ...tables.flatMap((table) => formatTable(table, comments.get(table.name), constraints.get(table.name), indexes.get(table.name), foreignKeys)),
   ].join('\n');
 }
 
@@ -96,7 +97,7 @@ function readStatementsByTable(source: string, pattern: RegExp, tableNameForStat
   return statements;
 }
 
-function formatTable(table: SchemaTable, comment: string | undefined, constraints: string[] | undefined, indexes: string[] | undefined) {
+function formatTable(table: SchemaTable, comment: string | undefined, constraints: string[] | undefined, indexes: string[] | undefined, foreignKeys: PostgresForeignKey[]) {
   const blocks = [
     `## ${table.name}`,
     comment ? `Description: ${comment}` : '',
@@ -106,7 +107,19 @@ function formatTable(table: SchemaTable, comment: string | undefined, constraint
     table.definition,
     '```',
   ];
+  const outgoingForeignKeys = foreignKeys.filter((foreignKey) => foreignKey.fromTable === table.name);
+  const incomingForeignKeys = foreignKeys.filter((foreignKey) => foreignKey.toTable === table.name);
+  if (outgoingForeignKeys.length || incomingForeignKeys.length) {
+    blocks.push('', 'Relationships:');
+    for (const foreignKey of outgoingForeignKeys) {
+      blocks.push(`- Direct reference: ${foreignKey.fromColumns} -> ${foreignKey.toTable}(${foreignKey.toColumns}) via ${foreignKey.constraintName}`);
+    }
+    for (const foreignKey of incomingForeignKeys) {
+      blocks.push(`- Referenced directly by: ${foreignKey.fromTable}(${foreignKey.fromColumns}) via ${foreignKey.constraintName}`);
+    }
+  }
   if (constraints?.length) blocks.push('', 'Constraints:', '```sql', ...constraints, '```');
   if (indexes?.length) blocks.push('', 'Indexes:', '```sql', ...indexes, '```');
   return [...blocks, ''];
 }
+import { readPostgresForeignKeys, type PostgresForeignKey } from './postgresSchemaRelations.js';
