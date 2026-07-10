@@ -85,6 +85,10 @@ declare global {
   interface Window {
     agentStudio?: {
       ping: () => Promise<string>;
+      getPlatform: () => string;
+      minimizeWindow: () => void;
+      maximizeWindow: () => void;
+      closeWindow: () => void;
       loadSettings: () => Promise<AppSettings>;
       importLegacySettings: (settings: LegacySettingsPayload) => Promise<AppSettings>;
       saveProviderAndScan: (provider: SaveProviderPayload) => Promise<AppSettings>;

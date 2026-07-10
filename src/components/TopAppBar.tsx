@@ -34,17 +34,22 @@ export function TopAppBar() {
   };
 
   return (
-    <header 
+    <header
       className="flex justify-between items-center px-6 w-full h-[52px] border-b border-outline-variant bg-surface-dim shrink-0 z-10"
       style={dragStyle}
     >
       {/* Left: Branch/Project Context */}
-      <div className="flex items-center gap-3" style={noDragStyle}>
-        <span className="font-ui-label-bold text-ui-label-bold text-primary">
+      <div className="flex items-center gap-2" style={noDragStyle}>
+        <button
+          onClick={handleSelectWorkspace}
+          className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface border border-outline-variant text-on-surface hover:bg-surface-container-highest transition-colors font-ui-label-bold text-[12px]"
+          title="Chọn repository"
+        >
+          <span className="material-symbols-outlined text-[14px]">folder</span>
           {projectPath ?? 'chưa có dự án'}
-        </span>
-        <span className="text-outline-variant">/</span>
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface border border-outline-variant text-on-surface-variant font-code-base text-code-base">
+        </button>
+        <span className="text-outline-variant px-1">/</span>
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface border border-outline-variant text-on-surface-variant font-code-base text-[12px]">
           <span className="material-symbols-outlined text-[14px]">call_split</span>
           feature/agent-runtime
         </div>
@@ -52,13 +57,6 @@ export function TopAppBar() {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1" style={noDragStyle}>
-        <button
-          onClick={handleSelectWorkspace}
-          className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"
-          title="Chọn repository"
-        >
-          <span className="material-symbols-outlined text-[20px]">folder_open</span>
-        </button>
         <button
           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"
           title="Lịch sử"

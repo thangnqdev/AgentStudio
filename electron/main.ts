@@ -636,6 +636,15 @@ function normalizeContextWindow(value: unknown): number | undefined {
 function registerIpcHandlers() {
   ipcMain.handle('ping', () => 'pong');
 
+  ipcMain.on('window:minimize', () => win?.minimize());
+  ipcMain.on('window:maximize', () => {
+    if (!win) return;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  ipcMain.on('window:close', () => win?.close());
+
+
   ipcMain.handle('settings:load', async () => {
     return toPublicSettings(await loadStoredSettings());
   });

@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react';
 import { useAppStore, type ViewId } from '../store/useAppStore';
 
+import { MacTrafficLights } from './MacTrafficLights';
+
 type ElectronDragStyle = CSSProperties & {
   WebkitAppRegion: 'drag' | 'no-drag';
 };
@@ -34,9 +36,11 @@ export function Sidebar() {
 
       {/* Spacer for macOS native traffic lights / draggable region */}
       <div
-        className="w-full h-12 shrink-0"
+        className="w-full h-12 shrink-0 flex items-center -ml-4"
         style={{ WebkitAppRegion: 'drag' } as ElectronDragStyle}
-      ></div>
+      >
+        <MacTrafficLights />
+      </div>
 
       {/* Header Info */}
       <div className="flex items-center gap-3 px-2 mb-6">

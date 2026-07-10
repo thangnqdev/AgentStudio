@@ -53,6 +53,11 @@ function subscribeTerminal(channel: 'terminal:data' | 'terminal:exit', listener:
 contextBridge.exposeInMainWorld('agentStudio', {
   ping: () => ipcRenderer.invoke('ping'),
 
+  getPlatform: () => process.platform,
+  minimizeWindow: () => ipcRenderer.send('window:minimize'),
+  maximizeWindow: () => ipcRenderer.send('window:maximize'),
+  closeWindow: () => ipcRenderer.send('window:close'),
+
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   importLegacySettings: (settings: unknown) => ipcRenderer.invoke('settings:import-legacy', settings),
   saveProviderAndScan: (provider: unknown) => ipcRenderer.invoke('settings:save-provider-and-scan', provider),

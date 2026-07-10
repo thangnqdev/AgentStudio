@@ -48,9 +48,9 @@ function estimateMessageTokens(message: {
 }
 
 function getContextUsageTone(percent: number) {
-  if (percent >= 90) return { text: 'text-error', bar: 'bg-error' };
-  if (percent >= 75) return { text: 'text-[#9C4326]', bar: 'bg-[#9C4326]' };
-  return { text: 'text-on-surface-variant/70', bar: 'bg-secondary' };
+  if (percent >= 90) return { text: 'text-error', stroke: 'text-error' };
+  if (percent >= 75) return { text: 'text-[#9C4326]', stroke: 'text-[#9C4326]' };
+  return { text: 'text-on-surface-variant/70', stroke: 'text-secondary' };
 }
 
 export function PromptComposer() {
@@ -58,7 +58,7 @@ export function PromptComposer() {
   const [attachedFiles, setAttachedFiles] = useState<PendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const addMessage = useAppStore((s) => s.addMessage);
   const setIsAgentTyping = useAppStore((s) => s.setIsAgentTyping);
   const appendMessageContent = useAppStore((s) => s.appendMessageContent);
@@ -114,9 +114,9 @@ export function PromptComposer() {
     if (validFiles.length === 0) return;
 
     const newAttachments: PendingAttachment[] = await Promise.all(validFiles.map(async file => {
-      const type = file.type.startsWith('image/') ? 'image' : 
-                   file.type.startsWith('audio/') ? 'audio' : 
-                   file.type.startsWith('video/') ? 'video' : 'text';
+      const type = file.type.startsWith('image/') ? 'image' :
+        file.type.startsWith('audio/') ? 'audio' :
+          file.type.startsWith('video/') ? 'video' : 'text';
       const filePath = window.agentStudio?.getFilePath(file) || '';
       return {
         id: crypto.randomUUID(),
@@ -170,13 +170,13 @@ export function PromptComposer() {
     }));
 
     // Add user message
-    addMessage({ 
-      sender: 'user', 
-      content: trimmed, 
-      type: 'text', 
-      attachments: messageAttachments.length > 0 ? messageAttachments : undefined 
+    addMessage({
+      sender: 'user',
+      content: trimmed,
+      type: 'text',
+      attachments: messageAttachments.length > 0 ? messageAttachments : undefined
     });
-    
+
     setInput('');
     setAttachedFiles([]);
     clearAgentActions();
@@ -184,7 +184,7 @@ export function PromptComposer() {
     setIsAgentTyping(true);
 
     const agentMsgId = addMessage({ sender: 'agent', content: '', type: 'text', status: 'sending' });
-    
+
     // Get full history including the one we just added
     const currentMessages = useAppStore.getState().messages;
     // Remove the empty agent message from the history we send to the API
@@ -247,7 +247,7 @@ export function PromptComposer() {
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) return;
-    
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -264,10 +264,10 @@ export function PromptComposer() {
     const draftContent = input.trim();
     const draftTokens = draftContent || attachedFiles.length > 0
       ? estimateMessageTokens({
-          sender: 'user',
-          content: draftContent,
-          attachments: attachedFiles,
-        })
+        sender: 'user',
+        content: draftContent,
+        attachments: attachedFiles,
+      })
       : 0;
 
     return messages.reduce((total, message) => total + estimateMessageTokens(message), 0) + draftTokens;
@@ -276,7 +276,6 @@ export function PromptComposer() {
     ? Math.min(999, Math.round((estimatedContextTokens / activeContextWindow) * 100))
     : null;
   const contextUsageTone = getContextUsageTone(contextUsagePercent ?? 0);
-  const contextUsageWidth = `${Math.min(contextUsagePercent ?? 0, 100)}%`;
 
   const handleModelChange = async (modelId: string) => {
     setSettings({ activeModelId: modelId });
@@ -305,20 +304,20 @@ export function PromptComposer() {
       <div
         className="bg-surface rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-outline-variant p-2 flex flex-col gap-2 transition-all focus-within:border-secondary/50 focus-within:shadow-[0_8px_30px_rgb(156,67,38,0.1)]"
       >
-        <input 
-          type="file" 
-          multiple 
-          hidden 
-          ref={fileInputRef} 
-          onChange={handleFileChange} 
+        <input
+          type="file"
+          multiple
+          hidden
+          ref={fileInputRef}
+          onChange={handleFileChange}
         />
 
         {/* Attached Files Tokens */}
         {attachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2 px-2 pt-1">
             {attachedFiles.map(file => (
-              <div 
-                key={file.id} 
+              <div
+                key={file.id}
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-code-base bg-surface-container text-on-surface-variant border border-outline-variant/50"
               >
                 {file.error ? (
@@ -336,7 +335,7 @@ export function PromptComposer() {
                   {file.name}
                   {file.error && ' (Lỗi)'}
                 </span>
-                <button 
+                <button
                   onClick={() => removeFile(file.id)}
                   className="ml-1 hover:text-error transition-colors flex items-center justify-center"
                   title="Xóa tệp"
@@ -378,8 +377,8 @@ export function PromptComposer() {
                 ${isAgentBusy
                   ? 'bg-error text-white hover:bg-error/90 cursor-pointer'
                   : canSubmit
-                  ? 'bg-secondary text-white hover:bg-[#7D2C11] cursor-pointer'
-                  : 'bg-surface-container text-on-surface-variant/40 cursor-not-allowed'
+                    ? 'bg-secondary text-white hover:bg-[#7D2C11] cursor-pointer'
+                    : 'bg-surface-container text-on-surface-variant/40 cursor-not-allowed'
                 }`}
               title={isAgentBusy ? 'Dừng phản hồi' : canSubmit ? 'Gửi tin nhắn (Enter)' : 'Nhập tin nhắn trước'}
             >
@@ -393,7 +392,7 @@ export function PromptComposer() {
           <p className="text-[10px] text-on-surface-variant/40 font-ui-body">
             Enter để gửi · Shift+Enter để xuống dòng
           </p>
-          
+
           <div className="flex items-center gap-2">
             <select
               value={settings.permissionMode}
@@ -408,17 +407,36 @@ export function PromptComposer() {
 
             {activeContextWindow && contextUsagePercent !== null && (
               <div
-                className={`flex items-center gap-1.5 min-w-[116px] ${contextUsageTone.text}`}
+                className={`flex items-center gap-1.5 ${contextUsageTone.text}`}
                 title={`Local realtime estimate: khoảng ${estimatedContextTokens.toLocaleString()} / ${activeContextWindow.toLocaleString()} tokens (${contextUsagePercent}%).`}
               >
                 <span className="text-[10px] font-ui-label-bold tabular-nums whitespace-nowrap">
                   ~{contextUsagePercent}%
                 </span>
-                <div className="h-1.5 w-16 rounded-full bg-outline-variant/40 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${contextUsageTone.bar}`}
-                    style={{ width: contextUsageWidth }}
-                  />
+                <div className="relative w-[18px] h-[18px] flex items-center justify-center">
+                  <svg className="w-[18px] h-[18px] transform -rotate-90">
+                    <circle
+                      cx="9"
+                      cy="9"
+                      r="7"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      fill="none"
+                      className="text-outline-variant/40"
+                    />
+                    <circle
+                      cx="9"
+                      cy="9"
+                      r="7"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      fill="none"
+                      strokeDasharray="44"
+                      strokeDashoffset={44 - (Math.min(contextUsagePercent, 100) / 100) * 44}
+                      className={contextUsageTone.stroke}
+                      strokeLinecap="round"
+                    />
+                  </svg>
                 </div>
               </div>
             )}
