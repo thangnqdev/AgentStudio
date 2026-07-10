@@ -5,6 +5,7 @@ import { ChatArea } from './components/ChatArea';
 import { PromptComposer } from './components/PromptComposer';
 import { PlaceholderView } from './components/PlaceholderView';
 import { SettingsView } from './components/SettingsView';
+import { KnowledgeView } from './components/KnowledgeView';
 import { AgentBridge } from './infrastructure/ipc/agentStudioBridge';
 import { useAppStore, type ViewId } from './store/useAppStore';
 import type { Message, Attachment } from './domain/entities/message';
@@ -66,6 +67,9 @@ function MainContent({ view }: { view: ViewId }) {
   }
   if (view === 'settings') {
     return <SettingsView />;
+  }
+  if (view === 'knowledge') {
+    return <KnowledgeView />;
   }
   return <PlaceholderView view={view} />;
 }

@@ -8,6 +8,7 @@ import { registerWorkspaceIpc } from './ipc/registerWorkspaceIpc.js';
 import { registerGitIpc } from './ipc/registerGitIpc.js';
 import { registerTerminalIpc } from './ipc/registerTerminalIpc.js';
 import { registerAgentIpc } from './ipc/registerAgentIpc.js';
+import { registerKnowledgeIpc } from './ipc/registerKnowledgeIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -51,6 +52,7 @@ function registerIpcHandlers() {
   registerWorkspaceIpc(win);
   registerGitIpc();
   registerTerminalIpc();
+  registerKnowledgeIpc(win);
   registerAgentIpc();
 }
 

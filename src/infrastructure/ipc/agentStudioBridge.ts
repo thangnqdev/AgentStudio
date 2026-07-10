@@ -104,6 +104,27 @@ export const AgentBridge = {
     return window.agentStudio.getGitBranch(workspacePath);
   },
 
+  async listKnowledge() {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.listKnowledge();
+  },
+
+  async selectAndImportKnowledge() {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.selectAndImportKnowledge();
+  },
+
+
+  async searchKnowledge(query: string) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.searchKnowledge(query);
+  },
+
+  async removeKnowledgeDocument(documentId: string) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.removeKnowledgeDocument(documentId);
+  },
+
   startChat(payload: { requestId: string; messages: Message[] }) {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     window.agentStudio.startChat(payload);

@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import { runAgentSession, type AgentStartPayload } from '../agentRuntime.js';
 import { settingsRepo } from '../infrastructure/JsonSettingsRepository.js';
 import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
+import { knowledgeBaseUseCase } from '../knowledgeRuntime.js';
 
 const activeAgentControllers = new Map<string, AbortController>();
 
@@ -39,6 +40,10 @@ export function registerAgentIpc() {
       }
 
       const workspaceRoot = await workspaceManager.getWorkspaceRoot();
+      const latestUserMessage = [...(payload.messages ?? [])].reverse().find((message) => message.sender === 'user');
+      const knowledgeContext = latestUserMessage?.content
+        ? await knowledgeBaseUseCase.buildContext(workspaceRoot, latestUserMessage.content)
+        : '';
 
       await runAgentSession(payload, event.sender, {
         baseUrl: activeProvider.baseUrl,
@@ -46,7 +51,7 @@ export function registerAgentIpc() {
         model: settings.activeModelId || '',
         contextWindow: activeProvider.models.find(m => m.id === settings.activeModelId)?.contextWindow,
         permissionMode: settings.permissionMode,
-      }, workspaceRoot, controller.signal);
+      }, workspaceRoot, knowledgeContext, controller.signal);
     } catch (error) {
       if (activeAgentControllers.get(requestId)?.signal.aborted) {
         event.sender.send('ai:chat:chunk', { requestId, chunk: '\n\nĐã dừng phản hồi.' });

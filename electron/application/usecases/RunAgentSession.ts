@@ -1,28 +1,27 @@
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import type { IAiProvider } from '../../domain/ports/IAiProvider.js';
 import type { IToolExecutor } from '../../domain/ports/IToolExecutor.js';
+import type { IAttachmentMessageFormatter } from '../../domain/ports/IAttachmentMessageFormatter.js';
 import { buildSummarySystemMessage, compactContext } from '../../contextCompaction.js';
 import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
 import type {
   AgentStartPayload,
   AgentProviderSettings,
-  Message,
   ChatMessage,
   PermissionMode,
-  Attachment,
 } from '../../domain/entities/agent.js';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 
-import { MAX_FILE_BYTES, MAX_IMAGE_BYTES, MAX_AGENT_STEPS } from '../../domain/entities/limits.js';
+import { MAX_AGENT_STEPS } from '../../domain/entities/limits.js';
 
 export class RunAgentSession {
   private readonly provider: IAiProvider;
   private readonly toolExecutor: IToolExecutor;
+  private readonly attachmentFormatter: IAttachmentMessageFormatter;
 
-  constructor(provider: IAiProvider, toolExecutor: IToolExecutor) {
+  constructor(provider: IAiProvider, toolExecutor: IToolExecutor, attachmentFormatter: IAttachmentMessageFormatter) {
     this.provider = provider;
     this.toolExecutor = toolExecutor;
+    this.attachmentFormatter = attachmentFormatter;
   }
 
   async execute(
@@ -30,6 +29,7 @@ export class RunAgentSession {
     eventSink: IAgentEventSink,
     settings: AgentProviderSettings,
     workspaceRoot: string,
+    knowledgeContext?: string,
     signal?: AbortSignal,
   ) {
     const requestId = typeof payload.requestId === 'string' ? payload.requestId : '';
@@ -53,13 +53,13 @@ export class RunAgentSession {
       conversation = [
         {
           role: 'system',
-          content: this.buildAgentSystemPrompt(workspaceRoot, settings.permissionMode),
+          content: this.buildAgentSystemPrompt(workspaceRoot, settings.permissionMode, knowledgeContext),
         },
         ...(compactedContext.summary ? [{
           role: 'system' as const,
           content: buildSummarySystemMessage(compactedContext.summary),
         }] : []),
-        ...await this.formatMessages(compactedContext.recentMessages),
+        ...await this.attachmentFormatter.format(compactedContext.recentMessages),
       ];
     };
 
@@ -147,7 +147,7 @@ export class RunAgentSession {
     eventSink.emitDone(requestId);
   }
 
-  private buildAgentSystemPrompt(workspaceRoot: string, permissionMode: PermissionMode) {
+  private buildAgentSystemPrompt(workspaceRoot: string, permissionMode: PermissionMode, knowledgeContext?: string) {
     return [
       'You are AgentStudio, a local coding agent embedded in an Electron app.',
       'Use tools when you need to inspect, edit, or test the project. Explain concise progress to the user.',
@@ -159,106 +159,8 @@ export class RunAgentSession {
       '- danger-full-access: commands run without sandbox and file paths may be absolute.',
       'Do not claim a command or edit succeeded unless the tool result says it did.',
       'If earlier context was compacted, treat its summary as lossy. Re-read files or rerun lightweight checks when exact details matter.',
+      knowledgeContext || '',
     ].join('\n');
-  }
-
-  // ─── Attachment formatting (reads from disk — acceptable in use-case since it
-  //     prepares the AI context payload, not executing tools) ────────────────────
-
-  private async formatMessages(messages: Message[]): Promise<ChatMessage[]> {
-    const formattedMessages: ChatMessage[] = [];
-
-    for (const message of messages) {
-      if (!Array.isArray(message.attachments) || message.attachments.length === 0) {
-        formattedMessages.push({
-          role: message.sender === 'user' ? 'user' : 'assistant',
-          content: message.content,
-        });
-        continue;
-      }
-
-      const parts: Array<Record<string, unknown>> = [];
-      for (const attachment of message.attachments) {
-        if (attachment.type === 'image') {
-          const imageUrl = await this.readAttachmentImageUrl(attachment);
-          if (imageUrl) {
-            parts.push({ type: 'image_url', image_url: { url: imageUrl } });
-          } else {
-            parts.push({ type: 'text', text: this.describeAttachment(attachment) });
-          }
-        } else if (attachment.type === 'text') {
-          parts.push({ type: 'text', text: await this.readAttachmentText(attachment) });
-        } else {
-          parts.push({ type: 'text', text: this.describeAttachment(attachment) });
-        }
-      }
-
-      if (message.content) {
-        parts.push({ type: 'text', text: message.content });
-      }
-
-      formattedMessages.push({
-        role: message.sender === 'user' ? 'user' : 'assistant',
-        content: parts,
-      });
-    }
-
-    return formattedMessages;
-  }
-
-  private async readAttachmentText(attachment: Attachment) {
-    if (attachment.data) {
-      return `[File: ${attachment.name}]\n\`\`\`\n${attachment.data}\n\`\`\``;
-    }
-
-    if (!attachment.filePath) {
-      return this.describeAttachment(attachment);
-    }
-
-    try {
-      const stat = await fs.stat(attachment.filePath);
-      if (!stat.isFile()) return `${this.describeAttachment(attachment)}\nPath is not a file.`;
-      if (stat.size > MAX_FILE_BYTES) {
-        return `${this.describeAttachment(attachment)}\nFile is too large to inline (${stat.size} bytes). Read it with tools only if needed.`;
-      }
-
-      return `[File: ${attachment.name}]\nPath: ${attachment.filePath}\n\`\`\`\n${await fs.readFile(attachment.filePath, 'utf8')}\n\`\`\``;
-    } catch (error) {
-      return `${this.describeAttachment(attachment)}\nCould not read file: ${error instanceof Error ? error.message : 'unknown error'}`;
-    }
-  }
-
-  private async readAttachmentImageUrl(attachment: Attachment) {
-    if (attachment.data) return attachment.data;
-    if (!attachment.filePath) return '';
-
-    try {
-      const stat = await fs.stat(attachment.filePath);
-      if (!stat.isFile() || stat.size > MAX_IMAGE_BYTES) return '';
-      const mimeType = attachment.mimeType || this.inferMimeType(attachment.name) || 'image/png';
-      const data = await fs.readFile(attachment.filePath);
-      return `data:${mimeType};base64,${data.toString('base64')}`;
-    } catch {
-      return '';
-    }
-  }
-
-  private describeAttachment(attachment: Attachment) {
-    return [
-      `[${attachment.type} attachment: ${attachment.name}]`,
-      attachment.filePath ? `Path: ${attachment.filePath}` : '',
-      attachment.size ? `Size: ${attachment.size} bytes` : '',
-      attachment.mimeType ? `MIME: ${attachment.mimeType}` : '',
-    ].filter(Boolean).join('\n');
-  }
-
-  private inferMimeType(fileName: string) {
-    const extension = path.extname(fileName).toLowerCase();
-    if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
-    if (extension === '.png') return 'image/png';
-    if (extension === '.gif') return 'image/gif';
-    if (extension === '.webp') return 'image/webp';
-    return '';
   }
 
   private parseToolArguments(raw: string): Record<string, unknown> {

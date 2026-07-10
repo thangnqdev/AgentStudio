@@ -72,6 +72,10 @@ contextBridge.exposeInMainWorld('agentStudio', {
   loadChatHistory: (workspacePath: string) => ipcRenderer.invoke('chat:load-workspace', workspacePath),
   saveChatHistory: (payload: unknown) => ipcRenderer.invoke('chat:save-workspace', payload),
   getGitBranch: (workspacePath: string) => ipcRenderer.invoke('git:get-branch', workspacePath),
+  listKnowledge: () => ipcRenderer.invoke('knowledge:list'),
+  selectAndImportKnowledge: () => ipcRenderer.invoke('knowledge:select-and-import'),
+  searchKnowledge: (query: string) => ipcRenderer.invoke('knowledge:search', query),
+  removeKnowledgeDocument: (documentId: string) => ipcRenderer.invoke('knowledge:remove', documentId),
 
   startChat: (payload: unknown) => ipcRenderer.send('ai:chat:start', payload),
   stopChat: (requestId: string) => ipcRenderer.send('ai:chat:stop', { requestId }),
