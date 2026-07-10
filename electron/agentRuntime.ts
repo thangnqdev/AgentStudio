@@ -10,6 +10,7 @@ import { JsonlToolAuditLogger } from './infrastructure/tools/JsonlToolAuditLogge
 import { JsonAgentTaskRepository } from './infrastructure/tasks/JsonAgentTaskRepository.js';
 import { AgentTaskService } from './application/usecases/AgentTaskService.js';
 import type { AgentTaskRecord } from './domain/entities/agentTask.js';
+import { webSearchSettingsRepository } from './infrastructure/WebSearchSettingsRepository.js';
 
 export * from './domain/entities/agent.js';
 
@@ -27,11 +28,13 @@ export async function runAgentSession(
   signal?: AbortSignal,
   task?: AgentTaskRecord,
 ) {
+  const webSearchSettings = await webSearchSettingsRepository.load();
+  const providerSettings = { ...settings, webSearchEnabled: webSearchSettings.provider !== 'disabled' };
   const provider = new OpenAIProvider();
   const eventSink = new ElectronAgentEventSink(sender);
-  const toolExecutor = new AgentToolExecutor(settings);
+  const toolExecutor = new AgentToolExecutor(webSearchSettings);
   const session = new RunAgentSession(provider, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger);
-  const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, signal, task
+  const result = await session.execute(payload, eventSink, providerSettings, workspaceRoot, knowledgeContext, signal, task
     ? {
       id: task.id,
       workspaceRoot: task.workspaceRoot,

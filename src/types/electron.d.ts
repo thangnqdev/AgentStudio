@@ -107,6 +107,19 @@ export type AgentTaskListResult =
   | { success: true; tasks: AgentTaskSummary[] }
   | { success: false; error: string };
 
+export type WebSearchProvider = 'disabled' | 'openai' | 'tavily' | 'searxng';
+
+export type PublicWebSearchSettings = {
+  provider: WebSearchProvider;
+  baseUrl?: string;
+  model?: string;
+  hasApiKey: boolean;
+};
+
+export type WebSearchSettingsResult =
+  | { success: true; settings: PublicWebSearchSettings }
+  | { success: false; error: string };
+
 export type KnowledgeLibraryPayload = {
   documents: KnowledgeDocument[];
   totalChunks: number;
@@ -145,6 +158,8 @@ declare global {
       setActiveProvider: (providerId: string) => Promise<AppSettings>;
       setActiveModel: (modelId: string) => Promise<AppSettings>;
       setPermissionMode: (mode: PermissionMode) => Promise<AppSettings>;
+      loadWebSearchSettings: () => Promise<WebSearchSettingsResult>;
+      saveWebSearchSettings: (payload: { provider: WebSearchProvider; baseUrl?: string; apiKey?: string; model?: string }) => Promise<WebSearchSettingsResult>;
       getCurrentWorkspace: () => Promise<WorkspacePayload>;
       selectWorkspace: () => Promise<WorkspacePayload>;
       writeWorkspaceFile: (payload: WriteWorkspaceFilePayload) => Promise<{ success: true; path: string } | { success: false; error: string }>;

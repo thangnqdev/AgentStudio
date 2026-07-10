@@ -69,6 +69,16 @@ export const AgentBridge = {
     return window.agentStudio.setPermissionMode(mode);
   },
 
+  async loadWebSearchSettings() {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.loadWebSearchSettings();
+  },
+
+  async saveWebSearchSettings(payload: Parameters<NonNullable<Window['agentStudio']>['saveWebSearchSettings']>[0]) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.saveWebSearchSettings(payload);
+  },
+
   async getCurrentWorkspace() {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     return window.agentStudio.getCurrentWorkspace();

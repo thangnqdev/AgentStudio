@@ -50,6 +50,7 @@ export type AgentProviderSettings = {
   model: string;
   contextWindow?: number;
   permissionMode: PermissionMode;
+  webSearchEnabled?: boolean;
 };
 
 export type AgentStartPayload = {

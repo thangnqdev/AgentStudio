@@ -9,6 +9,7 @@ import { registerGitIpc } from './ipc/registerGitIpc.js';
 import { registerTerminalIpc } from './ipc/registerTerminalIpc.js';
 import { registerAgentIpc } from './ipc/registerAgentIpc.js';
 import { registerKnowledgeIpc } from './ipc/registerKnowledgeIpc.js';
+import { registerWebSearchIpc } from './ipc/registerWebSearchIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
 import { stopWorkspaceKnowledgeSync } from './knowledgeRuntime.js';
 
@@ -55,6 +56,7 @@ function registerIpcHandlers() {
   registerTerminalIpc();
   registerKnowledgeIpc(win);
   registerAgentIpc();
+  registerWebSearchIpc();
 }
 
 app.on('window-all-closed', () => {

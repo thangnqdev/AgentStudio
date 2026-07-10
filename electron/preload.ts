@@ -73,6 +73,8 @@ contextBridge.exposeInMainWorld('agentStudio', {
   setActiveProvider: (providerId: string) => ipcRenderer.invoke('settings:set-active-provider', providerId),
   setActiveModel: (modelId: string) => ipcRenderer.invoke('settings:set-active-model', modelId),
   setPermissionMode: (mode: string) => ipcRenderer.invoke('settings:set-permission-mode', mode),
+  loadWebSearchSettings: () => ipcRenderer.invoke('web-search:load-settings'),
+  saveWebSearchSettings: (payload: unknown) => ipcRenderer.invoke('web-search:save-settings', payload),
   getCurrentWorkspace: () => ipcRenderer.invoke('workspace:get-current'),
   selectWorkspace: () => ipcRenderer.invoke('workspace:select-directory'),
   writeWorkspaceFile: (payload: unknown) => ipcRenderer.invoke('workspace:write-file', payload),

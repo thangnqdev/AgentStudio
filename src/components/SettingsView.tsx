@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import type { AIProvider } from '../domain/entities/settings';
 import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
+import { WebSearchSettings } from './WebSearchSettings';
 
 type EditableProvider = Partial<AIProvider> & {
   apiKey?: string;
@@ -255,6 +256,7 @@ export function SettingsView() {
             </div>
           </section>
         )}
+        <WebSearchSettings />
       </div>
     </div>
   );

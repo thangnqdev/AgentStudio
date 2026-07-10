@@ -2,8 +2,8 @@ import type { IToolExecutor } from '../../domain/ports/IToolExecutor.js';
 import type { ToolResult, PermissionMode } from '../../domain/entities/agent.js';
 import { FileSystemToolExecutor } from './FileSystemToolExecutor.js';
 import { runSandboxedCommand } from './sandbox/SandboxedCommandExecutor.js';
-import { OpenAIWebSearchExecutor } from './OpenAIWebSearchExecutor.js';
-import type { AgentProviderSettings } from '../../domain/entities/agent.js';
+import type { WebSearchSettings } from '../../domain/entities/webSearch.js';
+import { WebSearchExecutor } from './WebSearchExecutor.js';
 
 /**
  * Facade implement IToolExecutor — dispatch đến FileSystemToolExecutor hoặc
@@ -11,10 +11,10 @@ import type { AgentProviderSettings } from '../../domain/entities/agent.js';
  */
 export class AgentToolExecutor implements IToolExecutor {
   private readonly fs = new FileSystemToolExecutor();
-  private readonly webSearch: OpenAIWebSearchExecutor;
+  private readonly webSearch: WebSearchExecutor;
 
-  constructor(settings: AgentProviderSettings) {
-    this.webSearch = new OpenAIWebSearchExecutor(settings);
+  constructor(webSearchSettings: WebSearchSettings) {
+    this.webSearch = new WebSearchExecutor(webSearchSettings);
   }
 
   async execute(
