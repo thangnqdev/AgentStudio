@@ -7,11 +7,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'workspace', label: 'Không gian làm việc', icon: 'folder_open' },
   { id: 'tasks', label: 'Tác vụ hiện tại', icon: 'bolt' },
   { id: 'knowledge', label: 'Cơ sở tri thức', icon: 'menu_book' },
-  { id: 'files', label: 'Quản lý tệp tin', icon: 'description' },
-  { id: 'agents', label: 'Trợ lý AI', icon: 'smart_toy' },
 ];
 
 export function Sidebar() {
