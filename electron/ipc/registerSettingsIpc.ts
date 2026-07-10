@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import { settingsRepo, type StoredSettings, type StoredProvider, type ModelMetadata } from '../infrastructure/JsonSettingsRepository.js';
 import { randomUUID } from 'node:crypto';
-import type { PermissionMode } from '../agentRuntime.js';
+import type { PermissionMode } from '../domain/entities/agent.js';
 
 type SaveProviderPayload = {
   id?: string;

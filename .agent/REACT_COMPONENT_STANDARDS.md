@@ -25,11 +25,10 @@ Ví dụ cụ thể trong repo:
 
 | Component hiện tại | Logic cần tách | Hook đích |
 |---|---|---|
-| `PromptComposer.tsx` + `ChatArea.tsx` | luồng gửi tin nhắn/regenerate, quản lý stream | `useAgentChat()` |
-| `SourceControlView.tsx` | fetch status, fetch diff, stage/commit/push/pull | `useGitStatus()`, `useGitDiff(path)` |
-| `BranchManagerModal.tsx` | fetch branches, checkout, tạo branch, push branch | `useBranches()` |
+| `PromptComposer.tsx` + `ChatArea.tsx` | luồng gửi tin nhắn/regenerate, quản lý stream | `useAgentChat()` ✅ đã có |
 | `TerminalView.tsx` | tạo PTY session, resize, cleanup | `useTerminalSession(shellId)` |
-| `TopAppBar.tsx` | fetch current branch | dùng chung `useBranches()` ở trên, không tự fetch riêng |
+| `SettingsView.tsx` | load settings, save provider, fetch models | `useSettings()` (roadmap) |
+| `TopAppBar.tsx` | fetch current branch | `useGitStatus()` ✅ đã có |
 
 Hook trả về `{ data, isLoading, error, actions: {...} }` — component chỉ destructure và
 render, không tự quản lý `useState`/`useEffect` cho cùng một concern ở nhiều nơi.

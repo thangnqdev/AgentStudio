@@ -1,45 +1,42 @@
-import type { WebContents } from 'electron';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import os from 'node:os';
-import { spawn } from 'node:child_process';
-import { buildSummarySystemMessage, compactContext } from '../../contextCompaction.js';
+import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import type { IAiProvider } from '../../domain/ports/IAiProvider.js';
-import type { 
-  AgentStartPayload, 
-  AgentProviderSettings, 
-  Message, 
+import type { IToolExecutor } from '../../domain/ports/IToolExecutor.js';
+import { buildSummarySystemMessage, compactContext } from '../../contextCompaction.js';
+import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
+import type {
+  AgentStartPayload,
+  AgentProviderSettings,
+  Message,
   ChatMessage,
   PermissionMode,
-  ToolResult,
-  AgentActionPayload,
-  Attachment
+  Attachment,
 } from '../../domain/entities/agent.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
 const MAX_AGENT_STEPS = 30;
 const MAX_FILE_BYTES = 200_000;
 const MAX_IMAGE_BYTES = 5_000_000;
-const MAX_COMMAND_OUTPUT = 40_000;
-const MAX_RESPONSE_TOKENS = 8_192;
-const DEFAULT_INPUT_CONTEXT_TOKENS = 24_000;
 
 export class RunAgentSession {
-  private provider: IAiProvider;
+  private readonly provider: IAiProvider;
+  private readonly toolExecutor: IToolExecutor;
 
-  constructor(provider: IAiProvider) {
+  constructor(provider: IAiProvider, toolExecutor: IToolExecutor) {
     this.provider = provider;
+    this.toolExecutor = toolExecutor;
   }
 
   async execute(
     payload: AgentStartPayload,
-    sender: WebContents,
+    eventSink: IAgentEventSink,
     settings: AgentProviderSettings,
     workspaceRoot: string,
     signal?: AbortSignal,
   ) {
     const requestId = typeof payload.requestId === 'string' ? payload.requestId : '';
     if (!requestId) {
-      sender.send('ai:chat:error', { requestId: '', error: 'Thiếu requestId.' });
+      eventSink.emitError('', 'Thiếu requestId.');
       return;
     }
 
@@ -48,7 +45,7 @@ export class RunAgentSession {
     }
 
     const messages = Array.isArray(payload.messages) ? payload.messages : [];
-    const inputContextTokens = this.getInputContextTokenBudget(settings.contextWindow);
+    const inputContextTokens = getInputContextTokenBudget(settings.contextWindow);
     const compactedContext = compactContext(messages, inputContextTokens);
     const conversation: ChatMessage[] = [
       {
@@ -66,13 +63,13 @@ export class RunAgentSession {
       if (signal?.aborted) throw new Error('Agent session stopped.');
 
       const assistantMessage = await this.provider.requestAssistantMessage(
-        settings, 
-        conversation, 
-        sender, 
-        requestId, 
-        signal
+        settings,
+        conversation,
+        eventSink,
+        requestId,
+        signal,
       );
-      
+
       const content = this.readAssistantContent(assistantMessage);
       const toolCalls = Array.isArray(assistantMessage.tool_calls) ? assistantMessage.tool_calls : [];
 
@@ -84,11 +81,11 @@ export class RunAgentSession {
 
       if (toolCalls.length === 0) {
         if (assistantMessage.finishReason === 'length') {
-          this.emitChunk(sender, requestId, '\n\n[Phản hồi bị cắt vì chạm giới hạn output token. Hãy gửi "tiếp tục" nếu muốn AI viết tiếp phần còn lại.]');
+          eventSink.emitChunk(requestId, '\n\n[Phản hồi bị cắt vì chạm giới hạn output token. Hãy gửi "tiếp tục" nếu muốn AI viết tiếp phần còn lại.]');
         } else if (assistantMessage.finishReason === 'stream_closed') {
-          this.emitChunk(sender, requestId, '\n\n[Stream từ server đóng trước khi gửi tín hiệu kết thúc. Nội dung phía trên có thể chưa hoàn chỉnh.]');
+          eventSink.emitChunk(requestId, '\n\n[Stream từ server đóng trước khi gửi tín hiệu kết thúc. Nội dung phía trên có thể chưa hoàn chỉnh.]');
         }
-        sender.send('ai:chat:done', { requestId });
+        eventSink.emitDone(requestId);
         return;
       }
 
@@ -98,16 +95,16 @@ export class RunAgentSession {
         const actionId = toolCall.id || `${requestId}-${toolName}-${step}`;
         const argsText = JSON.stringify(args);
 
-        this.emitAction(sender, requestId, {
+        eventSink.emitAction(requestId, {
           id: actionId,
           toolName,
           args: argsText,
           status: 'running',
         });
-        
-        const result = await this.executeTool(toolName, args, workspaceRoot, settings.permissionMode);
-        
-        this.emitAction(sender, requestId, {
+
+        const result = await this.toolExecutor.execute(toolName, args, workspaceRoot, settings.permissionMode);
+
+        eventSink.emitAction(requestId, {
           id: actionId,
           toolName,
           args: argsText,
@@ -123,8 +120,8 @@ export class RunAgentSession {
       }
     }
 
-    this.emitChunk(sender, requestId, '\n\nAgent dừng vì đạt giới hạn số bước. Hãy thu hẹp yêu cầu hoặc chạy tiếp.');
-    sender.send('ai:chat:done', { requestId });
+    eventSink.emitChunk(requestId, '\n\nAgent dừng vì đạt giới hạn số bước. Hãy thu hẹp yêu cầu hoặc chạy tiếp.');
+    eventSink.emitDone(requestId);
   }
 
   private buildAgentSystemPrompt(workspaceRoot: string, permissionMode: PermissionMode) {
@@ -142,22 +139,8 @@ export class RunAgentSession {
     ].join('\n');
   }
 
-  private getInputContextTokenBudget(contextWindow: number | undefined) {
-    if (!this.isUsableContextWindow(contextWindow)) return DEFAULT_INPUT_CONTEXT_TOKENS;
-
-    const responseTokens = this.getResponseTokenLimit(contextWindow);
-    const overheadTokens = Math.min(4_000, Math.max(800, Math.floor(contextWindow * 0.05)));
-    return Math.max(1_000, contextWindow - responseTokens - overheadTokens);
-  }
-
-  private getResponseTokenLimit(contextWindow: number | undefined) {
-    if (!this.isUsableContextWindow(contextWindow)) return MAX_RESPONSE_TOKENS;
-    return Math.min(MAX_RESPONSE_TOKENS, Math.max(1_024, Math.floor(contextWindow * 0.25)));
-  }
-
-  private isUsableContextWindow(value: number | undefined): value is number {
-    return typeof value === 'number' && Number.isFinite(value) && value >= 2_048;
-  }
+  // ─── Attachment formatting (reads from disk — acceptable in use-case since it
+  //     prepares the AI context payload, not executing tools) ────────────────────
 
   private async formatMessages(messages: Message[]): Promise<ChatMessage[]> {
     const formattedMessages: ChatMessage[] = [];
@@ -270,240 +253,5 @@ export class RunAgentSession {
       return message.content.map((part) => typeof part === 'object' && part !== null && typeof part.text === 'string' ? part.text : '').join('');
     }
     return '';
-  }
-
-  private emitChunk(sender: WebContents, requestId: string, chunk: string) {
-    if (chunk) {
-      sender.send('ai:chat:chunk', { requestId, chunk });
-    }
-  }
-
-  private emitAction(sender: WebContents, requestId: string, action: AgentActionPayload) {
-    sender.send('ai:chat:action', { requestId, action });
-  }
-
-  private async executeTool(
-    toolName: string,
-    args: Record<string, unknown>,
-    workspaceRoot: string,
-    permissionMode: PermissionMode,
-  ): Promise<ToolResult> {
-    try {
-      if (toolName === 'list_files') {
-        return await this.listFiles(args, workspaceRoot, permissionMode);
-      }
-      if (toolName === 'read_file') {
-        return await this.readFileTool(args, workspaceRoot, permissionMode);
-      }
-      if (toolName === 'write_file') {
-        return await this.writeFileTool(args, workspaceRoot, permissionMode);
-      }
-      if (toolName === 'run_command') {
-        return await this.runCommandTool(args, workspaceRoot, permissionMode);
-      }
-
-      return { ok: false, output: `Unknown tool: ${toolName}` };
-    } catch (error) {
-      return { ok: false, output: error instanceof Error ? error.message : 'Unknown tool error' };
-    }
-  }
-
-  private getString(value: unknown) {
-    return typeof value === 'string' ? value : '';
-  }
-
-  private async listFiles(args: Record<string, unknown>, workspaceRoot: string, permissionMode: PermissionMode): Promise<ToolResult> {
-    const dir = this.resolvePath(this.getString(args.dir) || '.', workspaceRoot, permissionMode);
-    const maxEntries = Math.min(Math.max(Number(args.maxEntries) || 200, 1), 500);
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    const visibleEntries = entries
-      .filter((entry) => !['node_modules', '.git', 'dist', 'dist-electron'].includes(entry.name))
-      .slice(0, maxEntries)
-      .map((entry) => `${entry.isDirectory() ? 'dir ' : 'file'} ${entry.name}`)
-      .join('\n');
-
-    return { ok: true, output: visibleEntries || '(empty)' };
-  }
-
-  private async readFileTool(args: Record<string, unknown>, workspaceRoot: string, permissionMode: PermissionMode): Promise<ToolResult> {
-    const filePath = this.resolvePath(this.getString(args.path), workspaceRoot, permissionMode);
-    const stat = await fs.stat(filePath);
-    if (!stat.isFile()) {
-      return { ok: false, output: 'Path is not a file.' };
-    }
-    if (stat.size > MAX_FILE_BYTES) {
-      return { ok: false, output: `File too large (${stat.size} bytes). Limit is ${MAX_FILE_BYTES} bytes.` };
-    }
-
-    return { ok: true, output: await fs.readFile(filePath, 'utf8') };
-  }
-
-  private async writeFileTool(args: Record<string, unknown>, workspaceRoot: string, permissionMode: PermissionMode): Promise<ToolResult> {
-    if (permissionMode === 'read-only') {
-      return { ok: false, output: 'write_file is blocked in read-only mode.' };
-    }
-
-    const filePath = this.resolvePath(this.getString(args.path), workspaceRoot, permissionMode);
-    const content = this.getString(args.content);
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, content, 'utf8');
-    return { ok: true, output: `Wrote ${Buffer.byteLength(content, 'utf8')} bytes to ${path.relative(workspaceRoot, filePath) || filePath}.` };
-  }
-
-  private async runCommandTool(args: Record<string, unknown>, workspaceRoot: string, permissionMode: PermissionMode): Promise<ToolResult> {
-    if (permissionMode === 'read-only') {
-      return { ok: false, output: 'run_command is blocked in read-only mode.' };
-    }
-
-    const command = this.getString(args.command).trim();
-    if (!command) {
-      return { ok: false, output: 'Command is empty.' };
-    }
-
-    const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 15_000, 1_000), 30_000);
-    return this.runSandboxedCommand(command, workspaceRoot, permissionMode, timeoutMs);
-  }
-
-  private async runSandboxedCommand(
-    command: string,
-    workspaceRoot: string,
-    permissionMode: PermissionMode,
-    timeoutMs: number,
-  ): Promise<ToolResult> {
-    if (permissionMode === 'danger-full-access') {
-      return this.spawnAndCollect('/bin/sh', ['-lc', command], workspaceRoot, timeoutMs);
-    }
-
-    if (process.platform === 'darwin') {
-      const sandboxExec = '/usr/bin/sandbox-exec';
-      if (!await this.fileExists(sandboxExec)) {
-        return { ok: false, output: 'sandbox-exec not found; refusing to run command in workspace-write mode.' };
-      }
-
-      const profile = this.buildSeatbeltProfile(workspaceRoot);
-      return this.spawnAndCollect(sandboxExec, ['-p', profile, '/bin/sh', '-lc', command], workspaceRoot, timeoutMs);
-    }
-
-    if (process.platform === 'linux') {
-      if (!await this.commandExists('bwrap')) {
-        return { ok: false, output: 'bubblewrap (bwrap) not found; refusing to run command in workspace-write mode.' };
-      }
-
-      return this.spawnAndCollect('bwrap', [
-        '--ro-bind', '/', '/',
-        '--dev', '/dev',
-        '--proc', '/proc',
-        '--tmpfs', '/tmp',
-        '--bind', workspaceRoot, workspaceRoot,
-        '--chdir', workspaceRoot,
-        '--unshare-net',
-        '/bin/sh',
-        '-lc',
-        command,
-      ], workspaceRoot, timeoutMs);
-    }
-
-    return { ok: false, output: `Sandboxed command execution is not implemented on ${process.platform}.` };
-  }
-
-  private buildSeatbeltProfile(workspaceRoot: string) {
-    const escapedWorkspace = workspaceRoot.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-    const tmp = os.tmpdir().replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-
-    return [
-      '(version 1)',
-      '(deny default)',
-      '(allow process*)',
-      '(allow signal (target self))',
-      '(allow sysctl-read)',
-      '(allow file-read*)',
-      `(allow file-write* (subpath "${escapedWorkspace}") (subpath "${tmp}") (subpath "/tmp") (subpath "/private/tmp"))`,
-    ].join('\n');
-  }
-
-  private spawnAndCollect(command: string, args: string[], cwd: string, timeoutMs: number): Promise<ToolResult> {
-    return new Promise((resolve) => {
-      const child = spawn(command, args, {
-        cwd,
-        env: process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      let output = '';
-      let settled = false;
-
-      const timer = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        child.kill('SIGTERM');
-        resolve({ ok: false, output: this.trimOutput(`${output}\nCommand timed out after ${timeoutMs}ms.`) });
-      }, timeoutMs);
-
-      child.stdout.on('data', (chunk: Buffer) => {
-        output += chunk.toString('utf8');
-        output = this.trimOutput(output);
-      });
-      child.stderr.on('data', (chunk: Buffer) => {
-        output += chunk.toString('utf8');
-        output = this.trimOutput(output);
-      });
-      child.on('error', (error) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve({ ok: false, output: error.message });
-      });
-      child.on('close', (code) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve({
-          ok: code === 0,
-          output: this.trimOutput(`${output}\nExit code: ${code ?? 'unknown'}`),
-        });
-      });
-    });
-  }
-
-  private resolvePath(inputPath: string, workspaceRoot: string, permissionMode: PermissionMode) {
-    if (!inputPath) {
-      throw new Error('Path is required.');
-    }
-
-    const resolved = path.resolve(permissionMode === 'danger-full-access' && path.isAbsolute(inputPath)
-      ? inputPath
-      : path.join(workspaceRoot, inputPath));
-
-    if (permissionMode !== 'danger-full-access' && !this.isInsidePath(resolved, workspaceRoot)) {
-      throw new Error(`Path escapes workspace: ${inputPath}`);
-    }
-
-    return resolved;
-  }
-
-  private isInsidePath(candidate: string, root: string) {
-    const relative = path.relative(root, candidate);
-    return relative === '' || Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative);
-  }
-
-  private trimOutput(output: string) {
-    if (output.length <= MAX_COMMAND_OUTPUT) return output;
-    return `${output.slice(0, MAX_COMMAND_OUTPUT)}\n[output truncated]`;
-  }
-
-  private async fileExists(filePath: string) {
-    try {
-      await fs.access(filePath);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  private async commandExists(command: string) {
-    const pathEntries = (process.env.PATH || '').split(path.delimiter);
-    for (const entry of pathEntries) {
-      if (await this.fileExists(path.join(entry, command))) return true;
-    }
-    return false;
   }
 }

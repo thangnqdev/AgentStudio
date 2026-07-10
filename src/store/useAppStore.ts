@@ -3,6 +3,7 @@ import type { Message, AgentAction, AgentThought } from '../domain/entities/mess
 import type { ChatThread } from '../domain/entities/chatThread';
 import { createBlankThread, deriveThreadTitle, reviveThread } from '../domain/entities/chatThread';
 import type { AppSettings } from '../domain/entities/settings';
+import { reduceAgentAction, reduceAgentThoughtChunk } from '../application/services/agentStateReducers';
 
 export type ViewId = 'tasks' | 'workspace' | 'knowledge' | 'files' | 'terminal' | 'agents' | 'settings';
 
@@ -231,20 +232,11 @@ export const useAppStore = create<AppState>()(
 
       setActiveRequestId: (requestId) => set({ activeRequestId: requestId }),
       upsertAgentAction: (action) => set((state) => {
-        const exists = state.agentActions.some((item) => item.id === action.id);
-        let messages = state.messages;
-
-        if (!exists) {
-          const targetMsg = messages.find(m => m.sender === 'agent' && m.status === 'sending');
-          if (targetMsg) {
-            messages = messages.map(m => m.id === targetMsg.id ? { ...m, content: m.content + `\n[tool:${action.id}]\n` } : m);
-          }
-        }
-
-        const agentActions = exists
-          ? state.agentActions.map((item) => (item.id === action.id ? { ...item, ...action } : item))
-          : [...state.agentActions, action];
-
+        const { agentActions, messages } = reduceAgentAction(
+          state.agentActions,
+          state.messages,
+          action,
+        );
         return {
           agentActions,
           ...syncThread(state, messages),
@@ -252,48 +244,14 @@ export const useAppStore = create<AppState>()(
       }),
       clearAgentActions: () => set({ agentActions: [] }),
       appendAgentThoughtChunk: (requestId, chunk) => set((state) => {
-        const normalizedChunk = chunk.replace(/\r\n/g, '\n');
-        if (!normalizedChunk) return {};
-
-        const thoughts = [...state.agentThoughts];
-        const segments = normalizedChunk.split('\n');
-        let startsNewLine = state.agentThoughtStartsNewLine;
-
-        segments.forEach((segment, index) => {
-          const shouldAppend = !startsNewLine
-            && segment
-            && thoughts.length > 0
-            && thoughts[thoughts.length - 1].requestId === requestId;
-
-          if (shouldAppend) {
-            const lastThought = thoughts[thoughts.length - 1];
-            thoughts[thoughts.length - 1] = {
-              ...lastThought,
-              content: `${lastThought.content}${segment}`,
-              timestamp: new Date(),
-            };
-          } else if (segment.trim()) {
-            thoughts.push({
-              id: crypto.randomUUID(),
-              requestId,
-              content: segment,
-              timestamp: new Date(),
-            });
-          }
-
-          if (segment) {
-            startsNewLine = false;
-          }
-          if (index < segments.length - 1) {
-            startsNewLine = true;
-          }
-        });
-
+        const next = reduceAgentThoughtChunk(
+          { thoughts: state.agentThoughts, startsNewLine: state.agentThoughtStartsNewLine },
+          requestId,
+          chunk,
+        );
         return {
-          agentThoughts: thoughts
-            .filter((thought) => thought.content.trim())
-            .slice(-120),
-          agentThoughtStartsNewLine: startsNewLine,
+          agentThoughts: next.thoughts,
+          agentThoughtStartsNewLine: next.startsNewLine,
         };
       }),
       clearAgentThoughts: () => set({ agentThoughts: [], agentThoughtStartsNewLine: true }),

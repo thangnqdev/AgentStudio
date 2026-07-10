@@ -2,7 +2,7 @@ import { app, safeStorage } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { PermissionMode } from '../agentRuntime.js';
+import type { PermissionMode } from '../domain/entities/agent.js';
 
 export type ModelMetadata = {
   id: string;
@@ -116,6 +116,7 @@ export class JsonSettingsRepository {
     if (safeStorage.isEncryptionAvailable()) {
       return { encryptedApiKey: safeStorage.encryptString(apiKey).toString('base64') };
     }
+    console.warn('[SECURITY] safeStorage is unavailable — API key stored as plaintext. Ensure the app is running in a trusted environment.');
     return { plainApiKey: apiKey };
   }
 

@@ -1,11 +1,11 @@
-import type { WebContents } from 'electron';
-import type { AgentProviderSettings, AssistantResponse, ChatMessage } from '../../domain/entities/agent.js';
+import type { AgentProviderSettings, AssistantResponse, ChatMessage } from '../entities/agent.js';
+import type { IAgentEventSink } from './IAgentEventSink.js';
 
 export interface IAiProvider {
   requestAssistantMessage(
     settings: AgentProviderSettings,
     messages: ChatMessage[],
-    sender: WebContents,
+    eventSink: IAgentEventSink,
     requestId: string,
     signal?: AbortSignal,
   ): Promise<AssistantResponse>;

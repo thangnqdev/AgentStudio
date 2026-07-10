@@ -1,6 +1,7 @@
-import type { WebContents } from 'electron';
 import type { IAiProvider } from '../../domain/ports/IAiProvider.js';
 import type { AgentProviderSettings, AssistantResponse, ChatMessage, ToolCall } from '../../domain/entities/agent.js';
+import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
+import { getResponseTokenLimit } from '../../domain/entities/tokenBudget.js';
 
 type StreamingToolCall = {
   index: number;
@@ -12,7 +13,6 @@ type StreamingToolCall = {
   };
 };
 
-const MAX_RESPONSE_TOKENS = 8_192;
 
 export const TOOL_DEFINITIONS = [
   {
@@ -79,7 +79,7 @@ export class OpenAIProvider implements IAiProvider {
   async requestAssistantMessage(
     settings: AgentProviderSettings,
     messages: ChatMessage[],
-    sender: WebContents,
+    eventSink: IAgentEventSink,
     requestId: string,
     signal?: AbortSignal,
   ): Promise<AssistantResponse> {
@@ -101,7 +101,7 @@ export class OpenAIProvider implements IAiProvider {
         tools: TOOL_DEFINITIONS,
         tool_choice: 'auto',
         stream: true,
-        max_tokens: this.getResponseTokenLimit(settings.contextWindow),
+        max_tokens: getResponseTokenLimit(settings.contextWindow),
       }),
     });
 
@@ -153,7 +153,7 @@ export class OpenAIProvider implements IAiProvider {
         const contentDelta = delta.content;
         if (typeof contentDelta === 'string' && contentDelta) {
           content += contentDelta;
-          this.emitChunk(sender, requestId, contentDelta);
+          eventSink.emitChunk(requestId, contentDelta);
         }
 
         const toolCallDeltas = delta.tool_calls;
@@ -175,20 +175,7 @@ export class OpenAIProvider implements IAiProvider {
     return new URL(endpoint, `${baseUrl.replace(/\/$/, '')}/`).toString();
   }
 
-  private emitChunk(sender: WebContents, requestId: string, chunk: string) {
-    if (chunk) {
-      sender.send('ai:chat:chunk', { requestId, chunk });
-    }
-  }
 
-  private isUsableContextWindow(value: number | undefined): value is number {
-    return typeof value === 'number' && Number.isFinite(value) && value >= 2_048;
-  }
-
-  private getResponseTokenLimit(contextWindow: number | undefined) {
-    if (!this.isUsableContextWindow(contextWindow)) return MAX_RESPONSE_TOKENS;
-    return Math.min(MAX_RESPONSE_TOKENS, Math.max(1_024, Math.floor(contextWindow * 0.25)));
-  }
 
   private parseSseJson(raw: string): unknown | null {
     try {

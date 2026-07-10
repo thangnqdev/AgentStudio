@@ -46,7 +46,7 @@ export function registerWorkspaceIpc(win: BrowserWindow | null) {
     return workspaceManager.loadWorkspaceChatHistory(getString(rawWorkspacePath) || await workspaceManager.getWorkspaceRoot());
   });
 
-  ipcMain.handle('chat:save-workspace', async (_event, rawPayload: any) => {
+  ipcMain.handle('chat:save-workspace', async (_event, rawPayload: unknown) => {
     const payload = typeof rawPayload === 'object' && rawPayload !== null ? rawPayload : {};
     return workspaceManager.saveWorkspaceChatHistory(payload);
   });
