@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { useAppStore, type AIProvider } from '../store/useAppStore';
+import { useAppStore } from '../store/useAppStore';
+import type { AIProvider } from '../domain/entities/settings';
+import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
 
 type EditableProvider = Partial<AIProvider> & {
   apiKey?: string;
@@ -38,8 +40,8 @@ export function SettingsView() {
 
   const handleDelete = async (id: string) => {
     try {
-      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-      const nextSettings = await window.agentStudio.deleteProvider(id);
+      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await AgentBridge.deleteProvider(id);
       setSettings(nextSettings);
       if (editingProvider?.id === id) {
         setEditingProvider(null);
@@ -51,8 +53,8 @@ export function SettingsView() {
 
   const handleSetDefault = async (id: string) => {
     try {
-      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-      const nextSettings = await window.agentStudio.setActiveProvider(id);
+      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await AgentBridge.setActiveProvider(id);
       setSettings(nextSettings);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Đặt provider mặc định thất bại.');
@@ -67,8 +69,8 @@ export function SettingsView() {
     setSuccessMsg('');
     
     try {
-      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-      const nextSettings = await window.agentStudio.saveProviderAndScan({
+      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await AgentBridge.saveProviderAndScan({
         id: editingProvider.id,
         name: editingProvider.name,
         baseUrl: editingProvider.baseUrl,

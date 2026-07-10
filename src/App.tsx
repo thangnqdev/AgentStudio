@@ -5,7 +5,11 @@ import { ChatArea } from './components/ChatArea';
 import { PromptComposer } from './components/PromptComposer';
 import { PlaceholderView } from './components/PlaceholderView';
 import { SettingsView } from './components/SettingsView';
-import { useAppStore, type AppSettings, type Attachment, type ChatThread, type Message, type ViewId } from './store/useAppStore';
+import { AgentBridge } from './infrastructure/ipc/agentStudioBridge';
+import { useAppStore, type ViewId } from './store/useAppStore';
+import type { Message, Attachment } from './domain/entities/message';
+import type { ChatThread } from './domain/entities/chatThread';
+import type { AppSettings } from './domain/entities/settings';
 
 const LEGACY_SETTINGS_KEY = 'architect-app-settings';
 const CHAT_HISTORY_SAVE_DELAY_MS = 700;
@@ -80,7 +84,7 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
-    if (!window.agentStudio) {
+    if (!AgentBridge.isAvailable) {
       console.warn('Electron bridge is not available. Skipping local settings load.');
       return () => {
         cancelled = true;
@@ -89,11 +93,11 @@ function App() {
 
     const legacySettings = readLegacySettings();
     const settingsPromise = legacySettings
-      ? window.agentStudio.importLegacySettings(legacySettings).then((settings) => {
+      ? AgentBridge.importLegacySettings(legacySettings).then((settings) => {
           localStorage.removeItem(LEGACY_SETTINGS_KEY);
           return settings;
         })
-      : window.agentStudio.loadSettings();
+      : AgentBridge.loadSettings();
 
     settingsPromise
       .then((settings) => {
@@ -113,10 +117,10 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!window.agentStudio || !workspacePath || workspacePath === 'chưa có dự án') return;
+    if (!AgentBridge.isAvailable || !workspacePath || workspacePath === 'chưa có dự án') return;
 
     setIsHistoryLoaded(false);
-    window.agentStudio.loadChatHistory(workspacePath)
+    AgentBridge.loadChatHistory(workspacePath)
       .then((history) => {
         if (cancelled) return;
         replaceChatHistory(history.threads, history.activeThreadId);
@@ -136,10 +140,10 @@ function App() {
   }, [replaceChatHistory, workspacePath]);
 
   useEffect(() => {
-    if (!isHistoryLoaded || !window.agentStudio || !workspacePath || workspacePath === 'chưa có dự án') return;
+    if (!isHistoryLoaded || !AgentBridge.isAvailable || !workspacePath || workspacePath === 'chưa có dự án') return;
 
     const timeoutId = window.setTimeout(() => {
-      void window.agentStudio?.saveChatHistory({
+      void AgentBridge.saveChatHistory({
         workspacePath,
         threads: compactThreadsForHistory(threads),
         activeThreadId,

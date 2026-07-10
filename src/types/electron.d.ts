@@ -1,13 +1,15 @@
-import type { AIModel, AppSettings, ChatThread, Message, PermissionMode } from '../store/useAppStore';
+import type { Message } from '../domain/entities/message';
+import type { ChatThread } from '../domain/entities/chatThread';
+import type { AIModel, AppSettings, PermissionMode } from '../domain/entities/settings';
 
-type SaveProviderPayload = {
+export type SaveProviderPayload = {
   id?: string;
   name?: string;
   baseUrl?: string;
   apiKey?: string;
 };
 
-type LegacySettingsPayload = {
+export type LegacySettingsPayload = {
   providers?: Array<{
     id?: string;
     name?: string;
@@ -20,14 +22,14 @@ type LegacySettingsPayload = {
   permissionMode?: PermissionMode;
 };
 
-type ChatEventPayload = {
+export type ChatEventPayload = {
   requestId: string;
   chunk?: string;
   error?: string;
   action?: ChatActionPayload;
 };
 
-type ChatActionPayload = {
+export type ChatActionPayload = {
   id: string;
   toolName: string;
   args: string;
@@ -35,15 +37,15 @@ type ChatActionPayload = {
   output?: string;
 };
 
-type ChatEventListener = (payload: ChatEventPayload) => void;
+export type ChatEventListener = (payload: ChatEventPayload) => void;
 
-type TerminalCreatePayload = {
+export type TerminalCreatePayload = {
   cols: number;
   rows: number;
   shellId?: string;
 };
 
-type TerminalCreatedPayload = {
+export type TerminalCreatedPayload = {
   terminalId: string;
   shellId: string;
   shell: string;
@@ -51,32 +53,32 @@ type TerminalCreatedPayload = {
   cwd: string;
 };
 
-type CommandShellPayload = {
+export type CommandShellPayload = {
   id: string;
   label: string;
   command: string;
 };
 
-type TerminalEventPayload = {
+export type TerminalEventPayload = {
   terminalId: string;
   data?: string;
   exitCode?: number;
   signal?: number | string;
 };
 
-type TerminalEventListener = (payload: TerminalEventPayload) => void;
+export type TerminalEventListener = (payload: TerminalEventPayload) => void;
 
-type WriteWorkspaceFilePayload = {
+export type WriteWorkspaceFilePayload = {
   path: string;
   content: string;
 };
 
-type WorkspacePayload = {
+export type WorkspacePayload = {
   path: string;
   canceled?: boolean;
 };
 
-type ChatHistoryPayload = {
+export type ChatHistoryPayload = {
   threads: ChatThread[];
   activeThreadId: string | null;
 };

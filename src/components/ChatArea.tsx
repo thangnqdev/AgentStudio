@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
-import { useAppStore, type AgentAction, type Message } from '../store/useAppStore';
+import { useAppStore } from '../store/useAppStore';
+import type { AgentAction, Message } from '../domain/entities/message';
+import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
+import { useAgentChat } from '../application/hooks/useAgentChat';
 
 type AgentContentPart =
   | { type: 'text'; value: string }
@@ -99,8 +102,8 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
 
     try {
       setIsApplying(true);
-      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-      await window.agentStudio.writeWorkspaceFile({ path: targetPath, content: code });
+      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      await AgentBridge.writeWorkspaceFile({ path: targetPath, content: code });
       window.alert(`Đã áp dụng vào ${targetPath}`);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Apply code thất bại.');
@@ -375,16 +378,7 @@ export function ChatArea() {
   const agentActions = useAppStore((s) => s.agentActions);
   const agentThoughts = useAppStore((s) => s.agentThoughts);
   const isAgentTyping = useAppStore((s) => s.isAgentTyping);
-  const addMessage = useAppStore((s) => s.addMessage);
-  const updateMessage = useAppStore((s) => s.updateMessage);
-  const appendMessageContent = useAppStore((s) => s.appendMessageContent);
-  const setIsAgentTyping = useAppStore((s) => s.setIsAgentTyping);
-  const setActiveRequestId = useAppStore((s) => s.setActiveRequestId);
-  const upsertAgentAction = useAppStore((s) => s.upsertAgentAction);
-  const clearAgentActions = useAppStore((s) => s.clearAgentActions);
-  const appendAgentThoughtChunk = useAppStore((s) => s.appendAgentThoughtChunk);
-  const clearAgentThoughts = useAppStore((s) => s.clearAgentThoughts);
-  const replaceUserMessageAndTrim = useAppStore((s) => s.replaceUserMessageAndTrim);
+  const { handleRegenerate } = useAgentChat();
 
   const [isDragging, setIsDragging] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -393,64 +387,7 @@ export function ChatArea() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isAgentTyping, agentActions, agentThoughts]);
 
-  const startAgentResponse = async (messagesToSend: Message[]) => {
-    clearAgentActions();
-    clearAgentThoughts();
-    setIsAgentTyping(true);
-    const agentMsgId = addMessage({ sender: 'agent', content: '', type: 'text', status: 'sending' });
-    let hasStartedResponse = false;
 
-    try {
-      const { streamChatCompletion } = await import('../services/ai');
-      await streamChatCompletion(
-        messagesToSend,
-        (chunk) => {
-          if (!hasStartedResponse) {
-            hasStartedResponse = true;
-          }
-          setIsAgentTyping(false);
-          appendMessageContent(agentMsgId, chunk);
-        },
-        () => {
-          const finalActions = useAppStore.getState().agentActions;
-          updateMessage(agentMsgId, { status: 'done', actions: finalActions });
-          setIsAgentTyping(false);
-          setActiveRequestId(null);
-          clearAgentActions();
-          clearAgentThoughts();
-        },
-        (error) => {
-          const finalActions = useAppStore.getState().agentActions;
-          updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error', actions: finalActions });
-          setIsAgentTyping(false);
-          setActiveRequestId(null);
-          clearAgentActions();
-          clearAgentThoughts();
-        },
-        setActiveRequestId,
-        (action) => {
-          setIsAgentTyping(false);
-          upsertAgentAction(action);
-        },
-        (thought, requestId) => {
-          setIsAgentTyping(false);
-          appendAgentThoughtChunk(requestId, thought);
-        },
-      );
-    } catch (error) {
-      const finalActions = useAppStore.getState().agentActions;
-      updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${error instanceof Error ? error.message : error}`, status: 'error', actions: finalActions });
-      setIsAgentTyping(false);
-      setActiveRequestId(null);
-      clearAgentActions();
-      clearAgentThoughts();
-    }
-  };
-
-  const handleRegenerate = (message: Message, content: string) => {
-    const messagesToSend = replaceUserMessageAndTrim(message.id, content);
-    startAgentResponse(messagesToSend);
-  };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();

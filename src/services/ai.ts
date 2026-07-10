@@ -1,4 +1,5 @@
-import type { AgentAction, Message } from '../store/useAppStore';
+import type { AgentAction, Message } from '../domain/entities/message';
+import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
 
 export function streamChatCompletion(
   messages: Message[],
@@ -10,7 +11,7 @@ export function streamChatCompletion(
   _onThought?: (thought: string, requestId: string) => void,
 ) {
   return new Promise<void>((resolve) => {
-    const bridge = window.agentStudio;
+    const bridge = AgentBridge;
     if (!bridge) {
       onError?.('Electron bridge is not available.');
       resolve();
@@ -68,6 +69,6 @@ export function streamChatCompletion(
 }
 
 export function stopChatCompletion(requestId: string) {
-  window.agentStudio?.stopChat(requestId);
+  AgentBridge.isAvailable && AgentBridge.stopChat(requestId);
 }
 

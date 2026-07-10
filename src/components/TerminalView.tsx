@@ -3,6 +3,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useAppStore } from '../store/useAppStore';
+import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
 
 type TerminalSession = {
   terminalId: string;
@@ -28,7 +29,7 @@ export function TerminalView() {
   const [restartKey, setRestartKey] = useState(0);
 
   useEffect(() => {
-    const bridge = window.agentStudio;
+    const bridge = AgentBridge;
     if (!bridge) return;
 
     let disposed = false;
@@ -50,7 +51,7 @@ export function TerminalView() {
   }, []);
 
   useEffect(() => {
-    const bridge = window.agentStudio;
+    const bridge = AgentBridge;
     const container = containerRef.current;
     if (!bridge || !container || !selectedShellId) return;
 

@@ -1,5 +1,7 @@
-import { useEffect, type CSSProperties } from 'react';
+import { type CSSProperties } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
+import { useGitStatus } from '../application/hooks/useGitStatus';
 
 type ElectronDragStyle = CSSProperties & {
   WebkitAppRegion: 'drag' | 'no-drag';
@@ -19,42 +21,19 @@ export function TopAppBar() {
   const isTerminalOpen = useAppStore((s) => s.isTerminalOpen);
   const setTerminalOpen = useAppStore((s) => s.setTerminalOpen);
   const currentBranch = useAppStore((s) => s.currentBranch);
-  const setCurrentBranch = useAppStore((s) => s.setCurrentBranch);
 
-  useEffect(() => {
-    if (!projectPath || projectPath === 'chưa có dự án' || !window.agentStudio?.getGitBranch) {
-      setCurrentBranch(null);
-      return;
-    }
+  useGitStatus();
 
-    let isMounted = true;
-    window.agentStudio.getGitBranch(projectPath)
-      .then((branch) => {
-        if (isMounted) {
-          setCurrentBranch(branch || null);
-        }
-      })
-      .catch(() => {
-        if (isMounted) setCurrentBranch(null);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [projectPath, setCurrentBranch]);
-
-  const isMac = window.agentStudio?.getPlatform
-    ? window.agentStudio.getPlatform() === 'darwin'
-    : window.navigator.userAgent.toLowerCase().includes('mac');
+  const isMac = AgentBridge.isAvailable && AgentBridge.getPlatform() === 'darwin';
 
   const handleSelectWorkspace = async () => {
     try {
-      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-      const workspace = await window.agentStudio.selectWorkspace();
+      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const workspace = await AgentBridge.selectWorkspace();
       if (workspace.canceled) return;
       const currentState = useAppStore.getState();
       if (currentState.settings.workspacePath && currentState.settings.workspacePath !== 'chưa có dự án') {
-        await window.agentStudio.saveChatHistory({
+        await AgentBridge.saveChatHistory({
           workspacePath: currentState.settings.workspacePath,
           threads: currentState.threads,
           activeThreadId: currentState.activeThreadId,

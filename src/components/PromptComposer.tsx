@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect, useMemo, type KeyboardEvent, type ChangeEvent } from 'react';
-import { useAppStore, type Attachment, type PermissionMode } from '../store/useAppStore';
+import { useAppStore } from '../store/useAppStore';
+import type { Attachment } from '../domain/entities/message';
+import type { PermissionMode } from '../domain/entities/settings';
+import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
+import { useAgentChat } from '../application/hooks/useAgentChat';
 
 type PendingAttachment = Attachment & {
   error?: string;
@@ -60,19 +64,12 @@ export function PromptComposer() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addMessage = useAppStore((s) => s.addMessage);
-  const setIsAgentTyping = useAppStore((s) => s.setIsAgentTyping);
-  const appendMessageContent = useAppStore((s) => s.appendMessageContent);
-  const updateMessage = useAppStore((s) => s.updateMessage);
   const messages = useAppStore((s) => s.messages);
   const settings = useAppStore((s) => s.settings);
   const setSettings = useAppStore((s) => s.setSettings);
-  const activeRequestId = useAppStore((s) => s.activeRequestId);
-  const setActiveRequestId = useAppStore((s) => s.setActiveRequestId);
-  const upsertAgentAction = useAppStore((s) => s.upsertAgentAction);
-  const clearAgentActions = useAppStore((s) => s.clearAgentActions);
-  const appendAgentThoughtChunk = useAppStore((s) => s.appendAgentThoughtChunk);
-  const clearAgentThoughts = useAppStore((s) => s.clearAgentThoughts);
   const isAgentBusy = useAppStore((s) => s.messages.some((m) => m.sender === 'agent' && m.status === 'sending'));
+  
+  const { startAgentResponse, stopAgentResponse } = useAgentChat();
 
   // Auto-resize textarea as content grows
   useEffect(() => {
@@ -117,7 +114,7 @@ export function PromptComposer() {
       const type = file.type.startsWith('image/') ? 'image' :
         file.type.startsWith('audio/') ? 'audio' :
           file.type.startsWith('video/') ? 'video' : 'text';
-      const filePath = window.agentStudio?.getFilePath(file) || '';
+      const filePath = AgentBridge.getFilePath(file) || '';
       return {
         id: crypto.randomUUID(),
         name: file.name,
@@ -179,70 +176,15 @@ export function PromptComposer() {
 
     setInput('');
     setAttachedFiles([]);
-    clearAgentActions();
-    clearAgentThoughts();
-    setIsAgentTyping(true);
-
-    const agentMsgId = addMessage({ sender: 'agent', content: '', type: 'text', status: 'sending' });
 
     // Get full history including the one we just added
-    const currentMessages = useAppStore.getState().messages;
-    // Remove the empty agent message from the history we send to the API
-    const messagesToSend = currentMessages.filter(m => m.id !== agentMsgId);
-    let hasStartedResponse = false;
+    const messagesToSend = [...useAppStore.getState().messages];
 
-    try {
-      const { streamChatCompletion } = await import('../services/ai');
-
-      await streamChatCompletion(
-        messagesToSend,
-        (chunk) => {
-          if (!hasStartedResponse) {
-            hasStartedResponse = true;
-          }
-          setIsAgentTyping(false); // Stop typing indicator once we get first chunk
-          appendMessageContent(agentMsgId, chunk);
-        },
-        () => {
-          const finalActions = useAppStore.getState().agentActions;
-          updateMessage(agentMsgId, { status: 'done', actions: finalActions });
-          setIsAgentTyping(false);
-          setActiveRequestId(null);
-          clearAgentActions();
-          clearAgentThoughts();
-        },
-        (error) => {
-          const finalActions = useAppStore.getState().agentActions;
-          updateMessage(agentMsgId, { content: `\n\n**Lỗi AI**: ${error}`, status: 'error', actions: finalActions });
-          setIsAgentTyping(false);
-          setActiveRequestId(null);
-          clearAgentActions();
-          clearAgentThoughts();
-        },
-        setActiveRequestId,
-        (action) => {
-          setIsAgentTyping(false);
-          upsertAgentAction(action);
-        },
-        (thought, requestId) => {
-          setIsAgentTyping(false);
-          appendAgentThoughtChunk(requestId, thought);
-        },
-      );
-    } catch (e) {
-      const finalActions = useAppStore.getState().agentActions;
-      updateMessage(agentMsgId, { content: `\n\n**Lỗi hệ thống**: ${e instanceof Error ? e.message : e}`, status: 'error', actions: finalActions });
-      setIsAgentTyping(false);
-      setActiveRequestId(null);
-      clearAgentActions();
-      clearAgentThoughts();
-    }
+    startAgentResponse(messagesToSend);
   };
 
   const handleStop = async () => {
-    if (!activeRequestId) return;
-    const { stopChatCompletion } = await import('../services/ai');
-    stopChatCompletion(activeRequestId);
+    stopAgentResponse();
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -280,8 +222,8 @@ export function PromptComposer() {
   const handleModelChange = async (modelId: string) => {
     setSettings({ activeModelId: modelId });
     try {
-      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-      const nextSettings = await window.agentStudio.setActiveModel(modelId);
+      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await AgentBridge.setActiveModel(modelId);
       setSettings(nextSettings);
     } catch (error) {
       console.error('Failed to save active model', error);
@@ -291,8 +233,8 @@ export function PromptComposer() {
   const handlePermissionModeChange = async (permissionMode: PermissionMode) => {
     setSettings({ permissionMode });
     try {
-      if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-      const nextSettings = await window.agentStudio.setPermissionMode(permissionMode);
+      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await AgentBridge.setPermissionMode(permissionMode);
       setSettings(nextSettings);
     } catch (error) {
       console.error('Failed to save permission mode', error);

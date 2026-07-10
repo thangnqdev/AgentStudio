@@ -1,74 +1,10 @@
 import { create } from 'zustand';
+import type { Message, AgentAction, AgentThought } from '../domain/entities/message';
+import type { ChatThread } from '../domain/entities/chatThread';
+import { createBlankThread, deriveThreadTitle, reviveThread } from '../domain/entities/chatThread';
+import type { AppSettings } from '../domain/entities/settings';
 
 export type ViewId = 'tasks' | 'workspace' | 'knowledge' | 'files' | 'terminal' | 'agents' | 'settings';
-export type PermissionMode = 'read-only' | 'workspace-write' | 'danger-full-access';
-
-export interface Attachment {
-  id: string;
-  name: string;
-  type: 'text' | 'image' | 'audio' | 'video';
-  data?: string;
-  filePath?: string;
-  mimeType?: string;
-  size?: number;
-  previewUrl?: string;
-}
-
-export interface Message {
-  id: string;
-  sender: 'user' | 'agent';
-  content: string;
-  type?: 'text' | 'code' | 'permission_request';
-  status?: 'sending' | 'done' | 'error';
-  timestamp: Date;
-  attachments?: Attachment[];
-  actions?: AgentAction[];
-}
-
-export interface AgentAction {
-  id: string;
-  requestId: string;
-  toolName: string;
-  args: string;
-  status: 'running' | 'ok' | 'error';
-  output?: string;
-}
-
-export interface AgentThought {
-  id: string;
-  requestId: string;
-  content: string;
-  timestamp: Date;
-}
-
-export interface ChatThread {
-  id: string;
-  title: string;
-  messages: Message[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface AIModel {
-  id: string;
-  contextWindow?: number;
-}
-
-export interface AIProvider {
-  id: string;
-  name: string;
-  baseUrl: string;
-  models: AIModel[];
-  hasApiKey?: boolean;
-}
-
-export interface AppSettings {
-  providers: AIProvider[];
-  activeProviderId: string | null;
-  activeModelId: string | null;
-  permissionMode: PermissionMode;
-  workspacePath: string;
-}
 
 interface AppState {
   projectPath: string | null;
@@ -127,40 +63,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   workspacePath: 'chưa có dự án',
 };
 
-function createBlankThread(title = 'Chat mới'): ChatThread {
-  const now = new Date();
-  return {
-    id: crypto.randomUUID(),
-    title,
-    messages: [],
-    createdAt: now,
-    updatedAt: now,
-  };
-}
 
-function deriveThreadTitle(messages: Message[], fallback = 'Chat mới') {
-  const firstUserMessage = messages.find((message) => message.sender === 'user' && message.content.trim());
-  if (!firstUserMessage) return fallback;
-
-  const title = firstUserMessage.content.trim().replace(/\s+/g, ' ');
-  return title.length > 42 ? `${title.slice(0, 42)}...` : title;
-}
-
-function reviveMessage(message: Message): Message {
-  return {
-    ...message,
-    timestamp: new Date(message.timestamp),
-  };
-}
-
-function reviveThread(thread: ChatThread): ChatThread {
-  return {
-    ...thread,
-    messages: Array.isArray(thread.messages) ? thread.messages.map(reviveMessage) : [],
-    createdAt: new Date(thread.createdAt),
-    updatedAt: new Date(thread.updatedAt),
-  };
-}
 
 function syncThread(state: AppState, messages: Message[]): Pick<AppState, 'messages' | 'threads' | 'activeTask' | 'activeThreadId'> {
   const activeThreadId = state.activeThreadId ?? crypto.randomUUID();
