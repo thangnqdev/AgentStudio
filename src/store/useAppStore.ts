@@ -83,7 +83,9 @@ interface AppState {
   isAgentTyping: boolean;
   activeView: ViewId;
   settings: AppSettings;
+  isSidebarOpen: boolean;
 
+  setSidebarOpen: (open: boolean) => void;
   setProjectPath: (path: string) => void;
   setActiveTask: (task: string) => void;
   createThread: (title?: string) => string;
@@ -195,8 +197,10 @@ export const useAppStore = create<AppState>()(
         agentThoughtStartsNewLine: true,
         isAgentTyping: false,
         activeView: 'tasks',
+        isSidebarOpen: true,
         settings: DEFAULT_SETTINGS,
 
+        setSidebarOpen: (open) => set({ isSidebarOpen: open }),
         setProjectPath: (path) => set({ projectPath: path }),
         setActiveTask: (task) => set({ activeTask: task }),
 

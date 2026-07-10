@@ -160,12 +160,14 @@ function App() {
   }, [activeThreadId, isHistoryLoaded, threads, workspacePath]);
 
   return (
-    <div className="w-screen h-screen flex text-on-surface font-ui-body bg-background overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 flex flex-col bg-background canvas-glow relative overflow-hidden">
-        <TopAppBar />
-        <MainContent view={activeView} />
-      </main>
+    <div className="w-screen h-screen flex flex-col text-on-surface font-ui-body bg-background overflow-hidden">
+      <TopAppBar />
+      <div className="flex-1 flex overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 flex flex-col bg-background canvas-glow relative overflow-hidden">
+          <MainContent view={activeView} />
+        </main>
+      </div>
     </div>
   );
 }

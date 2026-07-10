@@ -1,11 +1,4 @@
-import type { CSSProperties } from 'react';
 import { useAppStore, type ViewId } from '../store/useAppStore';
-
-import { MacTrafficLights } from './MacTrafficLights';
-
-type ElectronDragStyle = CSSProperties & {
-  WebkitAppRegion: 'drag' | 'no-drag';
-};
 
 interface NavItem {
   id: ViewId;
@@ -31,19 +24,13 @@ export function Sidebar() {
   const switchThread = useAppStore((s) => s.switchThread);
   const deleteThread = useAppStore((s) => s.deleteThread);
 
-  return (
-    <nav className="flex flex-col pb-6 px-4 h-screen w-[260px] border-r border-outline-variant bg-surface-container-low/95 backdrop-blur-xl transition-all duration-200 ease-in-out shrink-0">
+  const isSidebarOpen = useAppStore((s) => s.isSidebarOpen);
 
-      {/* Spacer for macOS native traffic lights / draggable region */}
-      <div
-        className="w-full h-12 shrink-0 flex items-center -ml-4"
-        style={{ WebkitAppRegion: 'drag' } as ElectronDragStyle}
-      >
-        <MacTrafficLights />
-      </div>
+  return (
+    <nav className={`flex flex-col pb-6 h-full border-outline-variant bg-surface-container-low/95 backdrop-blur-xl transition-all duration-200 ease-in-out shrink-0 overflow-hidden ${isSidebarOpen ? 'w-[260px] px-4 border-r' : 'w-0 px-0 border-r-0'}`}>
 
       {/* Header Info */}
-      <div className="flex items-center gap-3 px-2 mb-6">
+      <div className="flex items-center gap-3 px-2 mb-6 mt-4">
         <div className="w-8 h-8 rounded bg-primary-container text-on-primary flex items-center justify-center font-display-serif text-sm">
           A
         </div>
