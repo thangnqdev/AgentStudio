@@ -1,34 +1,21 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ToolResult, PermissionMode } from '../../domain/entities/agent.js';
+import { resolveSafePath } from '../security/resolveSafePath.js';
 
-const MAX_FILE_BYTES = 200_000;
+import { MAX_FILE_BYTES } from '../../domain/entities/limits.js';
 
 function getString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
-function isInsidePath(candidate: string, root: string): boolean {
-  const relative = path.relative(root, candidate);
-  return relative === '' || (Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative));
-}
-
 function resolvePath(inputPath: string, workspaceRoot: string, permissionMode: PermissionMode): string {
-  if (!inputPath) {
-    throw new Error('Path is required.');
+  if (permissionMode === 'danger-full-access' && path.isAbsolute(inputPath)) {
+    return path.resolve(inputPath);
   }
 
-  const resolved = path.resolve(
-    permissionMode === 'danger-full-access' && path.isAbsolute(inputPath)
-      ? inputPath
-      : path.join(workspaceRoot, inputPath),
-  );
-
-  if (permissionMode !== 'danger-full-access' && !isInsidePath(resolved, workspaceRoot)) {
-    throw new Error(`Path escapes workspace: ${inputPath}`);
-  }
-
-  return resolved;
+  // Với read-only hoặc workspace-write, luôn ép đường dẫn phải nằm trong workspace
+  return resolveSafePath(inputPath, workspaceRoot);
 }
 
 /**

@@ -14,9 +14,7 @@ import type {
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const MAX_AGENT_STEPS = 30;
-const MAX_FILE_BYTES = 200_000;
-const MAX_IMAGE_BYTES = 5_000_000;
+import { MAX_FILE_BYTES, MAX_IMAGE_BYTES, MAX_AGENT_STEPS } from '../../domain/entities/limits.js';
 
 export class RunAgentSession {
   private readonly provider: IAiProvider;

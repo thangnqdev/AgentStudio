@@ -3,6 +3,7 @@ import path from 'node:path';
 import { app } from 'electron';
 import { createHash } from 'node:crypto';
 import { settingsRepo } from './JsonSettingsRepository.js';
+import { resolveSafePath } from './security/resolveSafePath.js';
 
 type ChatHistoryPayload = {
   workspacePath?: string;
@@ -18,12 +19,7 @@ export class WorkspaceManager {
 
   async resolveWorkspacePath(inputPath: string) {
     const workspaceRoot = await this.getWorkspaceRoot();
-    const resolved = path.resolve(path.join(workspaceRoot, inputPath));
-    const relative = path.relative(workspaceRoot, resolved);
-    if (relative.startsWith('..') || path.isAbsolute(relative)) {
-      throw new Error(`Path escapes workspace: ${inputPath}`);
-    }
-    return resolved;
+    return resolveSafePath(inputPath, workspaceRoot);
   }
 
   getChatHistoryDir() {

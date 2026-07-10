@@ -1,67 +1,17 @@
-import { useState, useRef, useEffect, useMemo, type KeyboardEvent, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, useMemo, type KeyboardEvent } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import type { Attachment } from '../domain/entities/message';
 import type { PermissionMode } from '../domain/entities/settings';
 import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
 import { useAgentChat } from '../application/hooks/useAgentChat';
-
-type PendingAttachment = Attachment & {
-  error?: string;
-};
-
-function formatContextWindow(tokens: number | undefined) {
-  if (!tokens) return '';
-  if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`;
-  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K`;
-  return String(tokens);
-}
-
-function estimateTextTokens(text: string) {
-  return Math.ceil(text.length / 4);
-}
-
-function estimateAttachmentTokens(attachment: Pick<Attachment, 'name' | 'type' | 'data' | 'filePath' | 'mimeType' | 'size'>) {
-  const metadataTokens = estimateTextTokens([
-    attachment.name,
-    attachment.type,
-    attachment.filePath || '',
-    attachment.mimeType || '',
-    attachment.size || '',
-  ].join(' '));
-
-  if (attachment.type === 'text') {
-    if (attachment.data) return metadataTokens + estimateTextTokens(attachment.data);
-    if (attachment.size) return metadataTokens + Math.ceil(attachment.size / 4);
-  }
-
-  if (attachment.type === 'image') return metadataTokens + 1_000;
-  if (attachment.type === 'audio' || attachment.type === 'video') return metadataTokens + 300;
-  return metadataTokens;
-}
-
-function estimateMessageTokens(message: {
-  sender: 'user' | 'agent';
-  content: string;
-  attachments?: Attachment[];
-}) {
-  const attachmentTokens = (message.attachments || []).reduce(
-    (total, attachment) => total + estimateAttachmentTokens(attachment),
-    0,
-  );
-  return estimateTextTokens(`${message.sender}\n${message.content}\n`) + attachmentTokens;
-}
-
-function getContextUsageTone(percent: number) {
-  if (percent >= 90) return { text: 'text-error', stroke: 'text-error' };
-  if (percent >= 75) return { text: 'text-[#9C4326]', stroke: 'text-[#9C4326]' };
-  return { text: 'text-on-surface-variant/70', stroke: 'text-secondary' };
-}
+import { useAttachments } from '../application/hooks/useAttachments';
+import { estimateMessageTokens, formatContextWindow } from '../application/services/tokenEstimator';
+import { TokenProgressRing } from './chat/TokenProgressRing';
 
 export function PromptComposer() {
   const [input, setInput] = useState('');
-  const [attachedFiles, setAttachedFiles] = useState<PendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { attachedFiles, fileInputRef, handleFileClick, handleFileChange, removeFile, clearFiles } = useAttachments();
 
   const addMessage = useAppStore((s) => s.addMessage);
   const messages = useAppStore((s) => s.messages);
@@ -78,78 +28,6 @@ export function PromptComposer() {
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
   }, [input]);
-
-  useEffect(() => {
-    const handleDroppedFiles = (event: Event) => {
-      const files = (event as CustomEvent<File[]>).detail;
-      if (Array.isArray(files)) {
-        addFiles(files);
-      }
-    };
-
-    window.addEventListener('agentstudio:add-files', handleDroppedFiles);
-    return () => {
-      window.removeEventListener('agentstudio:add-files', handleDroppedFiles);
-    };
-  }, []);
-
-  const handleFileClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const addFiles = async (files: File[]) => {
-    if (files.length === 0) return;
-
-    const validFiles = files.filter(file => {
-      if (file.name.endsWith('.exe') || file.name.endsWith('.dll')) {
-        alert(`Không hỗ trợ đính kèm file định dạng này: ${file.name}`);
-        return false;
-      }
-      return true;
-    });
-
-    if (validFiles.length === 0) return;
-
-    const newAttachments: PendingAttachment[] = await Promise.all(validFiles.map(async file => {
-      const type = file.type.startsWith('image/') ? 'image' :
-        file.type.startsWith('audio/') ? 'audio' :
-          file.type.startsWith('video/') ? 'video' : 'text';
-      const filePath = AgentBridge.getFilePath(file) || '';
-      return {
-        id: crypto.randomUUID(),
-        name: file.name,
-        type,
-        filePath,
-        mimeType: file.type,
-        size: file.size,
-        previewUrl: type === 'image' || type === 'audio' || type === 'video'
-          ? URL.createObjectURL(file)
-          : undefined,
-        error: filePath ? undefined : 'Không lấy được đường dẫn tệp.',
-      };
-    }));
-
-    setAttachedFiles(prev => [...prev, ...newAttachments]);
-  };
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    addFiles(Array.from(e.target.files || []));
-
-    // Reset input value so the same file can be selected again if removed
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const removeFile = (id: string) => {
-    setAttachedFiles(prev => {
-      const removed = prev.find((file) => file.id === id);
-      if (removed?.previewUrl) {
-        URL.revokeObjectURL(removed.previewUrl);
-      }
-      return prev.filter(f => f.id !== id);
-    });
-  };
 
   const handleSubmit = async () => {
     const trimmed = input.trim();
@@ -175,7 +53,7 @@ export function PromptComposer() {
     });
 
     setInput('');
-    setAttachedFiles([]);
+    clearFiles();
 
     // Get full history including the one we just added
     const messagesToSend = [...useAppStore.getState().messages];
@@ -217,7 +95,6 @@ export function PromptComposer() {
   const contextUsagePercent = activeContextWindow
     ? Math.min(999, Math.round((estimatedContextTokens / activeContextWindow) * 100))
     : null;
-  const contextUsageTone = getContextUsageTone(contextUsagePercent ?? 0);
 
   const handleModelChange = async (modelId: string) => {
     setSettings({ activeModelId: modelId });
@@ -348,38 +225,8 @@ export function PromptComposer() {
             </select>
 
             {activeContextWindow && contextUsagePercent !== null && (
-              <div
-                className={`flex items-center gap-1.5 ${contextUsageTone.text}`}
-                title={`Local realtime estimate: khoảng ${estimatedContextTokens.toLocaleString()} / ${activeContextWindow.toLocaleString()} tokens (${contextUsagePercent}%).`}
-              >
-                <span className="text-[10px] font-ui-label-bold tabular-nums whitespace-nowrap">
-                  ~{contextUsagePercent}%
-                </span>
-                <div className="relative w-[18px] h-[18px] flex items-center justify-center">
-                  <svg className="w-[18px] h-[18px] transform -rotate-90">
-                    <circle
-                      cx="9"
-                      cy="9"
-                      r="7"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      fill="none"
-                      className="text-outline-variant/40"
-                    />
-                    <circle
-                      cx="9"
-                      cy="9"
-                      r="7"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      fill="none"
-                      strokeDasharray="44"
-                      strokeDashoffset={44 - (Math.min(contextUsagePercent, 100) / 100) * 44}
-                      className={contextUsageTone.stroke}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
+              <div title={`Local realtime estimate: khoảng ${estimatedContextTokens.toLocaleString()} / ${activeContextWindow.toLocaleString()} tokens (${contextUsagePercent}%).`}>
+                <TokenProgressRing percent={contextUsagePercent} />
               </div>
             )}
 

@@ -7,6 +7,8 @@ export type CompactableAttachment = {
   size?: number;
 };
 
+import { TOOL_PATTERN, TOOL_PREFIX_PATTERN } from '../src/domain/entities/message.js';
+
 export type CompactableMessage = {
   sender: 'user' | 'agent';
   content: string;
@@ -164,7 +166,7 @@ function parseToolEvents(content: string) {
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    const toolMatch = line.match(/^\[tool:([^\]]+)\]\s*(.*)$/);
+    const toolMatch = line.match(TOOL_PATTERN);
     if (!toolMatch) continue;
 
     let status = 'unknown';
@@ -172,7 +174,7 @@ function parseToolEvents(content: string) {
     let cursor = index + 1;
     while (cursor < lines.length) {
       const nextLine = lines[cursor];
-      if (/^\[tool:([^\]]+)\]/.test(nextLine)) break;
+      if (TOOL_PREFIX_PATTERN.test(nextLine)) break;
       if (nextLine === '[ok]') {
         status = 'ok';
       } else if (nextLine === '[blocked/error]') {
@@ -194,7 +196,7 @@ function parseToolEvents(content: string) {
 function cleanAgentText(content: string) {
   const withoutTools = content
     .split('\n')
-    .filter((line) => !/^\[tool:/.test(line) && line !== '[ok]' && line !== '[blocked/error]')
+    .filter((line) => !TOOL_PREFIX_PATTERN.test(line) && line !== '[ok]' && line !== '[blocked/error]')
     .join('\n');
   const withoutCode = withoutTools.replace(/```([\w.+-]*)\n[\s\S]*?```/g, (_match, language) => `[${language || 'text'} code block omitted]`);
   return cleanInlineText(withoutCode, MAX_AGENT_TEXT_CHARS);

@@ -1,17 +1,16 @@
 import { useAppStore } from '../../store/useAppStore';
 import type { Message } from '../../domain/entities/message';
-import { parseAgentContent, stripLegacyActionLogs } from '../../application/services/parseAgentContent';
+import { parseAgentContent } from '../../application/services/parseAgentContent';
 import { ThinkStep } from './ThinkStep';
 import { ToolStep } from './ToolStep';
 import { CodeBlock } from './CodeBlock';
 
 function TextBlock({ text }: { text: string }) {
-  const visibleText = stripLegacyActionLogs(text);
-  if (!visibleText) return null;
+  if (!text.trim()) return null;
 
   return (
     <div className="font-ui-body text-ui-body text-on-surface-variant leading-relaxed text-[15px] whitespace-pre-wrap">
-      {visibleText}
+      {text}
     </div>
   );
 }

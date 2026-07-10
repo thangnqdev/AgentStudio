@@ -9,44 +9,7 @@ export type AgentContentPart =
   | { type: 'think'; value: string }
   | { type: 'tool'; actionId: string };
 
-/**
- * Xóa các dòng legacy action log dạng [tool:xxx] khỏi text để render gọn hơn.
- * Dùng cho TextBlock — các action đã được parse riêng thành AgentContentPart.
- */
-export function stripLegacyActionLogs(text: string): string {
-  const lines = text.split('\n');
-  let textBuffer: string[] = [];
-  const visible: string[] = [];
 
-  const flushText = () => {
-    if (textBuffer.length === 0) return;
-    const value = textBuffer.join('\n');
-    if (value) visible.push(value);
-    textBuffer = [];
-  };
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    const toolMatch = line.match(/^\[tool:([^\]]+)\]\s*(.*)$/);
-    if (!toolMatch) {
-      textBuffer.push(line);
-      continue;
-    }
-
-    flushText();
-
-    let cursor = index + 1;
-    while (cursor < lines.length) {
-      const nextLine = lines[cursor];
-      if (/^\[tool:([^\]]+)\]/.test(nextLine)) break;
-      cursor += 1;
-    }
-    index = cursor - 1;
-  }
-
-  flushText();
-  return visible.join('\n').trim();
-}
 
 /**
  * Parse đoạn text + code fence thành mảng AgentContentPart.
