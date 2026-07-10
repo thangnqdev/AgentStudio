@@ -34,7 +34,8 @@ export type ChatActionPayload = {
   id: string;
   toolName: string;
   args: string;
-  status: 'running' | 'ok' | 'error';
+  risk: 'read' | 'write' | 'execute';
+  status: 'awaiting_approval' | 'denied' | 'running' | 'ok' | 'error';
   output?: string;
 };
 
@@ -136,6 +137,7 @@ declare global {
       removeKnowledgeDocument: (documentId: string) => Promise<IpcResult<{ ok: boolean }>>;
       startChat: (payload: { requestId: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;
+      respondToToolApproval: (payload: { requestId: string; actionId: string; approved: boolean }) => void;
       onChatChunk: (listener: ChatEventListener) => () => void;
       onChatAction: (listener: ChatEventListener) => () => void;
       onChatDone: (listener: ChatEventListener) => () => void;

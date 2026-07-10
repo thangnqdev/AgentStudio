@@ -45,6 +45,13 @@ npm test
 
 The current JSON store remains appropriate for small knowledge bases. Move to a vector database only after the evaluation corpus shows unacceptable retrieval latency or recall at the intended chunk count. The migration must retain SQLite-or-equivalent metadata, a benchmark suite, index-version migration, and Electron packaging tests; ANN alone is not a quality improvement.
 
+## Tool Platform
+
+- Local tools are registered from one typed catalog, shared by the model schema and execution policy.
+- Read-only tools run automatically. File writes and shell commands require an explicit per-action approval in the chat UI, even in `danger-full-access` mode.
+- Tool audit records persist locally as JSONL with a hashed workspace identifier. File contents and tool arguments are not written to that audit log.
+- MCP and OpenAI Responses/Codex integrations are intentionally disabled until they have an allow-listed adapter, approval policy, lifecycle management, and credential configuration. Do not launch arbitrary MCP commands supplied by a model, document, or repository.
+
 ## Project Structure
 
 ```

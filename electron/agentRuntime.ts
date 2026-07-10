@@ -5,8 +5,13 @@ import { OpenAIProvider } from './infrastructure/providers/OpenAIProvider.js';
 import { ElectronAgentEventSink } from './infrastructure/ElectronAgentEventSink.js';
 import { AgentToolExecutor } from './infrastructure/tools/AgentToolExecutor.js';
 import { AttachmentMessageFormatter } from './infrastructure/ai/AttachmentMessageFormatter.js';
+import { ElectronToolApprovalManager } from './infrastructure/tools/ElectronToolApprovalManager.js';
+import { JsonlToolAuditLogger } from './infrastructure/tools/JsonlToolAuditLogger.js';
 
 export * from './domain/entities/agent.js';
+
+export const agentToolApprovalManager = new ElectronToolApprovalManager();
+const toolAuditLogger = new JsonlToolAuditLogger();
 
 export async function runAgentSession(
   payload: AgentStartPayload,
@@ -19,6 +24,6 @@ export async function runAgentSession(
   const provider = new OpenAIProvider();
   const eventSink = new ElectronAgentEventSink(sender);
   const toolExecutor = new AgentToolExecutor();
-  const session = new RunAgentSession(provider, toolExecutor, new AttachmentMessageFormatter());
+  const session = new RunAgentSession(provider, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger);
   await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, signal);
 }

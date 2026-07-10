@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { runAgentSession, type AgentStartPayload } from '../agentRuntime.js';
+import { agentToolApprovalManager, runAgentSession, type AgentStartPayload } from '../agentRuntime.js';
 import { settingsRepo } from '../infrastructure/JsonSettingsRepository.js';
 import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { knowledgeBaseUseCase } from '../knowledgeRuntime.js';
@@ -14,11 +14,24 @@ function getString(value: unknown) {
   return typeof value === 'string' ? value : '';
 }
 
+function getBoolean(value: unknown) {
+  return value === true;
+}
+
 export function registerAgentIpc() {
   ipcMain.on('ai:chat:stop', (_event, rawPayload: { requestId?: string }) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
     const requestId = getString(payload.requestId);
     activeAgentControllers.get(requestId)?.abort();
+    agentToolApprovalManager.cancelRequest(requestId);
+  });
+
+  ipcMain.on('ai:chat:tool-approval', (_event, rawPayload: unknown) => {
+    const payload = isObject(rawPayload) ? rawPayload : {};
+    const requestId = getString(payload.requestId);
+    const actionId = getString(payload.actionId);
+    if (!requestId || !actionId) return;
+    agentToolApprovalManager.respond(requestId, actionId, getBoolean(payload.approved));
   });
 
   ipcMain.on('ai:chat:start', async (event, rawPayload: AgentStartPayload) => {
@@ -68,6 +81,7 @@ export function registerAgentIpc() {
         });
       }
     } finally {
+      agentToolApprovalManager.cancelRequest(requestId);
       activeAgentControllers.delete(requestId);
     }
   });

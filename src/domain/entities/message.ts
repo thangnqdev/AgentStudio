@@ -14,7 +14,8 @@ export interface AgentAction {
   requestId: string;
   toolName: string;
   args: string;
-  status: 'running' | 'ok' | 'error';
+  risk: 'read' | 'write' | 'execute';
+  status: 'awaiting_approval' | 'denied' | 'running' | 'ok' | 'error';
   output?: string;
 }
 
@@ -35,4 +36,3 @@ export interface Message {
   attachments?: Attachment[];
   actions?: AgentAction[];
 }
-

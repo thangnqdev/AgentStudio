@@ -37,7 +37,8 @@ export type AgentActionPayload = {
   id: string;
   toolName: string;
   args: string;
-  status: 'running' | 'ok' | 'error';
+  risk: ToolRisk;
+  status: 'awaiting_approval' | 'denied' | 'running' | 'ok' | 'error';
   output?: string;
 };
 
@@ -66,3 +67,4 @@ export type ToolResult = {
 // Regex dùng chung phía electron để parse tool logs từ text output
 export const TOOL_PATTERN = /^\[tool:([^\]]+)\]\s*(.*)$/;
 export const TOOL_PREFIX_PATTERN = /^\[tool:([^\]]+)\]/;
+import type { ToolRisk } from './tool.js';

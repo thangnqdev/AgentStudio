@@ -2,6 +2,7 @@ import type { IAiProvider } from '../../domain/ports/IAiProvider.js';
 import type { AgentProviderSettings, AssistantResponse, ChatMessage, ToolCall } from '../../domain/entities/agent.js';
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import { getResponseTokenLimit } from '../../domain/entities/tokenBudget.js';
+import { AGENT_TOOL_DEFINITIONS } from '../../domain/entities/tool.js';
 
 type StreamingToolCall = {
   index: number;
@@ -14,66 +15,14 @@ type StreamingToolCall = {
 };
 
 
-export const TOOL_DEFINITIONS = [
-  {
-    type: 'function',
-    function: {
-      name: 'list_files',
-      description: 'List files and folders inside the current workspace.',
-      parameters: {
-        type: 'object',
-        properties: {
-          dir: { type: 'string', description: 'Workspace-relative directory. Defaults to current workspace root.' },
-          maxEntries: { type: 'number', description: 'Maximum entries to return.' },
-        },
-      },
-    },
+export const TOOL_DEFINITIONS = AGENT_TOOL_DEFINITIONS.map((tool) => ({
+  type: 'function' as const,
+  function: {
+    name: tool.name,
+    description: tool.description,
+    parameters: { type: 'object', ...tool.parameters },
   },
-  {
-    type: 'function',
-    function: {
-      name: 'read_file',
-      description: 'Read a UTF-8 text file from the workspace.',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: 'Workspace-relative file path.' },
-        },
-        required: ['path'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'write_file',
-      description: 'Write UTF-8 text to a workspace file. Blocked in read-only mode.',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: 'Workspace-relative file path.' },
-          content: { type: 'string', description: 'Full file content to write.' },
-        },
-        required: ['path', 'content'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'run_command',
-      description: 'Run a shell command in the workspace. Blocked in read-only mode. Sandboxed in workspace-write mode.',
-      parameters: {
-        type: 'object',
-        properties: {
-          command: { type: 'string', description: 'Shell command to run.' },
-          timeoutMs: { type: 'number', description: 'Timeout in milliseconds, max 30000.' },
-        },
-        required: ['command'],
-      },
-    },
-  },
-];
+}));
 
 export class OpenAIProvider implements IAiProvider {
   async requestAssistantMessage(

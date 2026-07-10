@@ -139,6 +139,11 @@ export const AgentBridge = {
     window.agentStudio.stopChat(requestId);
   },
 
+  respondToToolApproval(payload: { requestId: string; actionId: string; approved: boolean }) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    window.agentStudio.respondToToolApproval(payload);
+  },
+
   onChatChunk(listener: Parameters<NonNullable<Window['agentStudio']>['onChatChunk']>[0]) {
     if (!window.agentStudio) return () => {};
     return window.agentStudio.onChatChunk(listener);

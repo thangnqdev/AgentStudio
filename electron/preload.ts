@@ -11,7 +11,8 @@ type ChatActionPayload = {
   id: string;
   toolName: string;
   args: string;
-  status: 'running' | 'ok' | 'error';
+  risk: 'read' | 'write' | 'execute';
+  status: 'awaiting_approval' | 'denied' | 'running' | 'ok' | 'error';
   output?: string;
 };
 
@@ -80,6 +81,7 @@ contextBridge.exposeInMainWorld('agentStudio', {
 
   startChat: (payload: unknown) => ipcRenderer.send('ai:chat:start', payload),
   stopChat: (requestId: string) => ipcRenderer.send('ai:chat:stop', { requestId }),
+  respondToToolApproval: (payload: unknown) => ipcRenderer.send('ai:chat:tool-approval', payload),
   onChatChunk: (listener: ChatEventListener) => subscribe('ai:chat:chunk', listener),
   onChatAction: (listener: ChatEventListener) => subscribe('ai:chat:action', listener),
   onChatDone: (listener: ChatEventListener) => subscribe('ai:chat:done', listener),
