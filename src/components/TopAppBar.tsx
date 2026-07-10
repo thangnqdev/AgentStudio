@@ -16,6 +16,8 @@ export function TopAppBar() {
   const setSettings = useAppStore((s) => s.setSettings);
   const isSidebarOpen = useAppStore((s) => s.isSidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
+  const isTerminalOpen = useAppStore((s) => s.isTerminalOpen);
+  const setTerminalOpen = useAppStore((s) => s.setTerminalOpen);
 
   const isMac = window.agentStudio?.getPlatform
     ? window.agentStudio.getPlatform() === 'darwin'
@@ -84,16 +86,13 @@ export function TopAppBar() {
       {/* Right: Actions */}
       <div className="flex items-center gap-1" style={noDragStyle}>
         <button
-          className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"
-          title="Lịch sử"
+          onClick={() => setTerminalOpen(!isTerminalOpen)}
+          className={`p-1.5 rounded hover:bg-surface-container-highest transition-colors flex items-center justify-center ${
+            isTerminalOpen ? 'bg-surface-container-highest text-primary' : 'text-on-surface-variant'
+          }`}
+          title={isTerminalOpen ? "Đóng trình lệnh" : "Mở trình lệnh"}
         >
-          <span className="material-symbols-outlined text-[20px]">history</span>
-        </button>
-        <button
-          className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"
-          title="Tùy chọn khác"
-        >
-          <span className="material-symbols-outlined text-[20px]">more_vert</span>
+          <span className="material-symbols-outlined text-[20px]">terminal</span>
         </button>
       </div>
     </header>

@@ -63,18 +63,12 @@ function MainContent({ view }: { view: ViewId }) {
   if (view === 'settings') {
     return <SettingsView />;
   }
-  if (view === 'terminal') {
-    return (
-      <Suspense fallback={<div className="flex-1 bg-[#141312]" />}>
-        <TerminalView />
-      </Suspense>
-    );
-  }
   return <PlaceholderView view={view} />;
 }
 
 function App() {
   const activeView = useAppStore((s) => s.activeView);
+  const isTerminalOpen = useAppStore((s) => s.isTerminalOpen);
   const workspacePath = useAppStore((s) => s.settings.workspacePath);
   const threads = useAppStore((s) => s.threads);
   const activeThreadId = useAppStore((s) => s.activeThreadId);
@@ -167,6 +161,13 @@ function App() {
         <main className="flex-1 flex flex-col bg-background canvas-glow relative overflow-hidden">
           <MainContent view={activeView} />
         </main>
+        {isTerminalOpen && (
+          <aside className="w-[500px] border-l border-outline-variant bg-[#141312] flex flex-col shrink-0 shadow-[-4px_0_12px_rgba(0,0,0,0.1)]">
+            <Suspense fallback={<div className="flex-1 bg-[#141312]" />}>
+              <TerminalView />
+            </Suspense>
+          </aside>
+        )}
       </div>
     </div>
   );

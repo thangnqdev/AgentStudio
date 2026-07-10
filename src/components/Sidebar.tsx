@@ -11,7 +11,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'tasks', label: 'Tác vụ hiện tại', icon: 'bolt' },
   { id: 'knowledge', label: 'Cơ sở tri thức', icon: 'menu_book' },
   { id: 'files', label: 'Quản lý tệp tin', icon: 'description' },
-  { id: 'terminal', label: 'Trình lệnh', icon: 'terminal' },
   { id: 'agents', label: 'Trợ lý AI', icon: 'smart_toy' },
 ];
 
@@ -35,22 +34,12 @@ export function Sidebar() {
           A
         </div>
         <div>
-          <h1 className="font-display-serif text-summary-title text-primary leading-tight">Architect</h1>
+          <h1 className="font-display-serif text-summary-title text-primary leading-tight">Agent Customer</h1>
           <p className="text-on-surface-variant font-ui-label-caps text-ui-label-caps">v1.0.4 Premium</p>
         </div>
       </div>
 
-      {/* Global Search */}
-      <div className="px-2 mb-6">
-        <button
-          id="global-search-btn"
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-highest transition-colors font-ui-body text-ui-body"
-        >
-          <span className="material-symbols-outlined text-[18px]">search</span>
-          <span>Tìm kiếm</span>
-          <span className="ml-auto font-code-base text-xs border border-outline-variant rounded px-1 text-on-surface-variant/70">⌘K</span>
-        </button>
-      </div>
+
 
       <div className="mb-2 px-2 font-ui-label-caps text-ui-label-caps text-on-surface-variant uppercase tracking-wider">
         Điều hướng chính
@@ -91,7 +80,7 @@ export function Sidebar() {
         <button
           onClick={() => createThread()}
           className="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant"
-          title="Tạo tác vụ mới"
+          title="Tạo chat mới"
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
         </button>
@@ -128,14 +117,7 @@ export function Sidebar() {
 
       {/* Bottom actions */}
       <div className="mt-auto px-2">
-        <button
-          id="new-project-btn"
-          onClick={() => createThread()}
-          className="w-full flex justify-center items-center gap-2 py-2 mb-4 bg-primary-container text-on-primary rounded font-ui-label-bold text-ui-label-bold hover:opacity-90 transition-opacity"
-        >
-          <span className="material-symbols-outlined text-[16px]">add</span>
-          Tác vụ mới
-        </button>
+
 
         <div className="border-t border-outline-variant pt-4 space-y-1">
           <button
