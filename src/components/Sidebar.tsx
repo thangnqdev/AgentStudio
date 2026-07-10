@@ -105,7 +105,7 @@ export function Sidebar() {
                 <button
                   onClick={() => deleteThread(thread.id)}
                   className="w-7 h-7 rounded hidden group-hover:flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-error/10"
-                  title="Xóa thread"
+                  title="Xóa chat"
                 >
                   <span className="material-symbols-outlined text-[15px]">delete</span>
                 </button>

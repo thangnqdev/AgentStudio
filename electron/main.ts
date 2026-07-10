@@ -1,5 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, type OpenDialogOptions } from 'electron';
-import { spawn as spawnChild } from 'node:child_process';
+import { spawn as spawnChild, exec } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execAsync = promisify(exec);
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -807,6 +810,15 @@ function registerIpcHandlers() {
   ipcMain.handle('chat:save-workspace', async (_event, rawPayload: ChatHistoryPayload) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
     return saveWorkspaceChatHistory(payload);
+  });
+
+  ipcMain.handle('git:get-branch', async (_event, workspacePath: string) => {
+    try {
+      const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: workspacePath });
+      return stdout.trim();
+    } catch {
+      return null;
+    }
   });
 
   ipcMain.handle('terminal:list-shells', async () => {

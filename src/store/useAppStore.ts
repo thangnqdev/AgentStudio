@@ -72,6 +72,7 @@ export interface AppSettings {
 
 interface AppState {
   projectPath: string | null;
+  currentBranch: string | null;
   activeTask: string | null;
   messages: Message[];
   threads: ChatThread[];
@@ -89,6 +90,7 @@ interface AppState {
   setSidebarOpen: (open: boolean) => void;
   setTerminalOpen: (open: boolean) => void;
   setProjectPath: (path: string) => void;
+  setCurrentBranch: (branch: string | null) => void;
   setActiveTask: (task: string) => void;
   createThread: (title?: string) => string;
   switchThread: (threadId: string) => void;
@@ -125,7 +127,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   workspacePath: 'chưa có dự án',
 };
 
-function createBlankThread(title = 'Tác vụ mới'): ChatThread {
+function createBlankThread(title = 'Chat mới'): ChatThread {
   const now = new Date();
   return {
     id: crypto.randomUUID(),
@@ -136,7 +138,7 @@ function createBlankThread(title = 'Tác vụ mới'): ChatThread {
   };
 }
 
-function deriveThreadTitle(messages: Message[], fallback = 'Tác vụ mới') {
+function deriveThreadTitle(messages: Message[], fallback = 'Chat mới') {
   const firstUserMessage = messages.find((message) => message.sender === 'user' && message.content.trim());
   if (!firstUserMessage) return fallback;
 
@@ -163,7 +165,7 @@ function reviveThread(thread: ChatThread): ChatThread {
 function syncThread(state: AppState, messages: Message[]): Pick<AppState, 'messages' | 'threads' | 'activeTask' | 'activeThreadId'> {
   const activeThreadId = state.activeThreadId ?? crypto.randomUUID();
   const existingThread = state.threads.find((thread) => thread.id === activeThreadId);
-  const title = deriveThreadTitle(messages, existingThread?.title ?? 'Tác vụ mới');
+  const title = deriveThreadTitle(messages, existingThread?.title ?? 'Chat mới');
   const updatedThread: ChatThread = {
     id: activeThreadId,
     title,
@@ -184,36 +186,57 @@ function syncThread(state: AppState, messages: Message[]): Pick<AppState, 'messa
 }
 
 export const useAppStore = create<AppState>()(
-    (set, get) => {
-      const initialThread = createBlankThread('Tác vụ mới');
+  (set, get) => {
+    const initialThread = createBlankThread('Chat mới');
 
-      return {
-        projectPath: 'agent-desktop',
-        activeTask: initialThread.title,
-        messages: [],
-        threads: [initialThread],
-        activeThreadId: initialThread.id,
-        activeRequestId: null,
-        agentActions: [],
-        agentThoughts: [],
-        agentThoughtStartsNewLine: true,
-        isAgentTyping: false,
-        activeView: 'tasks',
-        isSidebarOpen: true,
-        isTerminalOpen: false,
-        settings: DEFAULT_SETTINGS,
+    return {
+      projectPath: 'agent-desktop',
+      currentBranch: null,
+      activeTask: initialThread.title,
+      messages: [],
+      threads: [initialThread],
+      activeThreadId: initialThread.id,
+      activeRequestId: null,
+      agentActions: [],
+      agentThoughts: [],
+      agentThoughtStartsNewLine: true,
+      isAgentTyping: false,
+      activeView: 'tasks',
+      isSidebarOpen: true,
+      isTerminalOpen: false,
+      settings: DEFAULT_SETTINGS,
 
-        setSidebarOpen: (open) => set({ isSidebarOpen: open }),
-        setTerminalOpen: (open) => set({ isTerminalOpen: open }),
-        setProjectPath: (path) => set({ projectPath: path }),
-        setActiveTask: (task) => set({ activeTask: task }),
+      setSidebarOpen: (open) => set({ isSidebarOpen: open }),
+      setTerminalOpen: (open) => set({ isTerminalOpen: open }),
+      setProjectPath: (path) => set({ projectPath: path }),
+      setCurrentBranch: (branch) => set({ currentBranch: branch }),
+      setActiveTask: (task) => set({ activeTask: task }),
 
-        createThread: (title = 'Tác vụ mới') => {
-          const thread = createBlankThread(title);
-          set((state) => ({
-            threads: [thread, ...state.threads],
+      createThread: (title = 'Chat mới') => {
+        const thread = createBlankThread(title);
+        set((state) => ({
+          threads: [thread, ...state.threads],
+          activeThreadId: thread.id,
+          messages: [],
+          activeTask: thread.title,
+          activeRequestId: null,
+          agentActions: [],
+          agentThoughts: [],
+          agentThoughtStartsNewLine: true,
+          isAgentTyping: false,
+          activeView: 'tasks',
+        }));
+        return thread.id;
+      },
+
+      switchThread: (threadId) =>
+        set((state) => {
+          const thread = state.threads.find((item) => item.id === threadId);
+          if (!thread) return {};
+
+          return {
             activeThreadId: thread.id,
-            messages: [],
+            messages: thread.messages,
             activeTask: thread.title,
             activeRequestId: null,
             agentActions: [],
@@ -221,178 +244,159 @@ export const useAppStore = create<AppState>()(
             agentThoughtStartsNewLine: true,
             isAgentTyping: false,
             activeView: 'tasks',
-          }));
-          return thread.id;
-        },
-
-        switchThread: (threadId) =>
-          set((state) => {
-            const thread = state.threads.find((item) => item.id === threadId);
-            if (!thread) return {};
-
-            return {
-              activeThreadId: thread.id,
-              messages: thread.messages,
-              activeTask: thread.title,
-              activeRequestId: null,
-              agentActions: [],
-              agentThoughts: [],
-              agentThoughtStartsNewLine: true,
-              isAgentTyping: false,
-              activeView: 'tasks',
-            };
-          }),
-
-        deleteThread: (threadId) =>
-          set((state) => {
-            const remainingThreads = state.threads.filter((thread) => thread.id !== threadId);
-            const fallbackThread = remainingThreads[0] ?? createBlankThread('Tác vụ mới');
-            const threads = remainingThreads.length > 0 ? remainingThreads : [fallbackThread];
-            const shouldSwitch = state.activeThreadId === threadId;
-
-            return {
-              threads,
-              activeThreadId: shouldSwitch ? fallbackThread.id : state.activeThreadId,
-              messages: shouldSwitch ? fallbackThread.messages : state.messages,
-              activeTask: shouldSwitch ? fallbackThread.title : state.activeTask,
-              agentActions: shouldSwitch ? [] : state.agentActions,
-              agentThoughts: shouldSwitch ? [] : state.agentThoughts,
-              agentThoughtStartsNewLine: shouldSwitch ? true : state.agentThoughtStartsNewLine,
-            };
-          }),
-
-        replaceChatHistory: (threads, activeThreadId) =>
-          set(() => {
-            const revivedThreads = threads.length > 0
-              ? threads.map(reviveThread)
-              : [createBlankThread('Tác vụ mới')];
-            const activeThread = revivedThreads.find((thread) => thread.id === activeThreadId) ?? revivedThreads[0];
-
-            return {
-              threads: revivedThreads,
-              activeThreadId: activeThread?.id ?? null,
-              messages: activeThread?.messages ?? [],
-              activeTask: activeThread?.title ?? 'Tác vụ mới',
-              activeRequestId: null,
-              agentActions: [],
-              agentThoughts: [],
-              agentThoughtStartsNewLine: true,
-              isAgentTyping: false,
-              activeView: 'tasks',
-            };
-          }),
-
-        addMessage: (msg) => {
-          const newId = msg.id ?? crypto.randomUUID();
-          const newMessage: Message = {
-            ...msg,
-            id: newId,
-            timestamp: new Date(),
-            status: msg.status ?? 'done',
           };
-          set((state) => syncThread(state, [...state.messages, newMessage]));
-          return newId;
-        },
+        }),
 
-        updateMessage: (id, update) =>
-          set((state) => syncThread(
-            state,
-            state.messages.map((message) => (message.id === id ? { ...message, ...update } : message)),
-          )),
+      deleteThread: (threadId) =>
+        set((state) => {
+          const remainingThreads = state.threads.filter((thread) => thread.id !== threadId);
+          const fallbackThread = remainingThreads[0] ?? createBlankThread('Chat mới');
+          const threads = remainingThreads.length > 0 ? remainingThreads : [fallbackThread];
+          const shouldSwitch = state.activeThreadId === threadId;
 
-        appendMessageContent: (id, chunk) =>
-          set((state) => syncThread(
-            state,
-            state.messages.map((message) =>
-              message.id === id ? { ...message, content: message.content + chunk } : message
-            ),
-          )),
+          return {
+            threads,
+            activeThreadId: shouldSwitch ? fallbackThread.id : state.activeThreadId,
+            messages: shouldSwitch ? fallbackThread.messages : state.messages,
+            activeTask: shouldSwitch ? fallbackThread.title : state.activeTask,
+            agentActions: shouldSwitch ? [] : state.agentActions,
+            agentThoughts: shouldSwitch ? [] : state.agentThoughts,
+            agentThoughtStartsNewLine: shouldSwitch ? true : state.agentThoughtStartsNewLine,
+          };
+        }),
 
-        clearMessages: () => set((state) => syncThread(state, [])),
+      replaceChatHistory: (threads, activeThreadId) =>
+        set(() => {
+          const revivedThreads = threads.length > 0
+            ? threads.map(reviveThread)
+            : [createBlankThread('Chat mới')];
+          const activeThread = revivedThreads.find((thread) => thread.id === activeThreadId) ?? revivedThreads[0];
 
-        replaceUserMessageAndTrim: (id, content) => {
-          const state = get();
-          const index = state.messages.findIndex((message) => message.id === id && message.sender === 'user');
-          if (index < 0) return state.messages;
+          return {
+            threads: revivedThreads,
+            activeThreadId: activeThread?.id ?? null,
+            messages: activeThread?.messages ?? [],
+            activeTask: activeThread?.title ?? 'Chat mới',
+            activeRequestId: null,
+            agentActions: [],
+            agentThoughts: [],
+            agentThoughtStartsNewLine: true,
+            isAgentTyping: false,
+            activeView: 'tasks',
+          };
+        }),
 
-          const nextMessages = state.messages.slice(0, index + 1).map((message, messageIndex) =>
-            messageIndex === index ? { ...message, content, timestamp: new Date() } : message
-          );
-          set((currentState) => syncThread(currentState, nextMessages));
-          return nextMessages;
-        },
+      addMessage: (msg) => {
+        const newId = msg.id ?? crypto.randomUUID();
+        const newMessage: Message = {
+          ...msg,
+          id: newId,
+          timestamp: new Date(),
+          status: msg.status ?? 'done',
+        };
+        set((state) => syncThread(state, [...state.messages, newMessage]));
+        return newId;
+      },
 
-        setActiveRequestId: (requestId) => set({ activeRequestId: requestId }),
-        upsertAgentAction: (action) => set((state) => {
-          const exists = state.agentActions.some((item) => item.id === action.id);
-          let messages = state.messages;
-          
-          if (!exists) {
-            const targetMsg = messages.find(m => m.sender === 'agent' && m.status === 'sending');
-            if (targetMsg) {
-              messages = messages.map(m => m.id === targetMsg.id ? { ...m, content: m.content + `\n[tool:${action.id}]\n` } : m);
-            }
+      updateMessage: (id, update) =>
+        set((state) => syncThread(
+          state,
+          state.messages.map((message) => (message.id === id ? { ...message, ...update } : message)),
+        )),
+
+      appendMessageContent: (id, chunk) =>
+        set((state) => syncThread(
+          state,
+          state.messages.map((message) =>
+            message.id === id ? { ...message, content: message.content + chunk } : message
+          ),
+        )),
+
+      clearMessages: () => set((state) => syncThread(state, [])),
+
+      replaceUserMessageAndTrim: (id, content) => {
+        const state = get();
+        const index = state.messages.findIndex((message) => message.id === id && message.sender === 'user');
+        if (index < 0) return state.messages;
+
+        const nextMessages = state.messages.slice(0, index + 1).map((message, messageIndex) =>
+          messageIndex === index ? { ...message, content, timestamp: new Date() } : message
+        );
+        set((currentState) => syncThread(currentState, nextMessages));
+        return nextMessages;
+      },
+
+      setActiveRequestId: (requestId) => set({ activeRequestId: requestId }),
+      upsertAgentAction: (action) => set((state) => {
+        const exists = state.agentActions.some((item) => item.id === action.id);
+        let messages = state.messages;
+
+        if (!exists) {
+          const targetMsg = messages.find(m => m.sender === 'agent' && m.status === 'sending');
+          if (targetMsg) {
+            messages = messages.map(m => m.id === targetMsg.id ? { ...m, content: m.content + `\n[tool:${action.id}]\n` } : m);
+          }
+        }
+
+        const agentActions = exists
+          ? state.agentActions.map((item) => (item.id === action.id ? { ...item, ...action } : item))
+          : [...state.agentActions, action];
+
+        return {
+          agentActions,
+          ...syncThread(state, messages),
+        };
+      }),
+      clearAgentActions: () => set({ agentActions: [] }),
+      appendAgentThoughtChunk: (requestId, chunk) => set((state) => {
+        const normalizedChunk = chunk.replace(/\r\n/g, '\n');
+        if (!normalizedChunk) return {};
+
+        const thoughts = [...state.agentThoughts];
+        const segments = normalizedChunk.split('\n');
+        let startsNewLine = state.agentThoughtStartsNewLine;
+
+        segments.forEach((segment, index) => {
+          const shouldAppend = !startsNewLine
+            && segment
+            && thoughts.length > 0
+            && thoughts[thoughts.length - 1].requestId === requestId;
+
+          if (shouldAppend) {
+            const lastThought = thoughts[thoughts.length - 1];
+            thoughts[thoughts.length - 1] = {
+              ...lastThought,
+              content: `${lastThought.content}${segment}`,
+              timestamp: new Date(),
+            };
+          } else if (segment.trim()) {
+            thoughts.push({
+              id: crypto.randomUUID(),
+              requestId,
+              content: segment,
+              timestamp: new Date(),
+            });
           }
 
-          const agentActions = exists
-            ? state.agentActions.map((item) => (item.id === action.id ? { ...item, ...action } : item))
-            : [...state.agentActions, action];
+          if (segment) {
+            startsNewLine = false;
+          }
+          if (index < segments.length - 1) {
+            startsNewLine = true;
+          }
+        });
 
-          return {
-            agentActions,
-            ...syncThread(state, messages),
-          };
-        }),
-        clearAgentActions: () => set({ agentActions: [] }),
-        appendAgentThoughtChunk: (requestId, chunk) => set((state) => {
-          const normalizedChunk = chunk.replace(/\r\n/g, '\n');
-          if (!normalizedChunk) return {};
-
-          const thoughts = [...state.agentThoughts];
-          const segments = normalizedChunk.split('\n');
-          let startsNewLine = state.agentThoughtStartsNewLine;
-
-          segments.forEach((segment, index) => {
-            const shouldAppend = !startsNewLine
-              && segment
-              && thoughts.length > 0
-              && thoughts[thoughts.length - 1].requestId === requestId;
-
-            if (shouldAppend) {
-              const lastThought = thoughts[thoughts.length - 1];
-              thoughts[thoughts.length - 1] = {
-                ...lastThought,
-                content: `${lastThought.content}${segment}`,
-                timestamp: new Date(),
-              };
-            } else if (segment.trim()) {
-              thoughts.push({
-                id: crypto.randomUUID(),
-                requestId,
-                content: segment,
-                timestamp: new Date(),
-              });
-            }
-
-            if (segment) {
-              startsNewLine = false;
-            }
-            if (index < segments.length - 1) {
-              startsNewLine = true;
-            }
-          });
-
-          return {
-            agentThoughts: thoughts
-              .filter((thought) => thought.content.trim())
-              .slice(-120),
-            agentThoughtStartsNewLine: startsNewLine,
-          };
-        }),
-        clearAgentThoughts: () => set({ agentThoughts: [], agentThoughtStartsNewLine: true }),
-        setIsAgentTyping: (typing) => set({ isAgentTyping: typing }),
-        setActiveView: (view) => set({ activeView: view }),
-        setSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
-      };
-    }
+        return {
+          agentThoughts: thoughts
+            .filter((thought) => thought.content.trim())
+            .slice(-120),
+          agentThoughtStartsNewLine: startsNewLine,
+        };
+      }),
+      clearAgentThoughts: () => set({ agentThoughts: [], agentThoughtStartsNewLine: true }),
+      setIsAgentTyping: (typing) => set({ isAgentTyping: typing }),
+      setActiveView: (view) => set({ activeView: view }),
+      setSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
+    };
+  }
 );

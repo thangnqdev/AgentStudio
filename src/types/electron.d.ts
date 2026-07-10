@@ -102,6 +102,7 @@ declare global {
       getFilePath: (file: File) => string;
       loadChatHistory: (workspacePath: string) => Promise<ChatHistoryPayload>;
       saveChatHistory: (payload: { workspacePath: string; threads: ChatThread[]; activeThreadId: string | null }) => Promise<{ ok: boolean }>;
+      getGitBranch: (workspacePath: string) => Promise<string | null>;
       startChat: (payload: { requestId: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;
       onChatChunk: (listener: ChatEventListener) => () => void;

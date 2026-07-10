@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useEffect, type CSSProperties } from 'react';
 import { useAppStore } from '../store/useAppStore';
 
 type ElectronDragStyle = CSSProperties & {
@@ -18,6 +18,30 @@ export function TopAppBar() {
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const isTerminalOpen = useAppStore((s) => s.isTerminalOpen);
   const setTerminalOpen = useAppStore((s) => s.setTerminalOpen);
+  const currentBranch = useAppStore((s) => s.currentBranch);
+  const setCurrentBranch = useAppStore((s) => s.setCurrentBranch);
+
+  useEffect(() => {
+    if (!projectPath || projectPath === 'chưa có dự án' || !window.agentStudio?.getGitBranch) {
+      setCurrentBranch(null);
+      return;
+    }
+
+    let isMounted = true;
+    window.agentStudio.getGitBranch(projectPath)
+      .then((branch) => {
+        if (isMounted) {
+          setCurrentBranch(branch || null);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setCurrentBranch(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [projectPath, setCurrentBranch]);
 
   const isMac = window.agentStudio?.getPlatform
     ? window.agentStudio.getPlatform() === 'darwin'
@@ -76,11 +100,23 @@ export function TopAppBar() {
           <span className="material-symbols-outlined text-[14px]">folder</span>
           {projectPath ?? 'chưa có dự án'}
         </button>
-        <span className="text-outline-variant px-1">/</span>
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface border border-outline-variant text-on-surface-variant font-code-base text-[12px]">
-          <span className="material-symbols-outlined text-[14px]">call_split</span>
-          feature/agent-runtime
-        </div>
+        {currentBranch ? (
+          <>
+            <span className="text-outline-variant px-1">/</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface border border-outline-variant text-on-surface-variant font-code-base text-[12px]">
+              <span className="material-symbols-outlined text-[14px]">call_split</span>
+              {currentBranch}
+            </div>
+          </>
+        ) : (
+          <>
+            <span className="text-outline-variant px-1">/</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface border border-outline-variant text-on-surface-variant/50 font-code-base text-[12px]">
+              <span className="material-symbols-outlined text-[14px]">call_split</span>
+              không có git
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right: Actions */}

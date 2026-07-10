@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld('agentStudio', {
   getFilePath: (file: unknown) => webUtils.getPathForFile(file as File),
   loadChatHistory: (workspacePath: string) => ipcRenderer.invoke('chat:load-workspace', workspacePath),
   saveChatHistory: (payload: unknown) => ipcRenderer.invoke('chat:save-workspace', payload),
+  getGitBranch: (workspacePath: string) => ipcRenderer.invoke('git:get-branch', workspacePath),
 
   startChat: (payload: unknown) => ipcRenderer.send('ai:chat:start', payload),
   stopChat: (requestId: string) => ipcRenderer.send('ai:chat:stop', { requestId }),
