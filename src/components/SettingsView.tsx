@@ -231,6 +231,25 @@ export function SettingsView() {
 
               {errorMsg && <p className="text-[13px] text-error">{errorMsg}</p>}
               {successMsg && <p className="text-[13px] text-[#4caf50]">{successMsg}</p>}
+
+              {/* Model List */}
+              {editingProvider.models && editingProvider.models.length > 0 && (
+                <div className="pt-4 border-t border-outline-variant mt-2">
+                  <h4 className="font-ui-label-bold text-[14px] text-on-surface mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px]">view_list</span>
+                    Danh sách Model ({editingProvider.models.length})
+                  </h4>
+                  <div className="bg-surface-container rounded-lg border border-outline-variant overflow-hidden">
+                    <ul className="max-h-[200px] overflow-y-auto divide-y divide-outline-variant">
+                      {editingProvider.models.map(model => (
+                        <li key={model.id} className="px-4 py-2 text-[13px] text-on-surface-variant font-code-base hover:bg-surface-container-high transition-colors">
+                          {model.id}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         )}

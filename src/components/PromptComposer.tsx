@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, useMemo, type KeyboardEvent, type ChangeEvent } from 'react';
 import { useAppStore, type Attachment, type PermissionMode } from '../store/useAppStore';
 
 type PendingAttachment = Attachment & {
@@ -12,6 +12,47 @@ function formatContextWindow(tokens: number | undefined) {
   return String(tokens);
 }
 
+function estimateTextTokens(text: string) {
+  return Math.ceil(text.length / 4);
+}
+
+function estimateAttachmentTokens(attachment: Pick<Attachment, 'name' | 'type' | 'data' | 'filePath' | 'mimeType' | 'size'>) {
+  const metadataTokens = estimateTextTokens([
+    attachment.name,
+    attachment.type,
+    attachment.filePath || '',
+    attachment.mimeType || '',
+    attachment.size || '',
+  ].join(' '));
+
+  if (attachment.type === 'text') {
+    if (attachment.data) return metadataTokens + estimateTextTokens(attachment.data);
+    if (attachment.size) return metadataTokens + Math.ceil(attachment.size / 4);
+  }
+
+  if (attachment.type === 'image') return metadataTokens + 1_000;
+  if (attachment.type === 'audio' || attachment.type === 'video') return metadataTokens + 300;
+  return metadataTokens;
+}
+
+function estimateMessageTokens(message: {
+  sender: 'user' | 'agent';
+  content: string;
+  attachments?: Attachment[];
+}) {
+  const attachmentTokens = (message.attachments || []).reduce(
+    (total, attachment) => total + estimateAttachmentTokens(attachment),
+    0,
+  );
+  return estimateTextTokens(`${message.sender}\n${message.content}\n`) + attachmentTokens;
+}
+
+function getContextUsageTone(percent: number) {
+  if (percent >= 90) return { text: 'text-error', bar: 'bg-error' };
+  if (percent >= 75) return { text: 'text-[#9C4326]', bar: 'bg-[#9C4326]' };
+  return { text: 'text-on-surface-variant/70', bar: 'bg-secondary' };
+}
+
 export function PromptComposer() {
   const [input, setInput] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<PendingAttachment[]>([]);
@@ -22,6 +63,7 @@ export function PromptComposer() {
   const setIsAgentTyping = useAppStore((s) => s.setIsAgentTyping);
   const appendMessageContent = useAppStore((s) => s.appendMessageContent);
   const updateMessage = useAppStore((s) => s.updateMessage);
+  const messages = useAppStore((s) => s.messages);
   const settings = useAppStore((s) => s.settings);
   const setSettings = useAppStore((s) => s.setSettings);
   const activeRequestId = useAppStore((s) => s.activeRequestId);
@@ -214,6 +256,27 @@ export function PromptComposer() {
 
   const hasFileErrors = attachedFiles.some((file) => file.error);
   const canSubmit = (input.trim().length > 0 || attachedFiles.length > 0) && !hasFileErrors && !isAgentBusy;
+  const activeProvider = settings.providers?.find(p => p.id === settings.activeProviderId);
+  const models = activeProvider?.models || [];
+  const activeModel = models.find((model) => model.id === settings.activeModelId);
+  const activeContextWindow = activeModel?.contextWindow;
+  const estimatedContextTokens = useMemo(() => {
+    const draftContent = input.trim();
+    const draftTokens = draftContent || attachedFiles.length > 0
+      ? estimateMessageTokens({
+          sender: 'user',
+          content: draftContent,
+          attachments: attachedFiles,
+        })
+      : 0;
+
+    return messages.reduce((total, message) => total + estimateMessageTokens(message), 0) + draftTokens;
+  }, [attachedFiles, input, messages]);
+  const contextUsagePercent = activeContextWindow
+    ? Math.min(999, Math.round((estimatedContextTokens / activeContextWindow) * 100))
+    : null;
+  const contextUsageTone = getContextUsageTone(contextUsagePercent ?? 0);
+  const contextUsageWidth = `${Math.min(contextUsagePercent ?? 0, 100)}%`;
 
   const handleModelChange = async (modelId: string) => {
     setSettings({ activeModelId: modelId });
@@ -343,18 +406,29 @@ export function PromptComposer() {
               <option value="danger-full-access" className="bg-surface text-on-surface">danger-full-access</option>
             </select>
 
-            {(() => {
-              const activeProvider = settings.providers?.find(p => p.id === settings.activeProviderId);
-              const models = activeProvider?.models || [];
-              const activeModel = models.find((model) => model.id === settings.activeModelId);
-              const activeContextWindow = formatContextWindow(activeModel?.contextWindow);
-              
-              return models.length > 0 ? (
+            {activeContextWindow && contextUsagePercent !== null && (
+              <div
+                className={`flex items-center gap-1.5 min-w-[116px] ${contextUsageTone.text}`}
+                title={`Local realtime estimate: khoảng ${estimatedContextTokens.toLocaleString()} / ${activeContextWindow.toLocaleString()} tokens (${contextUsagePercent}%).`}
+              >
+                <span className="text-[10px] font-ui-label-bold tabular-nums whitespace-nowrap">
+                  ~{contextUsagePercent}%
+                </span>
+                <div className="h-1.5 w-16 rounded-full bg-outline-variant/40 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${contextUsageTone.bar}`}
+                    style={{ width: contextUsageWidth }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {models.length > 0 ? (
               <select
                 value={settings.activeModelId || ''}
                 onChange={(e) => handleModelChange(e.target.value)}
                 className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[150px] truncate"
-                title={`Chọn Model (${activeProvider?.name})${activeContextWindow ? ` · context ${activeContextWindow}` : ''}`}
+                title={`Chọn Model (${activeProvider?.name})${activeContextWindow ? ` · context ${formatContextWindow(activeContextWindow)}` : ''}`}
               >
                 {models.map(model => (
                   <option key={model.id} value={model.id} className="bg-surface text-on-surface">
@@ -362,8 +436,7 @@ export function PromptComposer() {
                   </option>
                 ))}
               </select>
-              ) : null;
-            })()}
+            ) : null}
           </div>
         </div>
       </div>
