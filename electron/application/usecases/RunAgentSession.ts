@@ -4,15 +4,17 @@ import type { IToolExecutor } from '../../domain/ports/IToolExecutor.js';
 import type { IAttachmentMessageFormatter } from '../../domain/ports/IAttachmentMessageFormatter.js';
 import type { IToolApprovalGateway } from '../../domain/ports/IToolApprovalGateway.js';
 import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
+import type { AgentTaskCheckpoint } from '../../domain/entities/agentTask.js';
 import { buildSummarySystemMessage, compactContext } from '../../contextCompaction.js';
 import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
 import type {
   AgentStartPayload,
   AgentProviderSettings,
   ChatMessage,
+  Message,
 } from '../../domain/entities/agent.js';
 
-import { MAX_AGENT_STEPS } from '../../domain/entities/limits.js';
+import { MAX_AGENT_STEPS_PER_RUN, MAX_AGENT_TASK_STEPS } from '../../domain/entities/limits.js';
 import { buildAgentSystemPrompt } from '../services/agentSystemPrompt.js';
 import { AgentToolCallRunner } from '../services/AgentToolCallRunner.js';
 
@@ -40,6 +42,7 @@ export class RunAgentSession {
     workspaceRoot: string,
     knowledgeContext?: string,
     signal?: AbortSignal,
+    task?: AgentTaskRun,
   ) {
     const requestId = typeof payload.requestId === 'string' ? payload.requestId : '';
     if (!requestId) {
@@ -54,8 +57,9 @@ export class RunAgentSession {
     const messages = Array.isArray(payload.messages) ? payload.messages : [];
     const inputContextTokens = getInputContextTokenBudget(settings.contextWindow);
 
-    let currentMessages = [...messages];
-    let conversation: ChatMessage[] = [];
+    let currentMessages = task?.messages.length ? [...task.messages] : [...messages];
+    let conversation: ChatMessage[] = task?.conversation.length ? [...task.conversation] : [];
+    let completedSteps = task?.completedSteps ?? 0;
 
     const rebuildConversation = async () => {
       const compactedContext = compactContext(currentMessages, inputContextTokens);
@@ -72,9 +76,11 @@ export class RunAgentSession {
       ];
     };
 
-    await rebuildConversation();
+    if (conversation.length === 0) await rebuildConversation();
+    await this.checkpoint(task, 'running', completedSteps, currentMessages, conversation);
 
-    for (let step = 0; step < MAX_AGENT_STEPS; step += 1) {
+    const runStepLimit = Math.min(completedSteps + MAX_AGENT_STEPS_PER_RUN, MAX_AGENT_TASK_STEPS);
+    for (let step = completedSteps; step < runStepLimit; step += 1) {
       if (signal?.aborted) throw new Error('Agent session stopped.');
 
       const assistantMessage = await this.provider.requestAssistantMessage(
@@ -100,8 +106,9 @@ export class RunAgentSession {
         } else if (assistantMessage.finishReason === 'stream_closed') {
           eventSink.emitChunk(requestId, '\n\n[Stream từ server đóng trước khi gửi tín hiệu kết thúc. Nội dung phía trên có thể chưa hoàn chỉnh.]');
         }
+        await this.checkpoint(task, 'completed', completedSteps, currentMessages, conversation);
         eventSink.emitDone(requestId);
-        return;
+        return { status: 'completed' as const, completedSteps };
       }
 
       let stepContent = content;
@@ -119,16 +126,42 @@ export class RunAgentSession {
         sender: 'agent',
         content: stepContent,
       });
+      completedSteps = step + 1;
 
       // Mid-session compaction check: nếu conversation quá dài, build lại
       const roughConversationTokens = conversation.reduce((acc, msg) => acc + Math.ceil(JSON.stringify(msg).length / 4), 0);
       if (roughConversationTokens > inputContextTokens) {
         await rebuildConversation();
       }
+      await this.checkpoint(task, 'running', completedSteps, currentMessages, conversation);
     }
 
-    eventSink.emitChunk(requestId, '\n\nAgent dừng vì đạt giới hạn số bước. Hãy thu hẹp yêu cầu hoặc chạy tiếp.');
+    const budgetMessage = completedSteps >= MAX_AGENT_TASK_STEPS
+      ? `\n\nAgent dừng vì đã dùng hết ngân sách ${MAX_AGENT_TASK_STEPS} bước của tác vụ.`
+      : `\n\nAgent đã checkpoint sau ${completedSteps} bước. Bạn có thể tiếp tục tác vụ.`;
+    await this.checkpoint(task, 'paused', completedSteps, currentMessages, conversation);
+    eventSink.emitChunk(requestId, budgetMessage);
     eventSink.emitDone(requestId);
+    return { status: 'paused' as const, completedSteps };
+  }
+
+  private async checkpoint(
+    task: AgentTaskRun | undefined,
+    status: AgentTaskCheckpoint['status'],
+    completedSteps: number,
+    messages: Message[],
+    conversation: ChatMessage[],
+  ) {
+    if (!task?.onCheckpoint) return;
+    await task.onCheckpoint({
+      id: task.id,
+      workspaceRoot: task.workspaceRoot,
+      status,
+      completedSteps,
+      messages,
+      conversation,
+      knowledgeContext: task.knowledgeContext,
+    });
   }
 
   private readAssistantContent(message: ChatMessage) {
@@ -139,3 +172,13 @@ export class RunAgentSession {
     return '';
   }
 }
+
+export type AgentTaskRun = {
+  id: string;
+  workspaceRoot: string;
+  completedSteps: number;
+  messages: Message[];
+  conversation: ChatMessage[];
+  knowledgeContext?: string;
+  onCheckpoint?: (checkpoint: AgentTaskCheckpoint) => Promise<void>;
+};

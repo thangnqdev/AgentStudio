@@ -1,6 +1,6 @@
 import type { PermissionMode } from './agent.js';
 
-export type ToolRisk = 'read' | 'write' | 'execute';
+export type ToolRisk = 'read' | 'write' | 'execute' | 'network';
 
 export type ToolParameter = {
   description: string;
@@ -85,6 +85,18 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
         timeoutMs: { type: 'number', description: 'Timeout in milliseconds, max 30000.' },
       },
       required: ['command'],
+    },
+  },
+  {
+    name: 'web_search',
+    description: 'Search the public web for current information through the configured OpenAI provider after user approval.',
+    risk: 'network',
+    parameters: {
+      properties: {
+        query: { type: 'string', description: 'Focused web search query.' },
+        domains: { type: 'string', description: 'Optional comma-separated domains to restrict the search.' },
+      },
+      required: ['query'],
     },
   },
 ];

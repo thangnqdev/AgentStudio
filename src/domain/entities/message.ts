@@ -14,7 +14,7 @@ export interface AgentAction {
   requestId: string;
   toolName: string;
   args: string;
-  risk: 'read' | 'write' | 'execute';
+  risk: 'read' | 'write' | 'execute' | 'network';
   status: 'awaiting_approval' | 'denied' | 'running' | 'ok' | 'error';
   output?: string;
 }

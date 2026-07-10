@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import type { Message } from '../../domain/entities/message';
+import { AgentBridge } from '../../infrastructure/ipc/agentStudioBridge';
 
 export function useAgentChat() {
   const addMessage = useAppStore((s) => s.addMessage);
@@ -13,10 +15,25 @@ export function useAgentChat() {
   const clearAgentThoughts = useAppStore((s) => s.clearAgentThoughts);
   const activeRequestId = useAppStore((s) => s.activeRequestId);
   const replaceUserMessageAndTrim = useAppStore((s) => s.replaceUserMessageAndTrim);
+  const setResumableTask = useAppStore((s) => s.setResumableTask);
+  const workspacePath = useAppStore((s) => s.settings.workspacePath);
 
-  const startAgentResponse = async (messagesToSend: Message[]) => {
+  useEffect(() => {
+    if (!AgentBridge.isAvailable || !workspacePath || workspacePath === 'chưa có dự án') return;
+    AgentBridge.listResumableAgentTasks()
+      .then((result) => {
+        if (result.success && result.tasks[0]) {
+          const task = result.tasks[0];
+          setResumableTask({ id: task.id, title: task.title, completedSteps: task.completedSteps });
+        }
+      })
+      .catch(() => undefined);
+  }, [setResumableTask, workspacePath]);
+
+  const startAgentResponse = async (messagesToSend: Message[], taskId?: string) => {
     clearAgentActions();
     clearAgentThoughts();
+    setResumableTask(null);
     setIsAgentTyping(true);
     
     const agentMsgId = addMessage({ sender: 'agent', content: '', type: 'text', status: 'sending' });
@@ -58,6 +75,12 @@ export function useAgentChat() {
           setIsAgentTyping(false);
           appendAgentThoughtChunk(requestId, thought);
         },
+        (task) => {
+          if (task.status === 'paused') {
+            setResumableTask({ id: task.taskId, completedSteps: task.completedSteps });
+          }
+        },
+        taskId,
       );
     } catch (error) {
       const finalActions = useAppStore.getState().agentActions;
@@ -84,9 +107,12 @@ export function useAgentChat() {
     startAgentResponse(messagesToSend);
   };
 
+  const resumeAgentTask = (taskId: string) => startAgentResponse([], taskId);
+
   return {
     startAgentResponse,
     stopAgentResponse,
     handleRegenerate,
+    resumeAgentTask,
   };
 }

@@ -24,6 +24,21 @@ export const TOOL_DEFINITIONS = AGENT_TOOL_DEFINITIONS.map((tool) => ({
   },
 }));
 
+export function supportsOpenAIWebSearch(settings: Pick<AgentProviderSettings, 'baseUrl' | 'apiKey'>) {
+  try {
+    const url = new URL(settings.baseUrl);
+    return Boolean(settings.apiKey) && url.protocol === 'https:' && url.hostname === 'api.openai.com';
+  } catch {
+    return false;
+  }
+}
+
+export function getToolDefinitions(settings: AgentProviderSettings) {
+  return supportsOpenAIWebSearch(settings)
+    ? TOOL_DEFINITIONS
+    : TOOL_DEFINITIONS.filter((tool) => tool.function.name !== 'web_search');
+}
+
 export class OpenAIProvider implements IAiProvider {
   async requestAssistantMessage(
     settings: AgentProviderSettings,
@@ -47,7 +62,7 @@ export class OpenAIProvider implements IAiProvider {
       body: JSON.stringify({
         model: settings.model,
         messages,
-        tools: TOOL_DEFINITIONS,
+        tools: getToolDefinitions(settings),
         tool_choice: 'auto',
         stream: true,
         max_tokens: getResponseTokenLimit(settings.contextWindow),

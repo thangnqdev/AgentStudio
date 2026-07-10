@@ -19,6 +19,7 @@ interface AppState {
   agentThoughts: AgentThought[];
   agentThoughtStartsNewLine: boolean;
   isAgentTyping: boolean;
+  resumableTask: { id: string; completedSteps: number; title?: string } | null;
   activeView: ViewId;
   settings: AppSettings;
   isSidebarOpen: boolean;
@@ -44,6 +45,7 @@ interface AppState {
   appendAgentThoughtChunk: (requestId: string, chunk: string) => void;
   clearAgentThoughts: () => void;
   setIsAgentTyping: (typing: boolean) => void;
+  setResumableTask: (task: { id: string; completedSteps: number; title?: string } | null) => void;
   setActiveView: (view: ViewId) => void;
   setSettings: (settings: Partial<AppSettings>) => void;
 }
@@ -105,6 +107,7 @@ export const useAppStore = create<AppState>()(
       agentThoughts: [],
       agentThoughtStartsNewLine: true,
       isAgentTyping: false,
+      resumableTask: null,
       activeView: 'tasks',
       isSidebarOpen: true,
       isTerminalOpen: false,
@@ -256,6 +259,7 @@ export const useAppStore = create<AppState>()(
       }),
       clearAgentThoughts: () => set({ agentThoughts: [], agentThoughtStartsNewLine: true }),
       setIsAgentTyping: (typing) => set({ isAgentTyping: typing }),
+      setResumableTask: (task) => set({ resumableTask: task }),
       setActiveView: (view) => set({ activeView: view }),
       setSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
     };

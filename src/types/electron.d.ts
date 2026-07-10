@@ -28,15 +28,22 @@ export type ChatEventPayload = {
   chunk?: string;
   error?: string;
   action?: ChatActionPayload;
+  task?: ChatTaskStatusPayload;
 };
 
 export type ChatActionPayload = {
   id: string;
   toolName: string;
   args: string;
-  risk: 'read' | 'write' | 'execute';
+  risk: 'read' | 'write' | 'execute' | 'network';
   status: 'awaiting_approval' | 'denied' | 'running' | 'ok' | 'error';
   output?: string;
+};
+
+export type ChatTaskStatusPayload = {
+  taskId: string;
+  status: 'paused' | 'completed';
+  completedSteps: number;
 };
 
 export type ChatEventListener = (payload: ChatEventPayload) => void;
@@ -84,6 +91,21 @@ export type ChatHistoryPayload = {
   threads: ChatThread[];
   activeThreadId: string | null;
 };
+
+export type AgentTaskSummary = {
+  id: string;
+  title: string;
+  workspaceRoot: string;
+  status: 'running' | 'paused' | 'completed' | 'failed';
+  createdAt: string;
+  updatedAt: string;
+  completedSteps: number;
+  lastError?: string;
+};
+
+export type AgentTaskListResult =
+  | { success: true; tasks: AgentTaskSummary[] }
+  | { success: false; error: string };
 
 export type KnowledgeLibraryPayload = {
   documents: KnowledgeDocument[];
@@ -135,13 +157,15 @@ declare global {
       syncWorkspaceKnowledge: () => Promise<IpcResult<KnowledgeWorkspaceSyncPayload>>;
       stopWorkspaceKnowledgeSync: () => Promise<IpcResult<{ watching: boolean }>>;
       removeKnowledgeDocument: (documentId: string) => Promise<IpcResult<{ ok: boolean }>>;
-      startChat: (payload: { requestId: string; messages: Message[] }) => void;
+      startChat: (payload: { requestId: string; taskId?: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;
       respondToToolApproval: (payload: { requestId: string; actionId: string; approved: boolean }) => void;
       onChatChunk: (listener: ChatEventListener) => () => void;
       onChatAction: (listener: ChatEventListener) => () => void;
       onChatDone: (listener: ChatEventListener) => () => void;
       onChatError: (listener: ChatEventListener) => () => void;
+      onChatTaskStatus: (listener: ChatEventListener) => () => void;
+      listResumableAgentTasks: () => Promise<AgentTaskListResult>;
       listCommandShells: () => Promise<CommandShellPayload[]>;
       createTerminal: (payload: TerminalCreatePayload) => Promise<TerminalCreatedPayload>;
       writeTerminal: (payload: { terminalId: string; data: string }) => void;

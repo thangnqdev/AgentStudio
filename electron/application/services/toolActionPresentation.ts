@@ -10,5 +10,10 @@ export function summarizeToolArguments(toolName: string, args: Record<string, un
   }
   if (toolName === 'read_file') return `path=${typeof args.path === 'string' ? args.path : ''}`;
   if (toolName === 'list_files') return `dir=${typeof args.dir === 'string' ? args.dir : '.'}`;
+  if (toolName === 'web_search') {
+    const query = typeof args.query === 'string' ? args.query.trim() : '';
+    const domains = typeof args.domains === 'string' ? args.domains.trim() : '';
+    return domains ? `query=${query} | domains=${domains}` : `query=${query}`;
+  }
   return Object.keys(args).sort().join(', ');
 }

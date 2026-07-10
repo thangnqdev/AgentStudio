@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron';
 import type { IAgentEventSink } from '../domain/ports/IAgentEventSink.js';
-import type { AgentActionPayload } from '../domain/entities/agent.js';
+import type { AgentActionPayload, AgentTaskStatusPayload } from '../domain/entities/agent.js';
 
 /**
  * Infrastructure implementation của IAgentEventSink.
@@ -29,5 +29,9 @@ export class ElectronAgentEventSink implements IAgentEventSink {
 
   emitError(requestId: string, error: string): void {
     this.sender.send('ai:chat:error', { requestId, error });
+  }
+
+  emitTaskStatus(requestId: string, task: AgentTaskStatusPayload): void {
+    this.sender.send('ai:chat:task-status', { requestId, task });
   }
 }

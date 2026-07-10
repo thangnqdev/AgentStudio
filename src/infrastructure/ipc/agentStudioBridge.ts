@@ -129,7 +129,7 @@ export const AgentBridge = {
     return window.agentStudio.removeKnowledgeDocument(documentId);
   },
 
-  startChat(payload: { requestId: string; messages: Message[] }) {
+  startChat(payload: { requestId: string; taskId?: string; messages: Message[] }) {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     window.agentStudio.startChat(payload);
   },
@@ -162,6 +162,16 @@ export const AgentBridge = {
   onChatError(listener: Parameters<NonNullable<Window['agentStudio']>['onChatError']>[0]) {
     if (!window.agentStudio) return () => {};
     return window.agentStudio.onChatError(listener);
+  },
+
+  onChatTaskStatus(listener: Parameters<NonNullable<Window['agentStudio']>['onChatTaskStatus']>[0]) {
+    if (!window.agentStudio) return () => {};
+    return window.agentStudio.onChatTaskStatus(listener);
+  },
+
+  async listResumableAgentTasks() {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.listResumableAgentTasks();
   },
 
   async listCommandShells() {

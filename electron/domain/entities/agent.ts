@@ -1,3 +1,5 @@
+import type { ToolRisk } from './tool.js';
+
 export type PermissionMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 
 export type Attachment = {
@@ -52,7 +54,14 @@ export type AgentProviderSettings = {
 
 export type AgentStartPayload = {
   requestId?: string;
+  taskId?: string;
   messages?: Message[];
+};
+
+export type AgentTaskStatusPayload = {
+  taskId: string;
+  status: 'paused' | 'completed';
+  completedSteps: number;
 };
 
 export type AssistantResponse = ChatMessage & {
@@ -67,4 +76,3 @@ export type ToolResult = {
 // Regex dùng chung phía electron để parse tool logs từ text output
 export const TOOL_PATTERN = /^\[tool:([^\]]+)\]\s*(.*)$/;
 export const TOOL_PREFIX_PATTERN = /^\[tool:([^\]]+)\]/;
-import type { ToolRisk } from './tool.js';

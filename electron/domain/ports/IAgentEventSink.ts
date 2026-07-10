@@ -1,4 +1,4 @@
-import type { AgentActionPayload } from '../entities/agent.js';
+import type { AgentActionPayload, AgentTaskStatusPayload } from '../entities/agent.js';
 
 /**
  * Port trừu tượng để use-case gửi sự kiện streaming về phía renderer mà không
@@ -13,4 +13,6 @@ export interface IAgentEventSink {
   emitDone(requestId: string): void;
   /** Báo hiệu lỗi về phía renderer. */
   emitError(requestId: string, error: string): void;
+  /** Emits durable task progress so the renderer can offer resume controls. */
+  emitTaskStatus?(requestId: string, task: AgentTaskStatusPayload): void;
 }

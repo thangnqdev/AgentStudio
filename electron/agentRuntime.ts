@@ -7,11 +7,16 @@ import { AgentToolExecutor } from './infrastructure/tools/AgentToolExecutor.js';
 import { AttachmentMessageFormatter } from './infrastructure/ai/AttachmentMessageFormatter.js';
 import { ElectronToolApprovalManager } from './infrastructure/tools/ElectronToolApprovalManager.js';
 import { JsonlToolAuditLogger } from './infrastructure/tools/JsonlToolAuditLogger.js';
+import { JsonAgentTaskRepository } from './infrastructure/tasks/JsonAgentTaskRepository.js';
+import { AgentTaskService } from './application/usecases/AgentTaskService.js';
+import type { AgentTaskRecord } from './domain/entities/agentTask.js';
 
 export * from './domain/entities/agent.js';
 
 export const agentToolApprovalManager = new ElectronToolApprovalManager();
 const toolAuditLogger = new JsonlToolAuditLogger();
+const taskRepository = new JsonAgentTaskRepository();
+export const agentTaskService = new AgentTaskService(taskRepository);
 
 export async function runAgentSession(
   payload: AgentStartPayload,
@@ -20,10 +25,25 @@ export async function runAgentSession(
   workspaceRoot: string,
   knowledgeContext?: string,
   signal?: AbortSignal,
+  task?: AgentTaskRecord,
 ) {
   const provider = new OpenAIProvider();
   const eventSink = new ElectronAgentEventSink(sender);
-  const toolExecutor = new AgentToolExecutor();
+  const toolExecutor = new AgentToolExecutor(settings);
   const session = new RunAgentSession(provider, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger);
-  await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, signal);
+  const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, signal, task
+    ? {
+      id: task.id,
+      workspaceRoot: task.workspaceRoot,
+      completedSteps: task.completedSteps,
+      messages: task.messages,
+      conversation: task.conversation,
+      knowledgeContext: task.knowledgeContext,
+      onCheckpoint: (checkpoint) => agentTaskService.checkpoint(checkpoint),
+    }
+    : undefined);
+  if (task && result?.status) {
+    eventSink.emitTaskStatus(payload.requestId || '', { taskId: task.id, status: result.status, completedSteps: result.completedSteps });
+  }
+  return result;
 }

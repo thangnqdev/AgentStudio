@@ -5,15 +5,22 @@ type ChatEventPayload = {
   chunk?: string;
   error?: string;
   action?: ChatActionPayload;
+  task?: ChatTaskStatusPayload;
 };
 
 type ChatActionPayload = {
   id: string;
   toolName: string;
   args: string;
-  risk: 'read' | 'write' | 'execute';
+  risk: 'read' | 'write' | 'execute' | 'network';
   status: 'awaiting_approval' | 'denied' | 'running' | 'ok' | 'error';
   output?: string;
+};
+
+type ChatTaskStatusPayload = {
+  taskId: string;
+  status: 'paused' | 'completed';
+  completedSteps: number;
 };
 
 type ChatEventListener = (payload: ChatEventPayload) => void;
@@ -27,7 +34,7 @@ type TerminalEventPayload = {
 
 type TerminalEventListener = (payload: TerminalEventPayload) => void;
 
-type EventChannel = 'ai:chat:chunk' | 'ai:chat:done' | 'ai:chat:error' | 'ai:chat:action';
+type EventChannel = 'ai:chat:chunk' | 'ai:chat:done' | 'ai:chat:error' | 'ai:chat:action' | 'ai:chat:task-status';
 
 function subscribe(channel: EventChannel, listener: ChatEventListener) {
   const handler = (_event: Electron.IpcRendererEvent, payload: ChatEventPayload) => {
@@ -86,6 +93,8 @@ contextBridge.exposeInMainWorld('agentStudio', {
   onChatAction: (listener: ChatEventListener) => subscribe('ai:chat:action', listener),
   onChatDone: (listener: ChatEventListener) => subscribe('ai:chat:done', listener),
   onChatError: (listener: ChatEventListener) => subscribe('ai:chat:error', listener),
+  onChatTaskStatus: (listener: ChatEventListener) => subscribe('ai:chat:task-status', listener),
+  listResumableAgentTasks: () => ipcRenderer.invoke('agent:tasks:list-resumable'),
 
   createTerminal: (payload: unknown) => ipcRenderer.invoke('terminal:create', payload),
   listCommandShells: () => ipcRenderer.invoke('terminal:list-shells'),

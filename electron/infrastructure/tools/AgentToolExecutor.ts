@@ -2,6 +2,8 @@ import type { IToolExecutor } from '../../domain/ports/IToolExecutor.js';
 import type { ToolResult, PermissionMode } from '../../domain/entities/agent.js';
 import { FileSystemToolExecutor } from './FileSystemToolExecutor.js';
 import { runSandboxedCommand } from './sandbox/SandboxedCommandExecutor.js';
+import { OpenAIWebSearchExecutor } from './OpenAIWebSearchExecutor.js';
+import type { AgentProviderSettings } from '../../domain/entities/agent.js';
 
 /**
  * Facade implement IToolExecutor — dispatch đến FileSystemToolExecutor hoặc
@@ -9,6 +11,11 @@ import { runSandboxedCommand } from './sandbox/SandboxedCommandExecutor.js';
  */
 export class AgentToolExecutor implements IToolExecutor {
   private readonly fs = new FileSystemToolExecutor();
+  private readonly webSearch: OpenAIWebSearchExecutor;
+
+  constructor(settings: AgentProviderSettings) {
+    this.webSearch = new OpenAIWebSearchExecutor(settings);
+  }
 
   async execute(
     toolName: string,
@@ -28,6 +35,9 @@ export class AgentToolExecutor implements IToolExecutor {
       }
       if (toolName === 'run_command') {
         return await this.runCommand(args, workspaceRoot, permissionMode);
+      }
+      if (toolName === 'web_search') {
+        return await this.webSearch.search(args);
       }
 
       return { ok: false, output: `Unknown tool: ${toolName}` };

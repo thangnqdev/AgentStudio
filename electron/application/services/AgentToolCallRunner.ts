@@ -74,7 +74,7 @@ export class AgentToolCallRunner {
     };
   }
 
-  private async recordAudit(actionId: string, outcome: 'approved' | 'denied' | 'error' | 'started' | 'succeeded', input: ToolCallRunInput, risk: 'read' | 'write' | 'execute', toolName: string) {
+  private async recordAudit(actionId: string, outcome: 'approved' | 'denied' | 'error' | 'started' | 'succeeded', input: ToolCallRunInput, risk: 'read' | 'write' | 'execute' | 'network', toolName: string) {
     await this.auditLogger.record({ actionId, outcome, requestId: input.requestId, risk, toolName, timestamp: new Date().toISOString(), workspaceRoot: input.workspaceRoot }).catch(() => undefined);
   }
 }

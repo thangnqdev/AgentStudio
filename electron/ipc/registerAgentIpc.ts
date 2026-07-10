@@ -1,10 +1,12 @@
 import { ipcMain } from 'electron';
-import { agentToolApprovalManager, runAgentSession, type AgentStartPayload } from '../agentRuntime.js';
+import { agentTaskService, agentToolApprovalManager, runAgentSession, type AgentStartPayload } from '../agentRuntime.js';
 import { settingsRepo } from '../infrastructure/JsonSettingsRepository.js';
 import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { knowledgeBaseUseCase } from '../knowledgeRuntime.js';
 
 const activeAgentControllers = new Map<string, AbortController>();
+const activeAgentTaskIds = new Map<string, string>();
+let interruptedTaskRecovery: Promise<void> | null = null;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -19,6 +21,8 @@ function getBoolean(value: unknown) {
 }
 
 export function registerAgentIpc() {
+  interruptedTaskRecovery ??= agentTaskService.recoverInterrupted().catch(() => undefined);
+
   ipcMain.on('ai:chat:stop', (_event, rawPayload: { requestId?: string }) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
     const requestId = getString(payload.requestId);
@@ -37,6 +41,7 @@ export function registerAgentIpc() {
   ipcMain.on('ai:chat:start', async (event, rawPayload: AgentStartPayload) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
     const requestId = getString(payload.requestId);
+    const taskId = getString(payload.taskId);
 
     if (!requestId) {
       event.sender.send('ai:chat:error', { requestId: '', error: 'Thiếu requestId.' });
@@ -44,6 +49,7 @@ export function registerAgentIpc() {
     }
 
     try {
+      await interruptedTaskRecovery;
       const controller = new AbortController();
       activeAgentControllers.set(requestId, controller);
       const settings = await settingsRepo.loadStoredSettings();
@@ -63,18 +69,27 @@ export function registerAgentIpc() {
         )
         : '';
 
+      const task = taskId
+        ? await agentTaskService.resume(taskId, workspaceRoot)
+        : await agentTaskService.create(payload, workspaceRoot, knowledgeContext);
+      activeAgentTaskIds.set(requestId, task.id);
+
       await runAgentSession(payload, event.sender, {
         baseUrl: activeProvider.baseUrl,
         apiKey: settingsRepo.decryptApiKey(activeProvider),
         model: settings.activeModelId || '',
         contextWindow: activeProvider.models.find(m => m.id === settings.activeModelId)?.contextWindow,
         permissionMode: settings.permissionMode,
-      }, workspaceRoot, knowledgeContext, controller.signal);
+      }, workspaceRoot, task.knowledgeContext, controller.signal, task);
     } catch (error) {
       if (activeAgentControllers.get(requestId)?.signal.aborted) {
+        const activeTaskId = activeAgentTaskIds.get(requestId);
+        if (activeTaskId) await agentTaskService.pause(activeTaskId, 'Agent session was stopped.');
         event.sender.send('ai:chat:chunk', { requestId, chunk: '\n\nĐã dừng phản hồi.' });
         event.sender.send('ai:chat:done', { requestId });
       } else {
+        const activeTaskId = activeAgentTaskIds.get(requestId);
+        if (activeTaskId) await agentTaskService.fail(activeTaskId, error instanceof Error ? error.message : 'Unknown error occurred');
         event.sender.send('ai:chat:error', {
           requestId,
           error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -83,6 +98,13 @@ export function registerAgentIpc() {
     } finally {
       agentToolApprovalManager.cancelRequest(requestId);
       activeAgentControllers.delete(requestId);
+      activeAgentTaskIds.delete(requestId);
     }
+  });
+
+  ipcMain.handle('agent:tasks:list-resumable', async () => {
+    await interruptedTaskRecovery;
+    const workspaceRoot = await workspaceManager.getWorkspaceRoot();
+    return { success: true as const, tasks: await agentTaskService.listResumable(workspaceRoot) };
   });
 }

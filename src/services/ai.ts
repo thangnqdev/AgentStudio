@@ -9,6 +9,8 @@ export function streamChatCompletion(
   onRequestId?: (requestId: string) => void,
   onAction?: (action: AgentAction) => void,
   _onThought?: (thought: string, requestId: string) => void,
+  onTaskStatus?: (task: { taskId: string; status: 'paused' | 'completed'; completedSteps: number }) => void,
+  taskId?: string,
 ) {
   return new Promise<void>((resolve) => {
     const bridge = AgentBridge;
@@ -54,6 +56,9 @@ export function streamChatCompletion(
         onError?.(payload.error || 'Unknown error occurred');
         resolve();
       }),
+      bridge.onChatTaskStatus((payload) => {
+        if (payload.requestId === requestId && payload.task) onTaskStatus?.(payload.task);
+      }),
     );
 
     async function finishSuccessfully() {
@@ -64,11 +69,10 @@ export function streamChatCompletion(
       resolve();
     }
 
-    bridge.startChat({ requestId, messages });
+    bridge.startChat({ requestId, messages, taskId });
   });
 }
 
 export function stopChatCompletion(requestId: string) {
   AgentBridge.isAvailable && AgentBridge.stopChat(requestId);
 }
-

@@ -12,7 +12,8 @@ export function ChatArea() {
   const agentActions = useAppStore((s) => s.agentActions);
   const agentThoughts = useAppStore((s) => s.agentThoughts);
   const isAgentTyping = useAppStore((s) => s.isAgentTyping);
-  const { handleRegenerate } = useAgentChat();
+  const resumableTask = useAppStore((s) => s.resumableTask);
+  const { handleRegenerate, resumeAgentTask } = useAgentChat();
 
   const [isDragging, setIsDragging] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -65,6 +66,23 @@ export function ChatArea() {
               <span className="font-ui-label-caps text-ui-label-caps uppercase tracking-wider">Tác vụ hiện tại</span>
             </div>
             <h2 className="font-display-serif text-[32px] leading-tight text-primary">{activeTask}</h2>
+          </div>
+        )}
+
+        {resumableTask && !isAgentTyping && (
+          <div className="flex items-center justify-between gap-3 border-b border-outline-variant pb-4">
+            <div className="min-w-0 text-[13px] text-on-surface-variant">
+              <span className="font-ui-label-bold text-primary">Tác vụ đã checkpoint</span>
+              <span className="ml-2">{resumableTask.completedSteps}/180 bước</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => resumeAgentTask(resumableTask.id)}
+              className="shrink-0 flex items-center gap-1.5 rounded bg-secondary px-3 py-1.5 text-[12px] font-ui-label-bold text-on-secondary"
+            >
+              <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+              Tiếp tục
+            </button>
           </div>
         )}
 

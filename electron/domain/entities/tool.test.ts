@@ -8,4 +8,9 @@ describe('evaluateToolPolicy', () => {
     expect(evaluateToolPolicy(getAgentToolDefinition('write_file'), 'workspace-write')).toEqual({ allowed: true, requiresApproval: true });
     expect(evaluateToolPolicy(getAgentToolDefinition('run_command'), 'danger-full-access')).toEqual({ allowed: true, requiresApproval: true });
   });
+
+  it('requires approval and blocks web access in read-only mode', () => {
+    expect(evaluateToolPolicy(getAgentToolDefinition('web_search'), 'read-only').allowed).toBe(false);
+    expect(evaluateToolPolicy(getAgentToolDefinition('web_search'), 'workspace-write')).toEqual({ allowed: true, requiresApproval: true });
+  });
 });
