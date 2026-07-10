@@ -62,3 +62,7 @@ export type ToolResult = {
   ok: boolean;
   output: string;
 };
+
+// Regex dùng chung phía electron để parse tool logs từ text output
+export const TOOL_PATTERN = /^\[tool:([^\]]+)\]\s*(.*)$/;
+export const TOOL_PREFIX_PATTERN = /^\[tool:([^\]]+)\]/;

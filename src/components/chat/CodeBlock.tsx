@@ -18,8 +18,13 @@ export function CodeBlock({ language, code }: { language: string; code: string }
     try {
       setIsApplying(true);
       if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      await AgentBridge.writeWorkspaceFile({ path: targetPath, content: code });
-      window.alert(`Đã áp dụng vào ${targetPath}`);
+      const result = await AgentBridge.writeWorkspaceFile({ path: targetPath, content: code });
+      
+      if ('error' in result) {
+        throw new Error(result.error || 'Lỗi không xác định.');
+      }
+      
+      window.alert(`Đã áp dụng vào ${result.path || targetPath}`);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Apply code thất bại.');
     } finally {

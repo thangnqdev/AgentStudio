@@ -100,7 +100,7 @@ declare global {
       setPermissionMode: (mode: PermissionMode) => Promise<AppSettings>;
       getCurrentWorkspace: () => Promise<WorkspacePayload>;
       selectWorkspace: () => Promise<WorkspacePayload>;
-      writeWorkspaceFile: (payload: WriteWorkspaceFilePayload) => Promise<{ ok: boolean; path: string }>;
+      writeWorkspaceFile: (payload: WriteWorkspaceFilePayload) => Promise<{ success: true; path: string } | { success: false; error: string }>;
       getFilePath: (file: File) => string;
       loadChatHistory: (workspacePath: string) => Promise<ChatHistoryPayload>;
       saveChatHistory: (payload: { workspacePath: string; threads: ChatThread[]; activeThreadId: string | null }) => Promise<{ ok: boolean }>;

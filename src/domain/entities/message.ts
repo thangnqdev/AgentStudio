@@ -36,6 +36,3 @@ export interface Message {
   actions?: AgentAction[];
 }
 
-// Regex dùng chung để parse tool logs
-export const TOOL_PATTERN = /^\[tool:([^\]]+)\]\s*(.*)$/;
-export const TOOL_PREFIX_PATTERN = /^\[tool:([^\]]+)\]/;

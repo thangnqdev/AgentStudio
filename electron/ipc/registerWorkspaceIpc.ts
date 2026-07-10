@@ -33,13 +33,23 @@ export function registerWorkspaceIpc(win: BrowserWindow | null) {
   });
 
   ipcMain.handle('workspace:write-file', async (_event, rawPayload: { path?: string; content?: string }) => {
-    const payload = typeof rawPayload === 'object' && rawPayload !== null ? rawPayload : {};
-    const workspaceRoot = await workspaceManager.getWorkspaceRoot();
-    const targetPath = await workspaceManager.resolveWorkspacePath(getString(payload.path));
-    const content = getString(payload.content);
-    await fs.mkdir(path.dirname(targetPath), { recursive: true });
-    await fs.writeFile(targetPath, content, 'utf8');
-    return { ok: true, path: path.relative(workspaceRoot, targetPath) };
+    try {
+      const payload = typeof rawPayload === 'object' && rawPayload !== null ? rawPayload : {};
+      
+      const settings = await settingsRepo.loadStoredSettings();
+      if (settings.permissionMode === 'read-only') {
+        return { success: false, error: 'Cannot apply code: Permission mode is set to read-only.' };
+      }
+
+      const workspaceRoot = await workspaceManager.getWorkspaceRoot();
+      const targetPath = await workspaceManager.resolveWorkspacePath(getString(payload.path));
+      const content = getString(payload.content);
+      await fs.mkdir(path.dirname(targetPath), { recursive: true });
+      await fs.writeFile(targetPath, content, 'utf8');
+      return { success: true, path: path.relative(workspaceRoot, targetPath) };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
   });
 
   ipcMain.handle('chat:load-workspace', async (_event, rawWorkspacePath?: string) => {

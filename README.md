@@ -43,7 +43,6 @@ AgentStudio/
 │   ├── store/         # Zustand global state
 │   ├── App.tsx
 │   └── index.css      # TailwindCSS v4 design tokens
-├── scripts/           # Utility scripts
 └── public/
 ```
 

@@ -32,7 +32,7 @@ task hoàn thành.
 Khi một file vượt ngưỡng, thứ tự ưu tiên tách:
 
 1. **Tách theo lớp Clean Architecture trước** (domain / application / infrastructure /
-   presentation) — xem `docs/architecture/CLEAN_ARCHITECTURE.md`.
+   presentation) — xem `CLEAN_ARCHITECTURE.md`.
 2. Trong mỗi lớp, nếu vẫn còn dài, **tách theo tính năng/domain nghiệp vụ** (git, settings,
    terminal, chat, workspace).
 3. Chỉ sau đó mới tách theo kỹ thuật thuần (vd: tách theo OS trong sandbox executor).

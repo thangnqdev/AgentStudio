@@ -16,9 +16,7 @@ export function resolveSafePath(candidatePath: string, rootPath: string): string
   }
 
   const resolved = path.resolve(path.join(rootPath, candidatePath));
-  const relative = path.relative(rootPath, resolved);
-
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+  if (!isInsidePath(resolved, rootPath)) {
     throw new Error(`Path escapes workspace: ${candidatePath}`);
   }
 

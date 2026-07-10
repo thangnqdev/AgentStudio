@@ -44,18 +44,26 @@ export class RunAgentSession {
 
     const messages = Array.isArray(payload.messages) ? payload.messages : [];
     const inputContextTokens = getInputContextTokenBudget(settings.contextWindow);
-    const compactedContext = compactContext(messages, inputContextTokens);
-    const conversation: ChatMessage[] = [
-      {
-        role: 'system',
-        content: this.buildAgentSystemPrompt(workspaceRoot, settings.permissionMode),
-      },
-      ...(compactedContext.summary ? [{
-        role: 'system' as const,
-        content: buildSummarySystemMessage(compactedContext.summary),
-      }] : []),
-      ...await this.formatMessages(compactedContext.recentMessages),
-    ];
+
+    let currentMessages = [...messages];
+    let conversation: ChatMessage[] = [];
+
+    const rebuildConversation = async () => {
+      const compactedContext = compactContext(currentMessages, inputContextTokens);
+      conversation = [
+        {
+          role: 'system',
+          content: this.buildAgentSystemPrompt(workspaceRoot, settings.permissionMode),
+        },
+        ...(compactedContext.summary ? [{
+          role: 'system' as const,
+          content: buildSummarySystemMessage(compactedContext.summary),
+        }] : []),
+        ...await this.formatMessages(compactedContext.recentMessages),
+      ];
+    };
+
+    await rebuildConversation();
 
     for (let step = 0; step < MAX_AGENT_STEPS; step += 1) {
       if (signal?.aborted) throw new Error('Agent session stopped.');
@@ -87,6 +95,8 @@ export class RunAgentSession {
         return;
       }
 
+      let stepContent = content;
+
       for (const toolCall of toolCalls) {
         const toolName = toolCall.function?.name || '';
         const args = this.parseToolArguments(toolCall.function?.arguments || '{}');
@@ -115,6 +125,21 @@ export class RunAgentSession {
           tool_call_id: toolCall.id,
           content: JSON.stringify(result),
         });
+
+        stepContent += `\n[tool:${toolName}] ${argsText}\n${result.ok ? '[ok]' : '[blocked/error]'}\n${result.output}\n`;
+      }
+
+      // Lưu lại kết quả của step hiện tại dưới dạng CompactableMessage để có thể compact ở step sau
+      currentMessages.push({
+        id: `step-${step}`,
+        sender: 'agent',
+        content: stepContent,
+      });
+
+      // Mid-session compaction check: nếu conversation quá dài, build lại
+      const roughConversationTokens = conversation.reduce((acc, msg) => acc + Math.ceil(JSON.stringify(msg).length / 4), 0);
+      if (roughConversationTokens > inputContextTokens) {
+        await rebuildConversation();
       }
     }
 
