@@ -108,6 +108,10 @@ declare global {
       gitCommit: (workspacePath: string, files: string[], message: string) => Promise<{ success: boolean; result?: any; error?: string }>;
       gitPush: (workspacePath: string) => Promise<{ success: boolean; error?: string }>;
       gitPull: (workspacePath: string) => Promise<{ success: boolean; error?: string }>;
+      gitGetBranches: (workspacePath: string) => Promise<{ success: boolean; branches?: string[]; current?: string; error?: string }>;
+      gitCheckout: (workspacePath: string, branchName: string) => Promise<{ success: boolean; error?: string }>;
+      gitCreateBranch: (workspacePath: string, branchName: string) => Promise<{ success: boolean; error?: string }>;
+      gitPushBranch: (workspacePath: string, branchName: string) => Promise<{ success: boolean; error?: string }>;
       startChat: (payload: { requestId: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;
       onChatChunk: (listener: ChatEventListener) => () => void;

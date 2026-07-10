@@ -886,6 +886,47 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.handle('git:get-branches', async (_event, workspacePath: string) => {
+    try {
+      const git = simpleGit(workspacePath);
+      const branchSummary = await git.branch();
+      return { success: true, branches: branchSummary.all, current: branchSummary.current };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('git:checkout', async (_event, workspacePath: string, branchName: string) => {
+    try {
+      const git = simpleGit(workspacePath);
+      await git.checkout(branchName);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('git:create-branch', async (_event, workspacePath: string, branchName: string) => {
+    try {
+      const git = simpleGit(workspacePath);
+      await git.checkoutLocalBranch(branchName);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('git:push-branch', async (_event, workspacePath: string, branchName: string) => {
+    try {
+      const git = simpleGit(workspacePath);
+      // Push and set upstream
+      await git.push(['-u', 'origin', branchName]);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('terminal:list-shells', async () => {
     return getAvailableCommandShells();
   });

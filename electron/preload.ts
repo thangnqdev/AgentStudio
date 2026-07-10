@@ -77,6 +77,10 @@ contextBridge.exposeInMainWorld('agentStudio', {
   gitCommit: (workspacePath: string, files: string[], message: string) => ipcRenderer.invoke('git:commit', workspacePath, files, message),
   gitPush: (workspacePath: string) => ipcRenderer.invoke('git:push', workspacePath),
   gitPull: (workspacePath: string) => ipcRenderer.invoke('git:pull', workspacePath),
+  gitGetBranches: (workspacePath: string) => ipcRenderer.invoke('git:get-branches', workspacePath),
+  gitCheckout: (workspacePath: string, branchName: string) => ipcRenderer.invoke('git:checkout', workspacePath, branchName),
+  gitCreateBranch: (workspacePath: string, branchName: string) => ipcRenderer.invoke('git:create-branch', workspacePath, branchName),
+  gitPushBranch: (workspacePath: string, branchName: string) => ipcRenderer.invoke('git:push-branch', workspacePath, branchName),
 
   startChat: (payload: unknown) => ipcRenderer.send('ai:chat:start', payload),
   stopChat: (requestId: string) => ipcRenderer.send('ai:chat:stop', { requestId }),

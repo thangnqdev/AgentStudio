@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useAppStore } from '../store/useAppStore';
 
 type ElectronDragStyle = CSSProperties & {
@@ -9,6 +9,7 @@ const dragStyle = { WebkitAppRegion: 'drag' } as ElectronDragStyle;
 const noDragStyle = { WebkitAppRegion: 'no-drag' } as ElectronDragStyle;
 
 import { MacTrafficLights } from './MacTrafficLights';
+import { BranchManagerModal } from './BranchManagerModal';
 
 export function TopAppBar() {
   const projectPath = useAppStore((s) => s.projectPath);
@@ -20,6 +21,7 @@ export function TopAppBar() {
   const setTerminalOpen = useAppStore((s) => s.setTerminalOpen);
   const currentBranch = useAppStore((s) => s.currentBranch);
   const setCurrentBranch = useAppStore((s) => s.setCurrentBranch);
+  const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
 
   useEffect(() => {
     if (!projectPath || projectPath === 'chưa có dự án' || !window.agentStudio?.getGitBranch) {
@@ -103,10 +105,13 @@ export function TopAppBar() {
         {currentBranch ? (
           <>
             <span className="text-outline-variant px-1">/</span>
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface border border-outline-variant text-on-surface-variant font-code-base text-[12px]">
+            <button 
+              onClick={() => setIsBranchModalOpen(true)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface border border-outline-variant text-on-surface-variant font-code-base text-[12px] hover:bg-surface-container-highest transition-colors"
+            >
               <span className="material-symbols-outlined text-[14px]">call_split</span>
               {currentBranch}
-            </div>
+            </button>
           </>
         ) : (
           <>
@@ -131,6 +136,8 @@ export function TopAppBar() {
           <span className="material-symbols-outlined text-[20px]">terminal</span>
         </button>
       </div>
+
+      {isBranchModalOpen && <BranchManagerModal onClose={() => setIsBranchModalOpen(false)} />}
     </header>
   );
 }
