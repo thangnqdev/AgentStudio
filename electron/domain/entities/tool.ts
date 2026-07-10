@@ -110,5 +110,10 @@ export function evaluateToolPolicy(tool: AgentToolDefinition | undefined, permis
   if (permissionMode === 'read-only' && tool.risk !== 'read') {
     return { allowed: false, requiresApproval: false, reason: `${tool.name} is blocked in read-only mode.` };
   }
+  
+  if (permissionMode === 'danger-full-access') {
+    return { allowed: true, requiresApproval: false };
+  }
+
   return { allowed: true, requiresApproval: tool.risk !== 'read' };
 }
