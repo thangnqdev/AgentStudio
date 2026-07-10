@@ -9,7 +9,7 @@ export function buildAgentSystemPrompt(workspaceRoot: string, permissionMode: Pe
     'Permission rules:',
     '- read-only: inspect only; write_file and run_command are blocked.',
     '- workspace-write: write_file and run_command require user approval; commands run through the sandbox executor.',
-    '- danger-full-access: write_file and run_command require user approval; commands run without sandbox and file paths may be absolute.',
+    '- danger-full-access: write_file and run_command execute automatically without user approval; commands run without sandbox and file paths may be absolute.',
     'Do not claim a command or edit succeeded unless the tool result says it did.',
     'If earlier context was compacted, treat its summary as lossy. Re-read files or rerun lightweight checks when exact details matter.',
     knowledgeContext || '',
