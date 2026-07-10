@@ -72,6 +72,11 @@ contextBridge.exposeInMainWorld('agentStudio', {
   loadChatHistory: (workspacePath: string) => ipcRenderer.invoke('chat:load-workspace', workspacePath),
   saveChatHistory: (payload: unknown) => ipcRenderer.invoke('chat:save-workspace', payload),
   getGitBranch: (workspacePath: string) => ipcRenderer.invoke('git:get-branch', workspacePath),
+  getGitStatus: (workspacePath: string) => ipcRenderer.invoke('git:status', workspacePath),
+  getGitDiff: (workspacePath: string, filePath: string) => ipcRenderer.invoke('git:diff', workspacePath, filePath),
+  gitCommit: (workspacePath: string, files: string[], message: string) => ipcRenderer.invoke('git:commit', workspacePath, files, message),
+  gitPush: (workspacePath: string) => ipcRenderer.invoke('git:push', workspacePath),
+  gitPull: (workspacePath: string) => ipcRenderer.invoke('git:pull', workspacePath),
 
   startChat: (payload: unknown) => ipcRenderer.send('ai:chat:start', payload),
   stopChat: (requestId: string) => ipcRenderer.send('ai:chat:stop', { requestId }),

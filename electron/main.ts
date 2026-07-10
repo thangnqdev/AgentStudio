@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, type OpenDialogOptions } from 'electron';
 import { spawn as spawnChild, exec } from 'node:child_process';
+import { simpleGit } from 'simple-git';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
@@ -818,6 +819,70 @@ function registerIpcHandlers() {
       return stdout.trim();
     } catch {
       return null;
+    }
+  });
+
+  ipcMain.handle('git:status', async (_event, workspacePath: string) => {
+    try {
+      const { stdout } = await execAsync('git status -s', { cwd: workspacePath });
+      return stdout.split('\n').filter(Boolean).map(line => {
+        const status = line.substring(0, 2);
+        const path = line.substring(3);
+        return { status, path };
+      });
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle('git:diff', async (_event, workspacePath: string, filePath: string) => {
+    try {
+      // Get the diff of the file. If it's a new file (untracked), we might not have a diff against HEAD.
+      // We will try 'git diff HEAD -- filePath', and if it fails or is empty, we fallback to reading the file content for 'added' diff.
+      const { stdout } = await execAsync(`git diff HEAD -- "${filePath}"`, { cwd: workspacePath });
+      if (stdout) return stdout;
+      
+      // If it's an untracked file, git diff HEAD might be empty. Let's return the file content as a diff.
+      const { stdout: statusOut } = await execAsync(`git status -s "${filePath}"`, { cwd: workspacePath });
+      if (statusOut.startsWith('??') || statusOut.startsWith(' A')) {
+        const fileContent = await fs.readFile(path.join(workspacePath, filePath), 'utf8');
+        // Simple mock diff format for react-diff-viewer
+        return `--- /dev/null\n+++ b/${filePath}\n@@ -0,0 +1,${fileContent.split('\\n').length} @@\n` + fileContent.split('\n').map(l => '+' + l).join('\n');
+      }
+      return '';
+    } catch {
+      return '';
+    }
+  });
+
+  ipcMain.handle('git:commit', async (_event, workspacePath: string, files: string[], message: string) => {
+    try {
+      const git = simpleGit(workspacePath);
+      await git.add(files);
+      const result = await git.commit(message);
+      return { success: true, result };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('git:push', async (_event, workspacePath: string) => {
+    try {
+      const git = simpleGit(workspacePath);
+      await git.push();
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('git:pull', async (_event, workspacePath: string) => {
+    try {
+      const git = simpleGit(workspacePath);
+      await git.pull();
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   });
 

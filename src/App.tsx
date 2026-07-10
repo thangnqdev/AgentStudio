@@ -5,6 +5,7 @@ import { ChatArea } from './components/ChatArea';
 import { PromptComposer } from './components/PromptComposer';
 import { PlaceholderView } from './components/PlaceholderView';
 import { SettingsView } from './components/SettingsView';
+import { SourceControlView } from './components/SourceControlView';
 import { useAppStore, type AppSettings, type Attachment, type ChatThread, type Message, type ViewId } from './store/useAppStore';
 
 const LEGACY_SETTINGS_KEY = 'architect-app-settings';
@@ -63,6 +64,9 @@ function MainContent({ view }: { view: ViewId }) {
   if (view === 'settings') {
     return <SettingsView />;
   }
+  if (view === 'workspace') {
+    return <SourceControlView />;
+  }
   return <PlaceholderView view={view} />;
 }
 
@@ -90,9 +94,9 @@ function App() {
     const legacySettings = readLegacySettings();
     const settingsPromise = legacySettings
       ? window.agentStudio.importLegacySettings(legacySettings).then((settings) => {
-          localStorage.removeItem(LEGACY_SETTINGS_KEY);
-          return settings;
-        })
+        localStorage.removeItem(LEGACY_SETTINGS_KEY);
+        return settings;
+      })
       : window.agentStudio.loadSettings();
 
     settingsPromise

@@ -103,6 +103,11 @@ declare global {
       loadChatHistory: (workspacePath: string) => Promise<ChatHistoryPayload>;
       saveChatHistory: (payload: { workspacePath: string; threads: ChatThread[]; activeThreadId: string | null }) => Promise<{ ok: boolean }>;
       getGitBranch: (workspacePath: string) => Promise<string | null>;
+      getGitStatus: (workspacePath: string) => Promise<{ status: string; path: string }[]>;
+      getGitDiff: (workspacePath: string, filePath: string) => Promise<string>;
+      gitCommit: (workspacePath: string, files: string[], message: string) => Promise<{ success: boolean; result?: any; error?: string }>;
+      gitPush: (workspacePath: string) => Promise<{ success: boolean; error?: string }>;
+      gitPull: (workspacePath: string) => Promise<{ success: boolean; error?: string }>;
       startChat: (payload: { requestId: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;
       onChatChunk: (listener: ChatEventListener) => () => void;

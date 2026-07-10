@@ -15,7 +15,9 @@
     "lucide-react": "^1.23.0",
     "node-pty": "^1.1.0",
     "react": "^19.2.7",
+    "react-diff-viewer-continued": "^4.2.2",
     "react-dom": "^19.2.7",
+    "simple-git": "^3.36.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

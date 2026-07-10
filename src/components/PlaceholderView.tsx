@@ -6,12 +6,7 @@ interface ViewConfig {
   description: string;
 }
 
-const VIEW_CONFIGS: Record<Exclude<ViewId, 'tasks' | 'settings'>, ViewConfig> = {
-  workspace: {
-    icon: 'folder_open',
-    title: 'Không gian làm việc',
-    description: 'Mở một thư mục dự án để duyệt mã nguồn, quản lý tệp và cấu hình ngữ cảnh cho AI.',
-  },
+const VIEW_CONFIGS: Record<Exclude<ViewId, 'tasks' | 'settings' | 'workspace'>, ViewConfig> = {
   knowledge: {
     icon: 'menu_book',
     title: 'Cơ sở tri thức',
@@ -34,7 +29,7 @@ const VIEW_CONFIGS: Record<Exclude<ViewId, 'tasks' | 'settings'>, ViewConfig> = 
   },
 };
 
-export function PlaceholderView({ view }: { view: Exclude<ViewId, 'tasks' | 'settings'> }) {
+export function PlaceholderView({ view }: { view: Exclude<ViewId, 'tasks' | 'settings' | 'workspace'> }) {
   const config = VIEW_CONFIGS[view];
 
   return (
