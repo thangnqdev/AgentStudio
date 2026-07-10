@@ -28,6 +28,7 @@ export type AgentProviderSettings = {
   baseUrl: string;
   apiKey: string;
   model: string;
+  contextWindow?: number;
   permissionMode: PermissionMode;
 };
 
@@ -84,6 +85,7 @@ const MAX_FILE_BYTES = 200_000;
 const MAX_IMAGE_BYTES = 5_000_000;
 const MAX_COMMAND_OUTPUT = 40_000;
 const MAX_RESPONSE_TOKENS = 8_192;
+const DEFAULT_INPUT_CONTEXT_TOKENS = 24_000;
 
 const TOOL_DEFINITIONS = [
   {
@@ -164,7 +166,8 @@ export async function runAgentSession(
   }
 
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
-  const compactedContext = compactContext(messages);
+  const inputContextTokens = getInputContextTokenBudget(settings.contextWindow);
+  const compactedContext = compactContext(messages, inputContextTokens);
   const conversation: ChatMessage[] = [
     {
       role: 'system',
@@ -246,6 +249,24 @@ function buildAgentSystemPrompt(workspaceRoot: string, permissionMode: Permissio
     'Do not claim a command or edit succeeded unless the tool result says it did.',
     'If earlier context was compacted, treat its summary as lossy. Re-read files or rerun lightweight checks when exact details matter.',
   ].join('\n');
+}
+
+function getInputContextTokenBudget(contextWindow: number | undefined) {
+  if (!isUsableContextWindow(contextWindow)) return DEFAULT_INPUT_CONTEXT_TOKENS;
+
+  const responseTokens = getResponseTokenLimit(contextWindow);
+  const overheadTokens = Math.min(4_000, Math.max(800, Math.floor(contextWindow * 0.05)));
+  return Math.max(1_000, contextWindow - responseTokens - overheadTokens);
+}
+
+function getResponseTokenLimit(contextWindow: number | undefined) {
+  if (!isUsableContextWindow(contextWindow)) return MAX_RESPONSE_TOKENS;
+
+  return Math.min(MAX_RESPONSE_TOKENS, Math.max(1_024, Math.floor(contextWindow * 0.25)));
+}
+
+function isUsableContextWindow(value: number | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 2_048;
 }
 
 async function formatMessages(messages: Message[]): Promise<ChatMessage[]> {
@@ -369,7 +390,7 @@ async function requestAssistantMessage(
       tools: TOOL_DEFINITIONS,
       tool_choice: 'auto',
       stream: true,
-      max_tokens: MAX_RESPONSE_TOKENS,
+      max_tokens: getResponseTokenLimit(settings.contextWindow),
     }),
   });
 

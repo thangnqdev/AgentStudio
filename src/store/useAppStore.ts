@@ -49,11 +49,16 @@ export interface ChatThread {
   updatedAt: Date;
 }
 
+export interface AIModel {
+  id: string;
+  contextWindow?: number;
+}
+
 export interface AIProvider {
   id: string;
   name: string;
   baseUrl: string;
-  models: string[];
+  models: AIModel[];
   hasApiKey?: boolean;
 }
 

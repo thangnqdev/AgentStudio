@@ -11,7 +11,7 @@ type PublicProvider = {
   id: string;
   name: string;
   baseUrl: string;
-  models: string[];
+  models: ModelMetadata[];
   hasApiKey: boolean;
 };
 
@@ -27,7 +27,7 @@ type StoredProvider = {
   id: string;
   name: string;
   baseUrl: string;
-  models: string[];
+  models: ModelMetadata[];
   encryptedApiKey?: string;
   plainApiKey?: string;
 };
@@ -47,8 +47,13 @@ type SaveProviderPayload = {
   apiKey?: string;
 };
 
+type ModelMetadata = {
+  id: string;
+  contextWindow?: number;
+};
+
 type LegacySettingsPayload = {
-  providers?: Array<SaveProviderPayload & { models?: string[] }>;
+  providers?: Array<SaveProviderPayload & { models?: unknown[] }>;
   activeProviderId?: string | null;
   activeModelId?: string | null;
   permissionMode?: PermissionMode;
@@ -354,7 +359,10 @@ function createTerminalProcess(
 
 function cloneDefaultSettings(): StoredSettings {
   return {
-    providers: DEFAULT_SETTINGS.providers.map((provider) => ({ ...provider, models: [...provider.models] })),
+    providers: DEFAULT_SETTINGS.providers.map((provider) => ({
+      ...provider,
+      models: provider.models.map((model) => ({ ...model })),
+    })),
     activeProviderId: DEFAULT_SETTINGS.activeProviderId,
     activeModelId: DEFAULT_SETTINGS.activeModelId,
     permissionMode: DEFAULT_SETTINGS.permissionMode,
@@ -429,7 +437,7 @@ function normalizeStoredProvider(provider: Partial<StoredProvider>): StoredProvi
     id: typeof provider.id === 'string' && provider.id ? provider.id : randomUUID(),
     name: typeof provider.name === 'string' && provider.name ? provider.name : 'Unnamed',
     baseUrl: typeof provider.baseUrl === 'string' ? provider.baseUrl : '',
-    models: Array.isArray(provider.models) ? provider.models.filter((model): model is string => typeof model === 'string') : [],
+    models: normalizeModelList(provider.models),
     encryptedApiKey: typeof provider.encryptedApiKey === 'string' ? provider.encryptedApiKey : undefined,
     plainApiKey: typeof provider.plainApiKey === 'string' ? provider.plainApiKey : undefined,
   };
@@ -441,7 +449,7 @@ function toPublicSettings(settings: StoredSettings): PublicSettings {
       id: provider.id,
       name: provider.name,
       baseUrl: provider.baseUrl,
-      models: provider.models,
+      models: provider.models.map((model) => ({ ...model })),
       hasApiKey: Boolean(provider.encryptedApiKey || provider.plainApiKey),
     })),
     activeProviderId: settings.activeProviderId,
@@ -500,11 +508,34 @@ function getString(value: unknown) {
   return typeof value === 'string' ? value : '';
 }
 
-function getStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+function normalizeModelList(value: unknown): ModelMetadata[] {
+  if (!Array.isArray(value)) return [];
+
+  const models: ModelMetadata[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    const model = readModelMetadata(item);
+    if (!model || seen.has(model.id)) continue;
+    seen.add(model.id);
+    models.push(model);
+  }
+  return models;
 }
 
-async function fetchAvailableModels(baseUrl: string, apiKey: string): Promise<string[]> {
+function hasModel(provider: StoredProvider | null | undefined, modelId: string | null | undefined) {
+  return Boolean(provider && modelId && provider.models.some((model) => model.id === modelId));
+}
+
+function firstModelId(provider: StoredProvider | null | undefined) {
+  return provider?.models[0]?.id ?? null;
+}
+
+function getModelContextWindow(provider: StoredProvider, modelId: string | null | undefined) {
+  if (!modelId) return undefined;
+  return provider.models.find((model) => model.id === modelId)?.contextWindow;
+}
+
+async function fetchAvailableModels(baseUrl: string, apiKey: string): Promise<ModelMetadata[]> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -525,15 +556,15 @@ async function fetchAvailableModels(baseUrl: string, apiKey: string): Promise<st
 
   const data = await response.json();
   if (isObject(data) && Array.isArray(data.data)) {
-    return data.data.map(readModelId).filter((model): model is string => Boolean(model));
+    return normalizeModelList(data.data);
   }
 
   if (isObject(data) && Array.isArray(data.models)) {
-    return data.models.map(readModelId).filter((model): model is string => Boolean(model));
+    return normalizeModelList(data.models);
   }
 
   if (Array.isArray(data)) {
-    return data.map(readModelId).filter((model): model is string => Boolean(model));
+    return normalizeModelList(data);
   }
 
   throw new Error('Định dạng danh sách model không hợp lệ từ server.');
@@ -543,15 +574,63 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function readModelId(value: unknown): string | null {
-  if (typeof value === 'string') return value;
+function readModelMetadata(value: unknown): ModelMetadata | null {
+  if (typeof value === 'string') return { id: value };
   if (!isObject(value)) return null;
 
   const id = value.id;
   const name = value.name;
-  if (typeof id === 'string') return id;
-  if (typeof name === 'string') return name;
-  return null;
+  const modelId = typeof id === 'string' && id ? id : typeof name === 'string' && name ? name : '';
+  if (!modelId) return null;
+
+  const contextWindow = readContextWindow(value);
+  return contextWindow ? { id: modelId, contextWindow } : { id: modelId };
+}
+
+function readContextWindow(value: Record<string, unknown>): number | undefined {
+  const fieldNames = [
+    'contextWindow',
+    'context_window',
+    'contextLength',
+    'context_length',
+    'maxContextLength',
+    'max_context_length',
+    'maxContextWindow',
+    'max_context_window',
+    'maxModelLen',
+    'max_model_len',
+    'maxPositionEmbeddings',
+    'max_position_embeddings',
+    'n_ctx',
+    'num_ctx',
+    'context',
+    'context_size',
+    'token_limit',
+  ];
+
+  for (const fieldName of fieldNames) {
+    const parsed = normalizeContextWindow(value[fieldName]);
+    if (parsed) return parsed;
+  }
+
+  for (const fieldName of ['metadata', 'details', 'info', 'parameters', 'config', 'top_provider', 'context']) {
+    const nested = value[fieldName];
+    if (!isObject(nested)) continue;
+    const parsed = readContextWindow(nested);
+    if (parsed) return parsed;
+  }
+
+  return undefined;
+}
+
+function normalizeContextWindow(value: unknown): number | undefined {
+  const numericValue = typeof value === 'number'
+    ? value
+    : typeof value === 'string'
+      ? Number(value.replace(/,/g, ''))
+      : Number.NaN;
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return undefined;
+  return Math.floor(numericValue);
 }
 
 function registerIpcHandlers() {
@@ -597,7 +676,7 @@ function registerIpcHandlers() {
         id: getString(provider.id) || randomUUID(),
         name: getString(provider.name).trim() || 'Unnamed',
         baseUrl,
-        models: getStringArray(provider.models),
+        models: normalizeModelList(provider.models),
         ...encryptApiKey(apiKey),
       };
     });
@@ -610,9 +689,9 @@ function registerIpcHandlers() {
     const settings: StoredSettings = {
       providers,
       activeProviderId: nextActiveProviderId,
-      activeModelId: activeProvider?.models.includes(legacyActiveModelId)
+      activeModelId: hasModel(activeProvider, legacyActiveModelId)
         ? legacyActiveModelId
-        : activeProvider?.models[0] ?? null,
+        : firstModelId(activeProvider),
       permissionMode: normalizePermissionMode(rawPayload.permissionMode),
       workspacePath: process.cwd(),
     };
@@ -652,8 +731,8 @@ function registerIpcHandlers() {
       settings.activeProviderId = nextProvider.id;
     }
 
-    if (settings.activeProviderId === nextProvider.id && !models.includes(settings.activeModelId || '')) {
-      settings.activeModelId = models[0] ?? null;
+    if (settings.activeProviderId === nextProvider.id && !hasModel(nextProvider, settings.activeModelId)) {
+      settings.activeModelId = firstModelId(nextProvider);
     }
 
     await saveStoredSettings(settings);
@@ -667,7 +746,7 @@ function registerIpcHandlers() {
     if (settings.activeProviderId === providerId) {
       const nextProvider = settings.providers[0] ?? null;
       settings.activeProviderId = nextProvider?.id ?? null;
-      settings.activeModelId = nextProvider?.models[0] ?? null;
+      settings.activeModelId = firstModelId(nextProvider);
     }
 
     await saveStoredSettings(settings);
@@ -680,8 +759,8 @@ function registerIpcHandlers() {
     if (!provider) throw new Error('Provider không tồn tại.');
 
     settings.activeProviderId = provider.id;
-    if (!provider.models.includes(settings.activeModelId || '')) {
-      settings.activeModelId = provider.models[0] ?? null;
+    if (!hasModel(provider, settings.activeModelId)) {
+      settings.activeModelId = firstModelId(provider);
     }
 
     await saveStoredSettings(settings);
@@ -811,6 +890,7 @@ function registerIpcHandlers() {
         baseUrl: activeProvider.baseUrl,
         apiKey: decryptApiKey(activeProvider),
         model: settings.activeModelId || '',
+        contextWindow: getModelContextWindow(activeProvider, settings.activeModelId),
         permissionMode: settings.permissionMode,
       }, settings.workspacePath || process.cwd(), controller.signal);
     } catch (error) {

@@ -1,4 +1,4 @@
-import type { AppSettings, ChatThread, Message, PermissionMode } from '../store/useAppStore';
+import type { AIModel, AppSettings, ChatThread, Message, PermissionMode } from '../store/useAppStore';
 
 type SaveProviderPayload = {
   id?: string;
@@ -13,7 +13,7 @@ type LegacySettingsPayload = {
     name?: string;
     baseUrl?: string;
     apiKey?: string;
-    models?: string[];
+    models?: Array<string | AIModel>;
   }>;
   activeProviderId?: string | null;
   activeModelId?: string | null;

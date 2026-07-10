@@ -22,13 +22,13 @@ export type CompactedContext<TMessage extends CompactableMessage = CompactableMe
 };
 
 const DEFAULT_MAX_CONTEXT_TOKENS = 24_000;
-const RECENT_CONTEXT_TARGET_TOKENS = 14_000;
 const MAX_SUMMARY_CHARS = 10_000;
 const MAX_AGENT_TEXT_CHARS = 900;
 const MAX_TOOL_OUTPUT_CHARS = 900;
 const MAX_USER_TEXT_CHARS = 1_400;
 
 export function compactContext<TMessage extends CompactableMessage>(messages: TMessage[], maxContextTokens = DEFAULT_MAX_CONTEXT_TOKENS): CompactedContext<TMessage> {
+  const recentContextTargetTokens = getRecentContextTargetTokens(maxContextTokens);
   const originalApproxTokens = estimateMessagesTokens(messages);
   if (originalApproxTokens <= maxContextTokens) {
     return {
@@ -46,7 +46,7 @@ export function compactContext<TMessage extends CompactableMessage>(messages: TM
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     const messageTokens = estimateMessageTokens(message);
-    if (recentMessages.length > 0 && recentTokens + messageTokens > RECENT_CONTEXT_TARGET_TOKENS) {
+    if (recentMessages.length > 0 && recentTokens + messageTokens > recentContextTargetTokens) {
       break;
     }
 
@@ -65,6 +65,10 @@ export function compactContext<TMessage extends CompactableMessage>(messages: TM
     originalApproxTokens,
     compactedApproxTokens,
   };
+}
+
+function getRecentContextTargetTokens(maxContextTokens: number) {
+  return Math.max(1_000, Math.floor(maxContextTokens * 0.65));
 }
 
 export function buildSummarySystemMessage(summary: string) {

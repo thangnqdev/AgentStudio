@@ -5,6 +5,13 @@ type PendingAttachment = Attachment & {
   error?: string;
 };
 
+function formatContextWindow(tokens: number | undefined) {
+  if (!tokens) return '';
+  if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K`;
+  return String(tokens);
+}
+
 export function PromptComposer() {
   const [input, setInput] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<PendingAttachment[]>([]);
@@ -339,16 +346,20 @@ export function PromptComposer() {
             {(() => {
               const activeProvider = settings.providers?.find(p => p.id === settings.activeProviderId);
               const models = activeProvider?.models || [];
+              const activeModel = models.find((model) => model.id === settings.activeModelId);
+              const activeContextWindow = formatContextWindow(activeModel?.contextWindow);
               
               return models.length > 0 ? (
               <select
                 value={settings.activeModelId || ''}
                 onChange={(e) => handleModelChange(e.target.value)}
                 className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[150px] truncate"
-                title={`Chọn Model (${activeProvider?.name})`}
+                title={`Chọn Model (${activeProvider?.name})${activeContextWindow ? ` · context ${activeContextWindow}` : ''}`}
               >
-                {models.map(m => (
-                  <option key={m} value={m} className="bg-surface text-on-surface">{m}</option>
+                {models.map(model => (
+                  <option key={model.id} value={model.id} className="bg-surface text-on-surface">
+                    {model.id}{model.contextWindow ? ` · ${formatContextWindow(model.contextWindow)}` : ''}
+                  </option>
                 ))}
               </select>
               ) : null;
