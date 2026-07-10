@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { KnowledgeSourceDocument } from '../../domain/entities/knowledge.js';
+import type { KnowledgeSourceDocument, KnowledgeSourceKind } from '../../domain/entities/knowledge.js';
 import type { IKnowledgeSourceReader } from '../../domain/ports/IKnowledgeSourceReader.js';
 import { formatKnowledgeDocument, normalizeKnowledgeText } from '../../application/services/knowledgeText.js';
 
@@ -24,6 +24,18 @@ export class Utf8KnowledgeSourceReader implements IKnowledgeSourceReader {
       content,
       size: stat.size,
       contentHash: createHash('sha256').update(content).digest('hex'),
+      ...describeSource(path.extname(resolvedPath)),
     };
   }
+}
+
+function describeSource(extension: string): Pick<KnowledgeSourceDocument, 'extension' | 'sourceKind' | 'language'> {
+  const normalizedExtension = extension.toLowerCase();
+  const languageByExtension: Record<string, string> = {
+    '.ts': 'typescript', '.tsx': 'tsx', '.js': 'javascript', '.jsx': 'jsx', '.mjs': 'javascript', '.cjs': 'javascript',
+    '.py': 'python', '.java': 'java', '.go': 'go', '.rs': 'rust', '.rb': 'ruby', '.php': 'php', '.cs': 'csharp',
+  };
+  const language = languageByExtension[normalizedExtension];
+  const sourceKind: KnowledgeSourceKind = normalizedExtension === '.sql' ? 'database' : language ? 'code' : 'text';
+  return { extension: normalizedExtension, sourceKind, language };
 }

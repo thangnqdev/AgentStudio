@@ -29,7 +29,21 @@ npm run build
 
 # Lint
 npm run lint
+
+# Unit tests
+npm test
 ```
+
+## Knowledge Indexing
+
+- Knowledge sources can be added individually or synchronized from the current workspace for the running app session.
+- Workspace sync indexes supported text and code files, ignores dependency/build directories, and excludes `.env` and common key/certificate files.
+- TypeScript, TSX, JavaScript, and JSX sources are chunked by AST symbols; unsupported languages retain the text chunking fallback.
+- Documents persist their chunking version and embedding profile. Changing the embedding endpoint or model requires reindexing rather than mixing incompatible vectors.
+
+### Vector Storage Gate
+
+The current JSON store remains appropriate for small knowledge bases. Move to a vector database only after the evaluation corpus shows unacceptable retrieval latency or recall at the intended chunk count. The migration must retain SQLite-or-equivalent metadata, a benchmark suite, index-version migration, and Electron packaging tests; ANN alone is not a quality improvement.
 
 ## Project Structure
 

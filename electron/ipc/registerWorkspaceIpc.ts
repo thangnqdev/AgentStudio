@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { settingsRepo } from '../infrastructure/JsonSettingsRepository.js';
+import { stopWorkspaceKnowledgeSync } from '../knowledgeRuntime.js';
 
 function getString(value: unknown) {
   return typeof value === 'string' ? value : '';
@@ -27,6 +28,7 @@ export function registerWorkspaceIpc(win: BrowserWindow | null) {
     }
 
     const settings = await settingsRepo.loadStoredSettings();
+    await stopWorkspaceKnowledgeSync();
     settings.workspacePath = result.filePaths[0];
     await settingsRepo.saveStoredSettings(settings);
     return { path: settings.workspacePath, canceled: false };

@@ -15,17 +15,20 @@ export function retrieveKnowledge(
   documents: KnowledgeDocument[],
   query: string,
   queryEmbedding: number[] | null,
+  embeddingProfile: string | undefined,
   limit: number,
 ) {
   const documentsById = new Map(documents.map((document) => [document.id, document]));
   const queryTerms = tokenizeKnowledgeText(query);
   const lexicalScores = getBm25Scores(chunks, queryTerms);
-  const semanticAvailable = Boolean(queryEmbedding && chunks.some((chunk) => chunk.embedding?.length));
+  const semanticAvailable = Boolean(queryEmbedding && embeddingProfile && documents.some((document) => document.embeddingProfile === embeddingProfile));
   const candidates = chunks.map((chunk, index): Candidate | null => {
     const document = documentsById.get(chunk.documentId);
     if (!document) return null;
     const lexicalScore = lexicalScores[index] ?? 0;
-    const semanticScore = queryEmbedding && chunk.embedding ? Math.max(0, cosineSimilarity(queryEmbedding, chunk.embedding)) : 0;
+    const semanticScore = semanticAvailable && document.embeddingProfile === embeddingProfile && queryEmbedding && chunk.embedding
+      ? Math.max(0, cosineSimilarity(queryEmbedding, chunk.embedding))
+      : 0;
     return { chunk, document, lexicalScore, semanticScore, phraseScore: phraseScore(query, chunk.content, chunk.section), fusionScore: 0 };
   }).filter((candidate): candidate is Candidate => candidate !== null);
 

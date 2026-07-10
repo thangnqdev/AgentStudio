@@ -1,7 +1,7 @@
 import type { Message } from '../domain/entities/message';
 import type { ChatThread } from '../domain/entities/chatThread';
 import type { AIModel, AppSettings, PermissionMode } from '../domain/entities/settings';
-import type { KnowledgeDocument, KnowledgeSearchResponse } from '../domain/entities/knowledge';
+import type { KnowledgeDocument } from '../domain/entities/knowledge';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -88,12 +88,19 @@ export type KnowledgeLibraryPayload = {
   documents: KnowledgeDocument[];
   totalChunks: number;
   semanticReady: boolean;
+  watching: boolean;
 };
 
 export type KnowledgeImportPayload = {
   canceled: boolean;
   imported: KnowledgeDocument[];
   warnings: string[];
+};
+
+export type KnowledgeWorkspaceSyncPayload = KnowledgeImportPayload & {
+  scanned: number;
+  truncated: boolean;
+  watching: boolean;
 };
 
 export type IpcResult<T> =
@@ -124,7 +131,8 @@ declare global {
       getGitBranch: (workspacePath: string) => Promise<string | null>;
       listKnowledge: () => Promise<IpcResult<KnowledgeLibraryPayload>>;
       selectAndImportKnowledge: () => Promise<IpcResult<KnowledgeImportPayload>>;
-      searchKnowledge: (query: string) => Promise<IpcResult<KnowledgeSearchResponse>>;
+      syncWorkspaceKnowledge: () => Promise<IpcResult<KnowledgeWorkspaceSyncPayload>>;
+      stopWorkspaceKnowledgeSync: () => Promise<IpcResult<{ watching: boolean }>>;
       removeKnowledgeDocument: (documentId: string) => Promise<IpcResult<{ ok: boolean }>>;
       startChat: (payload: { requestId: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;

@@ -114,10 +114,14 @@ export const AgentBridge = {
     return window.agentStudio.selectAndImportKnowledge();
   },
 
-
-  async searchKnowledge(query: string) {
+  async syncWorkspaceKnowledge() {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.searchKnowledge(query);
+    return window.agentStudio.syncWorkspaceKnowledge();
+  },
+
+  async stopWorkspaceKnowledgeSync() {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.stopWorkspaceKnowledgeSync();
   },
 
   async removeKnowledgeDocument(documentId: string) {

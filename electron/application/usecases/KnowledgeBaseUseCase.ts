@@ -3,18 +3,20 @@ import type { IKnowledgeConfigProvider } from '../../domain/ports/IKnowledgeConf
 import type { IKnowledgeEmbedder } from '../../domain/ports/IKnowledgeEmbedder.js';
 import type { IKnowledgeRepository } from '../../domain/ports/IKnowledgeRepository.js';
 import type { IKnowledgeSourceReader } from '../../domain/ports/IKnowledgeSourceReader.js';
-import type { KnowledgeChunk, KnowledgeDocument, KnowledgeSearchResponse } from '../../domain/entities/knowledge.js';
+import { CURRENT_KNOWLEDGE_INDEX_VERSION, type KnowledgeDocument, type KnowledgeSearchResponse } from '../../domain/entities/knowledge.js';
 import { chunkKnowledgeDocument } from '../services/knowledgeChunking.js';
+import { createEmbeddingProfile, isCurrentKnowledgeDocument } from '../services/knowledgeIndexing.js';
+import { buildKnowledgeQuery } from '../services/knowledgeQuery.js';
 import { retrieveKnowledge } from '../services/knowledgeRetrieval.js';
+import { KnowledgeEmbeddingService } from '../services/knowledgeEmbedding.js';
 
-const QUERY_CACHE_LIMIT = 48;
+const MAX_IMPORT_WARNINGS = 12;
 
 export class KnowledgeBaseUseCase {
-  private readonly queryEmbeddingCache = new Map<string, number[]>();
   private readonly repository: IKnowledgeRepository;
   private readonly sourceReader: IKnowledgeSourceReader;
-  private readonly embedder: IKnowledgeEmbedder;
   private readonly configProvider: IKnowledgeConfigProvider;
+  private readonly embeddingService: KnowledgeEmbeddingService;
 
   constructor(
     repository: IKnowledgeRepository,
@@ -24,16 +26,22 @@ export class KnowledgeBaseUseCase {
   ) {
     this.repository = repository;
     this.sourceReader = sourceReader;
-    this.embedder = embedder;
     this.configProvider = configProvider;
+    this.embeddingService = new KnowledgeEmbeddingService(embedder);
   }
 
   async list(workspacePath: string) {
     const store = await this.repository.load(workspacePath);
+    const config = await this.configProvider.getEmbeddingConfig();
+    const embeddingProfile = config ? createEmbeddingProfile(config) : undefined;
+    const documentsById = new Map(store.documents.map((document) => [document.id, document]));
     return {
       documents: [...store.documents].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
       totalChunks: store.chunks.length,
-      semanticReady: store.chunks.some((chunk) => Boolean(chunk.embedding?.length)),
+      semanticReady: Boolean(embeddingProfile && store.chunks.some((chunk) => {
+        const document = documentsById.get(chunk.documentId);
+        return document?.embeddingProfile === embeddingProfile && Boolean(chunk.embedding?.length);
+      })),
     };
   }
 
@@ -42,19 +50,20 @@ export class KnowledgeBaseUseCase {
     const imported: KnowledgeDocument[] = [];
     const warnings: string[] = [];
     const config = await this.configProvider.getEmbeddingConfig();
+    const embeddingProfile = config ? createEmbeddingProfile(config) : undefined;
 
     for (const sourcePath of [...new Set(filePaths)]) {
       try {
         const source = await this.sourceReader.read(sourcePath);
         const existing = store.documents.find((document) => document.sourcePath === source.sourcePath);
-        if (existing?.contentHash === source.contentHash) {
-          warnings.push(`${source.name} chưa thay đổi.`);
+        if (existing && isCurrentKnowledgeDocument(existing, source.contentHash, CURRENT_KNOWLEDGE_INDEX_VERSION, embeddingProfile)) {
+          appendWarning(warnings, `${source.name} chưa thay đổi.`);
           continue;
         }
 
         const documentId = existing?.id ?? randomUUID();
-        const chunks = chunkKnowledgeDocument(source.content, source.name, documentId);
-        const indexingMode = await this.attachEmbeddings(chunks, config);
+        const chunks = chunkKnowledgeDocument(source, documentId);
+        const indexingMode = await this.embeddingService.attach(chunks, config);
         const document: KnowledgeDocument = {
           id: documentId,
           name: source.name,
@@ -65,6 +74,10 @@ export class KnowledgeBaseUseCase {
           size: source.size,
           chunkCount: chunks.length,
           indexingMode,
+          indexVersion: CURRENT_KNOWLEDGE_INDEX_VERSION,
+          sourceKind: source.sourceKind,
+          language: source.language,
+          embeddingProfile: indexingMode === 'hybrid' ? embeddingProfile : undefined,
         };
         store.documents = store.documents.filter((item) => item.id !== documentId);
         store.chunks = store.chunks.filter((item) => item.documentId !== documentId);
@@ -72,7 +85,7 @@ export class KnowledgeBaseUseCase {
         store.chunks.push(...chunks);
         imported.push(document);
       } catch (error) {
-        warnings.push(error instanceof Error ? error.message : 'Không thể đọc tệp.');
+        appendWarning(warnings, error instanceof Error ? error.message : 'Không thể đọc tệp.');
       }
     }
 
@@ -89,18 +102,33 @@ export class KnowledgeBaseUseCase {
     return { ok: true };
   }
 
+  async removeBySourcePaths(workspacePath: string, sourcePaths: string[]) {
+    if (sourcePaths.length === 0) return { removed: 0 };
+    const store = await this.repository.load(workspacePath);
+    const paths = new Set(sourcePaths);
+    const documentIds = new Set(store.documents.filter((document) => paths.has(document.sourcePath)).map((document) => document.id));
+    if (documentIds.size === 0) return { removed: 0 };
+    store.documents = store.documents.filter((document) => !documentIds.has(document.id));
+    store.chunks = store.chunks.filter((chunk) => !documentIds.has(chunk.documentId));
+    await this.repository.save(workspacePath, store);
+    return { removed: documentIds.size };
+  }
+
   async search(workspacePath: string, rawQuery: string, limit = 6): Promise<KnowledgeSearchResponse> {
     const query = rawQuery.trim();
     const store = await this.repository.load(workspacePath);
     if (!query || store.chunks.length === 0) return { query, mode: 'lexical', results: [] };
     const config = await this.configProvider.getEmbeddingConfig();
-    const queryEmbedding = config ? await this.embedQuery(query, config) : null;
-    const retrieval = retrieveKnowledge(store.chunks, store.documents, query, queryEmbedding, limit);
+    const embeddingProfile = config ? createEmbeddingProfile(config) : undefined;
+    const hasCompatibleEmbeddings = Boolean(embeddingProfile && store.documents.some((document) => document.embeddingProfile === embeddingProfile));
+    const queryEmbedding = config && hasCompatibleEmbeddings ? await this.embeddingService.embedQuery(query, config) : null;
+    const retrieval = retrieveKnowledge(store.chunks, store.documents, query, queryEmbedding, embeddingProfile, limit);
     return { query, ...retrieval };
   }
 
-  async buildContext(workspacePath: string, question: string) {
-    const search = await this.search(workspacePath, question, 5);
+  async buildContext(workspacePath: string, question: string, retrievalContext = '') {
+    const query = buildKnowledgeQuery(question, retrievalContext ? [retrievalContext] : []);
+    const search = await this.search(workspacePath, query, 5);
     let usedCharacters = 0;
     const sources = search.results.flatMap((result) => {
       const block = `${result.citation}\n${result.content}`;
@@ -115,33 +143,8 @@ export class KnowledgeBaseUseCase {
       ...sources,
     ].join('\n\n');
   }
+}
 
-  private async attachEmbeddings(chunks: KnowledgeChunk[], config: Awaited<ReturnType<IKnowledgeConfigProvider['getEmbeddingConfig']>>) {
-    if (!config || chunks.length === 0) return 'lexical' as const;
-    try {
-      for (let start = 0; start < chunks.length; start += 64) {
-        const batch = chunks.slice(start, start + 64);
-        const embeddings = await this.embedder.embed(batch.map((chunk) => chunk.content), config);
-        batch.forEach((chunk, index) => { chunk.embedding = embeddings[index]; });
-      }
-      return 'hybrid' as const;
-    } catch {
-      return 'lexical' as const;
-    }
-  }
-
-  private async embedQuery(query: string, config: NonNullable<Awaited<ReturnType<IKnowledgeConfigProvider['getEmbeddingConfig']>>>) {
-    const key = `${config.baseUrl}|${query}`;
-    const cached = this.queryEmbeddingCache.get(key);
-    if (cached) return cached;
-    try {
-      const [embedding] = await this.embedder.embed([query], config);
-      if (!embedding) return null;
-      this.queryEmbeddingCache.set(key, embedding);
-      if (this.queryEmbeddingCache.size > QUERY_CACHE_LIMIT) this.queryEmbeddingCache.delete(this.queryEmbeddingCache.keys().next().value as string);
-      return embedding;
-    } catch {
-      return null;
-    }
-  }
+function appendWarning(warnings: string[], message: string) {
+  if (warnings.length < MAX_IMPORT_WARNINGS) warnings.push(message);
 }

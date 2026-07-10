@@ -1,3 +1,8 @@
+export const CURRENT_KNOWLEDGE_INDEX_VERSION = 2;
+export const CURRENT_KNOWLEDGE_STORE_VERSION = 2;
+
+export type KnowledgeSourceKind = 'text' | 'code' | 'database';
+
 export type KnowledgeDocument = {
   id: string;
   name: string;
@@ -8,6 +13,10 @@ export type KnowledgeDocument = {
   size: number;
   chunkCount: number;
   indexingMode: 'hybrid' | 'lexical';
+  indexVersion: number;
+  sourceKind: KnowledgeSourceKind;
+  language?: string;
+  embeddingProfile?: string;
 };
 
 export type KnowledgeChunk = {
@@ -17,11 +26,14 @@ export type KnowledgeChunk = {
   content: string;
   section: string;
   tokenCount: number;
+  sourceKind: KnowledgeSourceKind;
+  language?: string;
+  symbol?: string;
   embedding?: number[];
 };
 
 export type KnowledgeStore = {
-  version: 1;
+  version: number;
   documents: KnowledgeDocument[];
   chunks: KnowledgeChunk[];
 };
@@ -32,11 +44,15 @@ export type KnowledgeSourceDocument = {
   content: string;
   size: number;
   contentHash: string;
+  extension: string;
+  sourceKind: KnowledgeSourceKind;
+  language?: string;
 };
 
 export type KnowledgeEmbeddingConfig = {
   baseUrl: string;
   apiKey: string;
+  model: string;
 };
 
 export type KnowledgeSearchResult = {

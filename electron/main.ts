@@ -10,6 +10,7 @@ import { registerTerminalIpc } from './ipc/registerTerminalIpc.js';
 import { registerAgentIpc } from './ipc/registerAgentIpc.js';
 import { registerKnowledgeIpc } from './ipc/registerKnowledgeIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
+import { stopWorkspaceKnowledgeSync } from './knowledgeRuntime.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
@@ -58,6 +59,7 @@ function registerIpcHandlers() {
 
 app.on('window-all-closed', () => {
   terminalManager.killAllTerminals();
+  void stopWorkspaceKnowledgeSync();
   if (process.platform !== 'darwin') {
     app.quit();
     win = null;

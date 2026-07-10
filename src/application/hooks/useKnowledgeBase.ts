@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import { AgentBridge } from '../../infrastructure/ipc/agentStudioBridge';
 import { useAppStore } from '../../store/useAppStore';
-import type { KnowledgeDocument, KnowledgeSearchResponse } from '../../domain/entities/knowledge';
+import type { KnowledgeDocument } from '../../domain/entities/knowledge';
 import type { IpcResult } from '../../types/electron';
 
 export type KnowledgeLibrary = {
   documents: KnowledgeDocument[];
   totalChunks: number;
   semanticReady: boolean;
+  watching: boolean;
 };
 
-const EMPTY_LIBRARY: KnowledgeLibrary = { documents: [], totalChunks: 0, semanticReady: false };
+const EMPTY_LIBRARY: KnowledgeLibrary = { documents: [], totalChunks: 0, semanticReady: false, watching: false };
 
 function unwrapResult<T>(result: IpcResult<T>) {
   if ('error' in result) throw new Error(result.error);
@@ -20,9 +21,9 @@ function unwrapResult<T>(result: IpcResult<T>) {
 export function useKnowledgeBase() {
   const workspacePath = useAppStore((state) => state.settings.workspacePath);
   const [library, setLibrary] = useState<KnowledgeLibrary>(EMPTY_LIBRARY);
-  const [result, setResult] = useState<KnowledgeSearchResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [notice, setNotice] = useState('');
 
   const refresh = async () => {
@@ -55,26 +56,34 @@ export function useKnowledgeBase() {
     }
   };
 
-  const search = async (query: string) => {
-    if (!query.trim()) return;
-    setNotice('');
-    try {
-      setResult(unwrapResult(await AgentBridge.searchKnowledge(query)));
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Không thể tìm kiếm.');
-    }
-  };
-
   const removeDocument = async (documentId: string) => {
     setNotice('');
     try {
       unwrapResult(await AgentBridge.removeKnowledgeDocument(documentId));
-      setResult((current) => current ? { ...current, results: current.results.filter((item) => item.documentId !== documentId) } : null);
       await refresh();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Không thể xóa tài liệu.');
     }
   };
 
-  return { library, result, isLoading, isImporting, notice, refresh, importDocuments, search, removeDocument };
+  const toggleWorkspaceSync = async () => {
+    setNotice('');
+    setIsSyncing(true);
+    try {
+      if (library.watching) {
+        unwrapResult(await AgentBridge.stopWorkspaceKnowledgeSync());
+        setNotice('Đã dừng đồng bộ workspace.');
+      } else {
+        const result = unwrapResult(await AgentBridge.syncWorkspaceKnowledge());
+        setNotice(`Đã quét ${result.scanned} tệp và bật đồng bộ workspace.${result.truncated ? ' Đã chạm giới hạn 2.000 tệp.' : ''}`);
+      }
+      await refresh();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Không thể đồng bộ workspace.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  return { library, isLoading, isImporting, isSyncing, notice, refresh, importDocuments, removeDocument, toggleWorkspaceSync };
 }

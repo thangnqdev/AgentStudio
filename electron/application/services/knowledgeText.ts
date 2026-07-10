@@ -1,3 +1,5 @@
+import { formatPostgresSchemaDocument } from './postgresSchemaDocument.js';
+
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'in', 'is', 'it', 'of', 'on', 'or', 'that', 'the', 'to', 'with',
   'cua', 'cac', 'cho', 'duoc', 'la', 'nhung', 'theo', 'trong', 'va', 'voi', 'mot', 'nhu', 'nay', 'do', 'tu', 'khi', 'can', 've',
@@ -17,6 +19,7 @@ export function normalizeKnowledgeText(value: string) {
 
 export function formatKnowledgeDocument(extension: string, text: string) {
   const normalizedExtension = extension.toLowerCase();
+  if (normalizedExtension === '.sql') return formatPostgresSchemaDocument(text);
   if (normalizedExtension === '.html' || normalizedExtension === '.htm') {
     return text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
       .replace(/<\/(p|div|h[1-6]|li|tr|br)>/gi, '\n').replace(/<[^>]+>/g, ' ');

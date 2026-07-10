@@ -1,14 +1,21 @@
 import { randomUUID } from 'node:crypto';
-import type { KnowledgeChunk } from '../../domain/entities/knowledge.js';
+import type { KnowledgeChunk, KnowledgeSourceDocument } from '../../domain/entities/knowledge.js';
+import { splitCodeIntoSections } from './codeChunking.js';
 
 const MAX_CHUNK_CHARS = 3_200;
 const CHUNK_OVERLAP_CHARS = 360;
 
-export function chunkKnowledgeDocument(content: string, sourceName: string, documentId: string): KnowledgeChunk[] {
+type KnowledgeSection = {
+  title: string;
+  content: string;
+  symbol?: string;
+};
+
+export function chunkKnowledgeDocument(source: KnowledgeSourceDocument, documentId: string): KnowledgeChunk[] {
   const chunks: KnowledgeChunk[] = [];
   let ordinal = 1;
-  for (const section of splitSections(content)) {
-    const header = `[Source: ${sourceName} | Section: ${section.title}]`;
+  for (const section of splitKnowledgeSections(source)) {
+    const header = `[Source: ${source.name} | Section: ${section.title}]`;
     for (const part of splitSectionContent(section.content)) {
       const contextualContent = `${header}\n${part}`;
       chunks.push({
@@ -17,6 +24,9 @@ export function chunkKnowledgeDocument(content: string, sourceName: string, docu
         ordinal: ordinal++,
         content: contextualContent,
         section: section.title,
+        symbol: section.symbol,
+        sourceKind: source.sourceKind,
+        language: source.language,
         tokenCount: Math.ceil(contextualContent.length / 4),
       });
     }
@@ -24,8 +34,15 @@ export function chunkKnowledgeDocument(content: string, sourceName: string, docu
   return chunks;
 }
 
-function splitSections(content: string) {
-  const sections: Array<{ title: string; content: string }> = [];
+function splitKnowledgeSections(source: KnowledgeSourceDocument): KnowledgeSection[] {
+  if (source.sourceKind === 'code' && source.language && ['typescript', 'tsx', 'javascript', 'jsx'].includes(source.language)) {
+    return splitCodeIntoSections(source.content, source.name, source.extension, MAX_CHUNK_CHARS);
+  }
+  return splitTextSections(source.content);
+}
+
+function splitTextSections(content: string): KnowledgeSection[] {
+  const sections: KnowledgeSection[] = [];
   let title = 'Nội dung';
   let body: string[] = [];
   const flush = () => {

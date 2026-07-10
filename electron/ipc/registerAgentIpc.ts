@@ -40,9 +40,14 @@ export function registerAgentIpc() {
       }
 
       const workspaceRoot = await workspaceManager.getWorkspaceRoot();
-      const latestUserMessage = [...(payload.messages ?? [])].reverse().find((message) => message.sender === 'user');
+      const userMessages = (payload.messages ?? []).filter((message) => message.sender === 'user' && typeof message.content === 'string');
+      const latestUserMessage = userMessages.at(-1);
       const knowledgeContext = latestUserMessage?.content
-        ? await knowledgeBaseUseCase.buildContext(workspaceRoot, latestUserMessage.content)
+        ? await knowledgeBaseUseCase.buildContext(
+          workspaceRoot,
+          latestUserMessage.content,
+          userMessages.slice(-3, -1).map((message) => message.content).join('\n'),
+        )
         : '';
 
       await runAgentSession(payload, event.sender, {

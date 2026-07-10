@@ -2,10 +2,10 @@ import { app } from 'electron';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { KnowledgeStore } from '../../domain/entities/knowledge.js';
+import { CURRENT_KNOWLEDGE_STORE_VERSION, type KnowledgeStore } from '../../domain/entities/knowledge.js';
 import type { IKnowledgeRepository } from '../../domain/ports/IKnowledgeRepository.js';
 
-const EMPTY_STORE: KnowledgeStore = { version: 1, documents: [], chunks: [] };
+const EMPTY_STORE: KnowledgeStore = { version: CURRENT_KNOWLEDGE_STORE_VERSION, documents: [], chunks: [] };
 
 export class JsonKnowledgeRepository implements IKnowledgeRepository {
   async load(workspacePath: string): Promise<KnowledgeStore> {
@@ -13,7 +13,7 @@ export class JsonKnowledgeRepository implements IKnowledgeRepository {
       const raw = await fs.readFile(this.getStorePath(workspacePath), 'utf8');
       const parsed = JSON.parse(raw) as Partial<KnowledgeStore>;
       return {
-        version: 1,
+        version: CURRENT_KNOWLEDGE_STORE_VERSION,
         documents: Array.isArray(parsed.documents) ? parsed.documents : [],
         chunks: Array.isArray(parsed.chunks) ? parsed.chunks : [],
       };
@@ -25,7 +25,9 @@ export class JsonKnowledgeRepository implements IKnowledgeRepository {
   async save(workspacePath: string, store: KnowledgeStore) {
     const targetPath = this.getStorePath(workspacePath);
     await fs.mkdir(path.dirname(targetPath), { recursive: true });
-    await fs.writeFile(targetPath, JSON.stringify(store), 'utf8');
+    const temporaryPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(temporaryPath, JSON.stringify(store), 'utf8');
+    await fs.rename(temporaryPath, targetPath);
   }
 
   private getStorePath(workspacePath: string) {
