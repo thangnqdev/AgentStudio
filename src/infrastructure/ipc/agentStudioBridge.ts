@@ -35,6 +35,11 @@ export const AgentBridge = {
     window.agentStudio.closeWindow();
   },
 
+  notifyRendererReady() {
+    if (!window.agentStudio) return;
+    window.agentStudio.notifyRendererReady();
+  },
+
   async getAppUpdateStatus() {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     return window.agentStudio.getAppUpdateStatus();

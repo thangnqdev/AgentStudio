@@ -152,6 +152,7 @@ declare global {
       minimizeWindow: () => void;
       maximizeWindow: () => void;
       closeWindow: () => void;
+      notifyRendererReady: () => void;
       getAppUpdateStatus: () => Promise<IpcResult<AppUpdateSnapshot>>;
       checkForAppUpdates: () => Promise<IpcResult<AppUpdateSnapshot>>;
       downloadAppUpdate: () => Promise<IpcResult<AppUpdateSnapshot>>;

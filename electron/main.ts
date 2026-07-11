@@ -11,8 +11,10 @@ import { registerAgentIpc } from './ipc/registerAgentIpc.js';
 import { registerKnowledgeIpc } from './ipc/registerKnowledgeIpc.js';
 import { registerWebSearchIpc } from './ipc/registerWebSearchIpc.js';
 import { registerUpdateIpc } from './ipc/registerUpdateIpc.js';
+import { registerStartupIpc } from './ipc/registerStartupIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
 import { ElectronAutoUpdater } from './infrastructure/ElectronAutoUpdater.js';
+import { SplashWindow } from './infrastructure/SplashWindow.js';
 import { stopWorkspaceKnowledgeSync } from './knowledgeRuntime.js';
 import { ManageAppUpdate } from './application/usecases/ManageAppUpdate.js';
 
@@ -24,6 +26,7 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.
 
 let win: BrowserWindow | null = null;
 let appUpdate: ManageAppUpdate | null = null;
+const splashWindow = new SplashWindow(() => win);
 
 function createWindow() {
   win = new BrowserWindow({
@@ -43,6 +46,7 @@ function createWindow() {
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#fdf8f7',
     frame: process.platform !== 'darwin',
+    show: false,
   });
 
   if (VITE_DEV_SERVER_URL) {
@@ -62,6 +66,7 @@ function registerIpcHandlers() {
   registerAgentIpc();
   registerWebSearchIpc();
   if (appUpdate) registerUpdateIpc(() => win, appUpdate);
+  registerStartupIpc(() => win, splashWindow);
 }
 
 app.on('window-all-closed', () => {
@@ -80,6 +85,7 @@ app.on('activate', () => {
 });
 
 app.whenReady().then(() => {
+  splashWindow.show();
   createWindow();
   appUpdate = new ManageAppUpdate(new ElectronAutoUpdater());
   registerIpcHandlers();

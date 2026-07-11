@@ -78,6 +78,7 @@ contextBridge.exposeInMainWorld('agentStudio', {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  notifyRendererReady: () => ipcRenderer.send('app:renderer-ready'),
   getAppUpdateStatus: () => ipcRenderer.invoke('update:get-status'),
   checkForAppUpdates: () => ipcRenderer.invoke('update:check'),
   downloadAppUpdate: () => ipcRenderer.invoke('update:download'),

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopAppBar } from './components/TopAppBar';
 import { ChatArea } from './components/ChatArea';
@@ -84,12 +84,16 @@ function App() {
   const setProjectPath = useAppStore((s) => s.setProjectPath);
   const replaceChatHistory = useAppStore((s) => s.replaceChatHistory);
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
+  const [loadedHistoryWorkspacePath, setLoadedHistoryWorkspacePath] = useState<string | null>(null);
+  const hasNotifiedRendererReady = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
 
     if (!AgentBridge.isAvailable) {
       console.warn('Electron bridge is not available. Skipping local settings load.');
+      setIsSettingsLoaded(true);
       return () => {
         cancelled = true;
       };
@@ -112,6 +116,9 @@ function App() {
       })
       .catch((error) => {
         console.error('Failed to load local AI settings', error);
+      })
+      .finally(() => {
+        if (!cancelled) setIsSettingsLoaded(true);
       });
 
     return () => {
@@ -121,20 +128,29 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!AgentBridge.isAvailable || !workspacePath || workspacePath === 'chưa có dự án') return;
+    if (!AgentBridge.isAvailable || !workspacePath || workspacePath === 'chưa có dự án') {
+      setIsHistoryLoaded(true);
+      setLoadedHistoryWorkspacePath(workspacePath ?? null);
+      return () => {
+        cancelled = true;
+      };
+    }
 
     setIsHistoryLoaded(false);
+    setLoadedHistoryWorkspacePath(null);
     AgentBridge.loadChatHistory(workspacePath)
       .then((history) => {
         if (cancelled) return;
         replaceChatHistory(history.threads, history.activeThreadId);
         setIsHistoryLoaded(true);
+        setLoadedHistoryWorkspacePath(workspacePath);
       })
       .catch((error) => {
         console.error('Failed to load workspace chat history', error);
         if (!cancelled) {
           replaceChatHistory([], null);
           setIsHistoryLoaded(true);
+          setLoadedHistoryWorkspacePath(workspacePath);
         }
       });
 
@@ -142,6 +158,15 @@ function App() {
       cancelled = true;
     };
   }, [replaceChatHistory, workspacePath]);
+
+  const needsWorkspaceHistory = Boolean(workspacePath && workspacePath !== 'chưa có dự án');
+  const isStartupReady = isSettingsLoaded && (!needsWorkspaceHistory || loadedHistoryWorkspacePath === workspacePath);
+
+  useEffect(() => {
+    if (!isStartupReady || hasNotifiedRendererReady.current || !AgentBridge.isAvailable) return;
+    hasNotifiedRendererReady.current = true;
+    AgentBridge.notifyRendererReady();
+  }, [isStartupReady]);
 
   useEffect(() => {
     if (!isHistoryLoaded || !AgentBridge.isAvailable || !workspacePath || workspacePath === 'chưa có dự án') return;
