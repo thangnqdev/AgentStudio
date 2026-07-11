@@ -64,7 +64,8 @@
       {
         "provider": "github",
         "owner": "thangnqdev",
-        "repo": "AgentStudio"
+        "repo": "AgentStudio",
+        "releaseType": "release"
       }
     ]
   }
