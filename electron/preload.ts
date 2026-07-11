@@ -33,6 +33,13 @@ type TerminalEventPayload = {
 };
 
 type TerminalEventListener = (payload: TerminalEventPayload) => void;
+type AppUpdateSnapshot = {
+  status: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'not-available' | 'error' | 'unsupported';
+  version?: string;
+  progress?: number;
+  message?: string;
+};
+type AppUpdateEventListener = (payload: AppUpdateSnapshot) => void;
 
 type EventChannel = 'ai:chat:chunk' | 'ai:chat:done' | 'ai:chat:error' | 'ai:chat:action' | 'ai:chat:task-status';
 
@@ -58,6 +65,12 @@ function subscribeTerminal(channel: 'terminal:data' | 'terminal:exit', listener:
   };
 }
 
+function subscribeAppUpdate(listener: AppUpdateEventListener) {
+  const handler = (_event: Electron.IpcRendererEvent, payload: AppUpdateSnapshot) => listener(payload);
+  ipcRenderer.on('update:status', handler);
+  return () => ipcRenderer.off('update:status', handler);
+}
+
 contextBridge.exposeInMainWorld('agentStudio', {
   ping: () => ipcRenderer.invoke('ping'),
 
@@ -65,6 +78,11 @@ contextBridge.exposeInMainWorld('agentStudio', {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  getAppUpdateStatus: () => ipcRenderer.invoke('update:get-status'),
+  checkForAppUpdates: () => ipcRenderer.invoke('update:check'),
+  downloadAppUpdate: () => ipcRenderer.invoke('update:download'),
+  installAppUpdate: () => ipcRenderer.invoke('update:install'),
+  onAppUpdateStatus: (listener: AppUpdateEventListener) => subscribeAppUpdate(listener),
 
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   importLegacySettings: (settings: unknown) => ipcRenderer.invoke('settings:import-legacy', settings),

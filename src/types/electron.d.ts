@@ -2,6 +2,7 @@ import type { Message } from '../domain/entities/message';
 import type { ChatThread } from '../domain/entities/chatThread';
 import type { AIModel, AppSettings, PermissionMode } from '../domain/entities/settings';
 import type { KnowledgeDocument } from '../domain/entities/knowledge';
+import type { AppUpdateSnapshot } from '../domain/entities/appUpdate';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -151,6 +152,11 @@ declare global {
       minimizeWindow: () => void;
       maximizeWindow: () => void;
       closeWindow: () => void;
+      getAppUpdateStatus: () => Promise<IpcResult<AppUpdateSnapshot>>;
+      checkForAppUpdates: () => Promise<IpcResult<AppUpdateSnapshot>>;
+      downloadAppUpdate: () => Promise<IpcResult<AppUpdateSnapshot>>;
+      installAppUpdate: () => Promise<IpcResult<{ ok: true }>>;
+      onAppUpdateStatus: (listener: (payload: AppUpdateSnapshot) => void) => () => void;
       loadSettings: () => Promise<AppSettings>;
       importLegacySettings: (settings: LegacySettingsPayload) => Promise<AppSettings>;
       saveProviderAndScan: (provider: SaveProviderPayload) => Promise<AppSettings>;

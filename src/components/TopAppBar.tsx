@@ -2,6 +2,7 @@ import { type CSSProperties } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
 import { useGitStatus } from '../application/hooks/useGitStatus';
+import { useAppUpdate } from '../application/hooks/useAppUpdate';
 
 type ElectronDragStyle = CSSProperties & {
   WebkitAppRegion: 'drag' | 'no-drag';
@@ -23,6 +24,7 @@ export function TopAppBar() {
   const currentBranch = useAppStore((s) => s.currentBranch);
 
   useGitStatus();
+  const { update, download, install } = useAppUpdate();
 
   const isMac = AgentBridge.isAvailable && AgentBridge.getPlatform() === 'darwin';
 
@@ -100,6 +102,32 @@ export function TopAppBar() {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1" style={noDragStyle}>
+        {update.status === 'available' && (
+          <button
+            onClick={() => void download()}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-primary text-on-primary hover:opacity-90 transition-opacity font-ui-label-bold text-[12px]"
+            title={`Tải bản cập nhật ${update.version ?? ''}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">system_update</span>
+            Cập nhật {update.version ?? ''}
+          </button>
+        )}
+        {update.status === 'downloading' && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container-highest text-on-surface-variant font-ui-label-bold text-[12px]">
+            <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+            Đang tải {update.progress ?? 0}%
+          </div>
+        )}
+        {update.status === 'downloaded' && (
+          <button
+            onClick={() => void install()}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-primary text-on-primary hover:opacity-90 transition-opacity font-ui-label-bold text-[12px]"
+            title="Khởi động lại để cài bản cập nhật"
+          >
+            <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+            Cài & khởi động lại
+          </button>
+        )}
         <button
           onClick={() => setTerminalOpen(!isTerminalOpen)}
           className={`p-1.5 rounded hover:bg-surface-container-highest transition-colors flex items-center justify-center ${

@@ -1,5 +1,6 @@
 import type { Message } from '../../domain/entities/message';
 import type { PermissionMode } from '../../domain/entities/settings';
+import type { AppUpdateSnapshot } from '../../domain/entities/appUpdate';
 
 // Ensure the types from electron.d.ts are available
 // We assume electron.d.ts extends Window
@@ -32,6 +33,31 @@ export const AgentBridge = {
   closeWindow() {
     if (!window.agentStudio) return;
     window.agentStudio.closeWindow();
+  },
+
+  async getAppUpdateStatus() {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.getAppUpdateStatus();
+  },
+
+  async checkForAppUpdates() {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.checkForAppUpdates();
+  },
+
+  async downloadAppUpdate() {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.downloadAppUpdate();
+  },
+
+  async installAppUpdate() {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.installAppUpdate();
+  },
+
+  onAppUpdateStatus(listener: (payload: AppUpdateSnapshot) => void) {
+    if (!window.agentStudio) return () => {};
+    return window.agentStudio.onAppUpdateStatus(listener);
   },
 
   async loadSettings() {

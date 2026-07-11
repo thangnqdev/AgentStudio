@@ -1,19 +1,22 @@
 {
   "name": "architect-ai",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "package": "npm run build && electron-builder --win --publish never",
+    "release": "npm run build && electron-builder --win --publish always"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "chokidar": "^5.0.0",
+    "electron-updater": "^6.7.3",
     "lucide-react": "^1.23.0",
     "node-pty": "^1.1.0",
     "react": "^19.2.7",
@@ -40,5 +43,29 @@
     "vite-plugin-electron-renderer": "^1.0.0",
     "vitest": "^4.1.10"
   },
-  "main": "dist-electron/main.js"
+  "main": "dist-electron/main.js",
+  "build": {
+    "appId": "com.electron.architect-ai",
+    "productName": "AgentStudio",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "thangnqdev",
+        "repo": "AgentStudio"
+      }
+    ]
+  }
 }

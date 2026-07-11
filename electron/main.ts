@@ -10,8 +10,11 @@ import { registerTerminalIpc } from './ipc/registerTerminalIpc.js';
 import { registerAgentIpc } from './ipc/registerAgentIpc.js';
 import { registerKnowledgeIpc } from './ipc/registerKnowledgeIpc.js';
 import { registerWebSearchIpc } from './ipc/registerWebSearchIpc.js';
+import { registerUpdateIpc } from './ipc/registerUpdateIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
+import { ElectronAutoUpdater } from './infrastructure/ElectronAutoUpdater.js';
 import { stopWorkspaceKnowledgeSync } from './knowledgeRuntime.js';
+import { ManageAppUpdate } from './application/usecases/ManageAppUpdate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
@@ -20,6 +23,7 @@ process.env.DIST = path.join(__dirname, '../dist');
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public');
 
 let win: BrowserWindow | null = null;
+let appUpdate: ManageAppUpdate | null = null;
 
 function createWindow() {
   win = new BrowserWindow({
@@ -57,6 +61,7 @@ function registerIpcHandlers() {
   registerKnowledgeIpc(win);
   registerAgentIpc();
   registerWebSearchIpc();
+  if (appUpdate) registerUpdateIpc(() => win, appUpdate);
 }
 
 app.on('window-all-closed', () => {
@@ -76,5 +81,7 @@ app.on('activate', () => {
 
 app.whenReady().then(() => {
   createWindow();
+  appUpdate = new ManageAppUpdate(new ElectronAutoUpdater());
   registerIpcHandlers();
+  void appUpdate.checkForUpdates();
 });

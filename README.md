@@ -34,6 +34,26 @@ npm run lint
 npm test
 ```
 
+## Phát hành & tự cập nhật
+
+Bản cài Windows dùng NSIS và kiểm tra bản phát hành mới trên GitHub Releases. Khi có bản mới,
+người dùng đã cài app sẽ thấy nút **Cập nhật**, tự chọn tải xuống, rồi bấm **Cài & khởi động lại**.
+
+Để phát hành một bản mới:
+
+```bash
+# 1. Tăng version (bắt buộc: updater chỉ nhận version cao hơn)
+npm version patch
+
+# 2. Đẩy commit và tag v* lên GitHub
+git push origin master --follow-tags
+```
+
+Workflow `.github/workflows/release.yml` sẽ build Windows installer, tạo GitHub Release và tải
+lên file cài đặt cùng `latest.yml`. Có thể tạo bản phát hành cục bộ với `npm run release` khi
+đã đặt biến môi trường `GH_TOKEN`. Release repository phải công khai; nếu dùng repository riêng,
+người dùng cuối không thể nhận update mà không có cơ chế xác thực riêng.
+
 ## Knowledge Indexing
 
 - Knowledge sources can be added individually or synchronized from the current workspace for the running app session.
