@@ -27,16 +27,9 @@ export type StoredSettings = {
 };
 
 const DEFAULT_SETTINGS: StoredSettings = {
-  providers: [
-    {
-      id: 'default-openai',
-      name: 'OpenAI (Default)',
-      baseUrl: 'https://api.openai.com/v1',
-      models: [],
-    },
-  ],
-  activeProviderId: 'default-openai',
-  activeModelId: 'gpt-3.5-turbo',
+  providers: [],
+  activeProviderId: null,
+  activeModelId: null,
   permissionMode: 'workspace-write',
   workspacePath: process.cwd(),
 };

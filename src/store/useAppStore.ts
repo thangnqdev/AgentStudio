@@ -51,17 +51,9 @@ interface AppState {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  providers: [
-    {
-      id: 'default-openai',
-      name: 'OpenAI (Default)',
-      baseUrl: 'https://api.openai.com/v1',
-      models: [],
-      hasApiKey: false,
-    }
-  ],
-  activeProviderId: 'default-openai',
-  activeModelId: 'gpt-3.5-turbo',
+  providers: [],
+  activeProviderId: null,
+  activeModelId: null,
   permissionMode: 'workspace-write',
   workspacePath: 'chưa có dự án',
 };

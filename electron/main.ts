@@ -15,6 +15,7 @@ import { registerStartupIpc } from './ipc/registerStartupIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
 import { ElectronAutoUpdater } from './infrastructure/ElectronAutoUpdater.js';
 import { SplashWindow } from './infrastructure/SplashWindow.js';
+import { configureExternalNavigation } from './infrastructure/ExternalNavigationPolicy.js';
 import { stopWorkspaceKnowledgeSync } from './knowledgeRuntime.js';
 import { ManageAppUpdate } from './application/usecases/ManageAppUpdate.js';
 
@@ -48,6 +49,7 @@ function createWindow() {
     frame: process.platform !== 'darwin',
     show: false,
   });
+  configureExternalNavigation(win);
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);

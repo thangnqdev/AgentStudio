@@ -44,6 +44,10 @@ export function WebSearchSettings() {
     <section className="border-t border-outline-variant pt-8">
       <div className="mb-4">
         <h3 className="font-ui-label-bold text-[16px] text-primary">Web Search Connector</h3>
+        <p className="mt-1 text-[13px] leading-5 text-on-surface-variant">
+          Đề xuất: chọn Tavily và lấy API key miễn phí tại{' '}
+          <a className="font-ui-label-bold text-secondary underline underline-offset-2" href="https://app.tavily.com" target="_blank" rel="noreferrer">app.tavily.com</a>.
+        </p>
       </div>
       <div className="grid gap-4">
         <label className="grid gap-1.5 text-[13px] font-ui-label-bold text-on-surface">

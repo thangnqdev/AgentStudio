@@ -7,6 +7,7 @@ import { useAgentChat } from '../application/hooks/useAgentChat';
 import { useAttachments } from '../application/hooks/useAttachments';
 import { estimateMessageTokens, formatContextWindow } from '../application/services/tokenEstimator';
 import { TokenProgressRing } from './chat/TokenProgressRing';
+import { hasUsableAiConfiguration } from '../domain/services/aiConfiguration';
 
 export function PromptComposer() {
   const [input, setInput] = useState('');
@@ -18,6 +19,7 @@ export function PromptComposer() {
   const settings = useAppStore((s) => s.settings);
   const setSettings = useAppStore((s) => s.setSettings);
   const isAgentBusy = useAppStore((s) => s.messages.some((m) => m.sender === 'agent' && m.status === 'sending'));
+  const hasAiConfiguration = hasUsableAiConfiguration(settings);
   
   const { startAgentResponse, stopAgentResponse } = useAgentChat();
 
@@ -32,7 +34,7 @@ export function PromptComposer() {
   const handleSubmit = async () => {
     const trimmed = input.trim();
     const hasFileErrors = attachedFiles.some((file) => file.error);
-    if ((!trimmed && attachedFiles.length === 0) || hasFileErrors || isAgentBusy) return;
+    if (!hasAiConfiguration || (!trimmed && attachedFiles.length === 0) || hasFileErrors || isAgentBusy) return;
 
     const messageAttachments: Attachment[] = attachedFiles.map(({ id, name, type, filePath, mimeType, size, previewUrl }) => ({
       id,
@@ -75,7 +77,7 @@ export function PromptComposer() {
   };
 
   const hasFileErrors = attachedFiles.some((file) => file.error);
-  const canSubmit = (input.trim().length > 0 || attachedFiles.length > 0) && !hasFileErrors && !isAgentBusy;
+  const canSubmit = hasAiConfiguration && (input.trim().length > 0 || attachedFiles.length > 0) && !hasFileErrors && !isAgentBusy;
   const activeProvider = settings.providers?.find(p => p.id === settings.activeProviderId);
   const models = activeProvider?.models || [];
   const activeModel = models.find((model) => model.id === settings.activeModelId);
@@ -199,7 +201,7 @@ export function PromptComposer() {
                     ? 'bg-secondary text-white hover:bg-[#7D2C11] cursor-pointer'
                     : 'bg-surface-container text-on-surface-variant/40 cursor-not-allowed'
                 }`}
-              title={isAgentBusy ? 'Dừng phản hồi' : canSubmit ? 'Gửi tin nhắn (Enter)' : 'Nhập tin nhắn trước'}
+              title={isAgentBusy ? 'Dừng phản hồi' : !hasAiConfiguration ? 'Cần cấu hình AI trước' : canSubmit ? 'Gửi tin nhắn (Enter)' : 'Nhập tin nhắn trước'}
             >
               <span className="material-symbols-outlined text-[18px]">{isAgentBusy ? 'stop' : 'arrow_upward'}</span>
             </button>

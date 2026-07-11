@@ -5,12 +5,14 @@ import { ChatArea } from './components/ChatArea';
 import { PromptComposer } from './components/PromptComposer';
 import { PlaceholderView } from './components/PlaceholderView';
 import { SettingsView } from './components/SettingsView';
+import { AiSetupDialog } from './components/AiSetupDialog';
 import { KnowledgeView } from './components/KnowledgeView';
 import { AgentBridge } from './infrastructure/ipc/agentStudioBridge';
 import { useAppStore, type ViewId } from './store/useAppStore';
 import type { Message, Attachment } from './domain/entities/message';
 import type { ChatThread } from './domain/entities/chatThread';
 import type { AppSettings } from './domain/entities/settings';
+import { hasUsableAiConfiguration } from './domain/services/aiConfiguration';
 
 const LEGACY_SETTINGS_KEY = 'architect-app-settings';
 const CHAT_HISTORY_SAVE_DELAY_MS = 700;
@@ -76,12 +78,14 @@ function MainContent({ view }: { view: ViewId }) {
 
 function App() {
   const activeView = useAppStore((s) => s.activeView);
+  const settings = useAppStore((s) => s.settings);
   const isTerminalOpen = useAppStore((s) => s.isTerminalOpen);
   const workspacePath = useAppStore((s) => s.settings.workspacePath);
   const threads = useAppStore((s) => s.threads);
   const activeThreadId = useAppStore((s) => s.activeThreadId);
   const setSettings = useAppStore((s) => s.setSettings);
   const setProjectPath = useAppStore((s) => s.setProjectPath);
+  const setActiveView = useAppStore((s) => s.setActiveView);
   const replaceChatHistory = useAppStore((s) => s.replaceChatHistory);
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
   const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
@@ -161,6 +165,7 @@ function App() {
 
   const needsWorkspaceHistory = Boolean(workspacePath && workspacePath !== 'chưa có dự án');
   const isStartupReady = isSettingsLoaded && (!needsWorkspaceHistory || loadedHistoryWorkspacePath === workspacePath);
+  const shouldShowAiSetup = isSettingsLoaded && activeView !== 'settings' && !hasUsableAiConfiguration(settings);
 
   useEffect(() => {
     if (!isStartupReady || hasNotifiedRendererReady.current || !AgentBridge.isAvailable) return;
@@ -202,6 +207,7 @@ function App() {
           </aside>
         )}
       </div>
+      {shouldShowAiSetup && <AiSetupDialog onOpenSettings={() => setActiveView('settings')} />}
     </div>
   );
 }
