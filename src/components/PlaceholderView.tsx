@@ -6,7 +6,7 @@ interface ViewConfig {
   description: string;
 }
 
-type PlaceholderViewId = Exclude<ViewId, 'tasks' | 'settings' | 'observability' | 'evaluations' | 'workflows' | 'capabilities' | 'optimizer'>;
+type PlaceholderViewId = Exclude<ViewId, 'tasks' | 'settings' | 'observability' | 'evaluations' | 'workflows' | 'capabilities' | 'optimizer' | 'skill-learning'>;
 
 const VIEW_CONFIGS: Record<PlaceholderViewId, ViewConfig> = {
   workspace: {

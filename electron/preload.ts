@@ -141,6 +141,11 @@ contextBridge.exposeInMainWorld('agentStudio', {
   evaluateOptimizationCandidate: (payload: unknown) => ipcRenderer.invoke('optimizer:evaluate-candidate', payload),
   promoteOptimizationCandidate: (candidateId: string) => ipcRenderer.invoke('optimizer:promote', candidateId),
   rollbackOptimization: () => ipcRenderer.invoke('optimizer:rollback'),
+  listSkillCandidates: () => ipcRenderer.invoke('skill-learning:list'),
+  createSkillCandidate: (traceId: string) => ipcRenderer.invoke('skill-learning:create', traceId),
+  evaluateSkillCandidate: (candidateId: string) => ipcRenderer.invoke('skill-learning:evaluate', candidateId),
+  decideSkillCandidate: (payload: unknown) => ipcRenderer.invoke('skill-learning:decide', payload),
+  promoteSkillCandidate: (candidateId: string) => ipcRenderer.invoke('skill-learning:promote', candidateId),
 
   createTerminal: (payload: unknown) => ipcRenderer.invoke('terminal:create', payload),
   listCommandShells: () => ipcRenderer.invoke('terminal:list-shells'),

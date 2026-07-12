@@ -14,6 +14,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'workflows', label: 'Workflows', icon: 'account_tree' },
   { id: 'capabilities', label: 'Capabilities', icon: 'extension' },
   { id: 'optimizer', label: 'Safe Optimizer', icon: 'tune' },
+  { id: 'skill-learning', label: 'Skill Learning', icon: 'school' },
 ];
 
 export function Sidebar() {

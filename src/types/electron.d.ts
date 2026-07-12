@@ -10,6 +10,7 @@ import type { AgentEvaluationReport } from '../domain/entities/agentEvaluation';
 import type { NodeCheckpoint, WorkflowDefinition } from '../domain/entities/workflow';
 import type { CapabilityRecommendation, CapabilityRecommendationRequest, CapabilitySnapshot } from '../domain/entities/capability';
 import type { OptimizationCandidate, OptimizerState, RuntimeOptimizationConfig } from '../domain/entities/optimizer';
+import type { SkillCandidate } from '../domain/entities/skillLearning';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -221,6 +222,11 @@ declare global {
       evaluateOptimizationCandidate: (payload: { candidateId: string; baselineRunId: string; candidateRunId: string }) => Promise<IpcResult<OptimizationCandidate>>;
       promoteOptimizationCandidate: (candidateId: string) => Promise<IpcResult<OptimizerState>>;
       rollbackOptimization: () => Promise<IpcResult<OptimizerState>>;
+      listSkillCandidates: () => Promise<IpcResult<SkillCandidate[]>>;
+      createSkillCandidate: (traceId: string) => Promise<IpcResult<SkillCandidate>>;
+      evaluateSkillCandidate: (candidateId: string) => Promise<IpcResult<SkillCandidate>>;
+      decideSkillCandidate: (payload: { candidateId: string; approved: boolean }) => Promise<IpcResult<SkillCandidate>>;
+      promoteSkillCandidate: (candidateId: string) => Promise<IpcResult<SkillCandidate>>;
       listCommandShells: () => Promise<CommandShellPayload[]>;
       createTerminal: (payload: TerminalCreatePayload) => Promise<TerminalCreatedPayload>;
       writeTerminal: (payload: { terminalId: string; data: string }) => void;

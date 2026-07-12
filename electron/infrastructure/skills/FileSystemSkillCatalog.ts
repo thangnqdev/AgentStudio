@@ -7,12 +7,21 @@ import { parse } from 'yaml';
 import type { SkillDescriptor, SkillOrigin } from '../../domain/entities/skill.js';
 import type { ISkillCatalog } from '../../domain/ports/ISkillCatalog.js';
 import { isInsidePath } from '../security/resolveSafePath.js';
+import { verifyLearnedSkill } from '../skillLearning/learnedSkillSignature.js';
 
 const MAX_SKILL_FILE_BYTES = 512_000;
 
 export class FileSystemSkillCatalog implements ISkillCatalog {
+  private readonly configuredRoots?: Array<{ root: string; origin: SkillOrigin }>;
+  private readonly learnedSkillVerifier: (skillRoot: string, content: string) => Promise<boolean>;
+
+  constructor(configuredRoots?: Array<{ root: string; origin: SkillOrigin }>, learnedSkillVerifier = verifyLearnedSkill) {
+    this.configuredRoots = configuredRoots;
+    this.learnedSkillVerifier = learnedSkillVerifier;
+  }
+
   async discover(workspaceRoot: string) {
-    const roots: Array<{ root: string; origin: SkillOrigin }> = [
+    const roots: Array<{ root: string; origin: SkillOrigin }> = this.configuredRoots ?? [
       { root: path.join(app.getPath('userData'), 'skills'), origin: 'user' },
       { root: path.join(os.homedir(), '.agents', 'skills'), origin: 'user' },
       { root: path.join(workspaceRoot, '.agents', 'skills'), origin: 'workspace' },
@@ -37,7 +46,9 @@ export class FileSystemSkillCatalog implements ISkillCatalog {
         try {
           const skillRoot = await fs.realpath(path.join(realRoot, entry.name));
           if (!isInsidePath(skillRoot, realRoot)) return null;
-          const parsed = parseSkillFile(await this.readSkillFile(skillRoot));
+          const content = await this.readSkillFile(skillRoot);
+          if (entry.name.startsWith('learned-trajectory-') && !await this.learnedSkillVerifier(skillRoot, content)) return null;
+          const parsed = parseSkillFile(content);
           if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(parsed.metadata.name) || parsed.metadata.name !== entry.name) return null;
           return {
             id: createHash('sha256').update(skillRoot).digest('hex').slice(0, 20),

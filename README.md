@@ -135,6 +135,15 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - Runtime consumers read the active snapshot for retrieval, context compaction, model selection, workflow retry, command timeout and skill ranking. Optimizer state contains no permission, approval, credential, command or path fields.
 - Architecture decision and invariants: [`docs/adr/0005-safe-optimizer.md`](docs/adr/0005-safe-optimizer.md).
 
+## Signed Skill Learning
+
+- A succeeded sanitized trace can produce one candidate playbook from successful tool names/order only. Prompts, file content, arguments, outputs, paths and retrieved text are not available to the generator.
+- Every candidate includes versioned generated tests. The capability-free evaluator has no model, tool, network, filesystem or policy port and cannot mutate the candidate snapshot.
+- Evaluation does not imply approval. The **Skill Learning** view requires an explicit local-user approve/reject action before promotion becomes available.
+- Promotion writes only to Electron `userData/skills`, signs the exact versioned `SKILL.md` with an owner-only local key, and stores a signature manifest. The catalog rejects a tampered learned skill.
+- Promoted skills still enter the existing trust/enable workflow and never bypass central tool policy. Source files and production runtime code are never edited by learning.
+- Architecture decision and invariants: [`docs/adr/0006-signed-skill-learning.md`](docs/adr/0006-signed-skill-learning.md).
+
 ## Project Structure
 
 ```
