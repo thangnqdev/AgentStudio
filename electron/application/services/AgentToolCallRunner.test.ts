@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AgentToolCallRunner } from './AgentToolCallRunner.js';
+import { getLocalToolDefinition } from '../../infrastructure/tools/localToolDefinitions.js';
 
 describe('AgentToolCallRunner', () => {
   it('waits for approval before executing a write tool', async () => {
@@ -17,6 +18,7 @@ describe('AgentToolCallRunner', () => {
       requestId: 'request-1',
       step: 0,
       toolCall: { id: 'action-1', function: { name: 'write_file', arguments: '{"path":"notes.md","content":"hello"}' } },
+      toolDefinition: getLocalToolDefinition('write_file'),
       workspaceRoot: '/workspace',
     });
 
@@ -35,10 +37,28 @@ describe('AgentToolCallRunner', () => {
       requestId: 'request-1',
       step: 0,
       toolCall: { id: 'action-1', function: { name: 'write_file', arguments: '{"path":"notes.md","content":"hello"}' } },
+      toolDefinition: getLocalToolDefinition('write_file'),
       workspaceRoot: '/workspace',
     });
 
     expect(execute).not.toHaveBeenCalled();
     expect(result.toolMessage.content).toContain('blocked in read-only mode');
+  });
+
+  it('applies the same policy to a dynamically discovered MCP tool', async () => {
+    const execute = vi.fn(async () => ({ ok: true, output: 'external result' }));
+    const requestApproval = vi.fn(async () => true);
+    const runner = new AgentToolCallRunner({ execute }, { requestApproval }, { record: async () => undefined });
+    await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'workspace-write', requestId: 'request-2', step: 0, workspaceRoot: '/workspace',
+      toolCall: { id: 'mcp-action', function: { name: 'mcp_server_tool', arguments: '{}' } },
+      toolDefinition: {
+        name: 'mcp_server_tool', description: 'external', risk: 'execute', parameters: { type: 'object' },
+        source: { kind: 'mcp', serverId: 'server', remoteToolName: 'tool' },
+      },
+    });
+    expect(requestApproval).toHaveBeenCalledOnce();
+    expect(execute).toHaveBeenCalledOnce();
   });
 });

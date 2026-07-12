@@ -2,7 +2,7 @@ import type { IAiProvider } from '../../domain/ports/IAiProvider.js';
 import type { AgentProviderSettings, AssistantResponse, ChatMessage, ToolCall } from '../../domain/entities/agent.js';
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import { getResponseTokenLimit } from '../../domain/entities/tokenBudget.js';
-import { AGENT_TOOL_DEFINITIONS } from '../../domain/entities/tool.js';
+import type { AgentToolDefinition } from '../../domain/entities/tool.js';
 
 type StreamingToolCall = {
   index: number;
@@ -15,25 +15,22 @@ type StreamingToolCall = {
 };
 
 
-export const TOOL_DEFINITIONS = AGENT_TOOL_DEFINITIONS.map((tool) => ({
-  type: 'function' as const,
-  function: {
-    name: tool.name,
-    description: tool.description,
-    parameters: { type: 'object', ...tool.parameters },
-  },
-}));
-
-export function getToolDefinitions(settings: AgentProviderSettings) {
-  return settings.webSearchEnabled
-    ? TOOL_DEFINITIONS
-    : TOOL_DEFINITIONS.filter((tool) => tool.function.name !== 'web_search');
+function toProviderToolDefinitions(tools: AgentToolDefinition[]) {
+  return tools.map((tool) => ({
+    type: 'function' as const,
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: { ...tool.parameters, type: 'object' },
+    },
+  }));
 }
 
 export class OpenAIProvider implements IAiProvider {
   async requestAssistantMessage(
     settings: AgentProviderSettings,
     messages: ChatMessage[],
+    tools: AgentToolDefinition[],
     eventSink: IAgentEventSink,
     requestId: string,
     signal?: AbortSignal,
@@ -53,7 +50,7 @@ export class OpenAIProvider implements IAiProvider {
       body: JSON.stringify({
         model: settings.model,
         messages,
-        tools: getToolDefinitions(settings),
+        tools: toProviderToolDefinitions(tools),
         tool_choice: 'auto',
         stream: true,
         max_tokens: getResponseTokenLimit(settings.contextWindow),

@@ -1,0 +1,37 @@
+{
+  "name": "agent-studio-sample",
+  "documents": [
+    {
+      "id": "doc-1",
+      "name": "architecture.md",
+      "sourcePath": "architecture.md",
+      "contentHash": "sample",
+      "addedAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+      "size": 80,
+      "chunkCount": 1,
+      "indexingMode": "lexical",
+      "indexVersion": 2,
+      "sourceKind": "text"
+    }
+  ],
+  "chunks": [
+    {
+      "id": "chunk-1",
+      "documentId": "doc-1",
+      "ordinal": 0,
+      "content": "AgentStudio uses separate Electron main and React renderer processes.",
+      "section": "Runtime architecture",
+      "tokenCount": 12,
+      "sourceKind": "text"
+    }
+  ],
+  "cases": [
+    {
+      "id": "runtime-architecture",
+      "query": "Which processes does AgentStudio use?",
+      "relevantChunkIds": ["chunk-1"],
+      "tags": ["reviewed", "architecture"]
+    }
+  ]
+}

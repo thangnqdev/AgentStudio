@@ -2,19 +2,18 @@ import type { PermissionMode } from './agent.js';
 
 export type ToolRisk = 'read' | 'write' | 'execute' | 'network';
 
-export type ToolParameter = {
-  description: string;
-  type: 'number' | 'string';
-};
+export type JsonSchema = Record<string, unknown>;
+
+export type ToolSource =
+  | { kind: 'local' }
+  | { kind: 'mcp'; serverId: string; remoteToolName: string };
 
 export type AgentToolDefinition = {
   name: string;
   description: string;
   risk: ToolRisk;
-  parameters: {
-    properties: Record<string, ToolParameter>;
-    required?: string[];
-  };
+  parameters: JsonSchema;
+  source?: ToolSource;
 };
 
 export type ToolPolicyDecision = {
@@ -41,69 +40,6 @@ export type ToolAuditRecord = {
   timestamp: string;
   workspaceRoot: string;
 };
-
-export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
-  {
-    name: 'list_files',
-    description: 'List files and folders inside the current workspace.',
-    risk: 'read',
-    parameters: {
-      properties: {
-        dir: { type: 'string', description: 'Workspace-relative directory. Defaults to current workspace root.' },
-        maxEntries: { type: 'number', description: 'Maximum entries to return.' },
-      },
-    },
-  },
-  {
-    name: 'read_file',
-    description: 'Read a UTF-8 text file from the workspace.',
-    risk: 'read',
-    parameters: {
-      properties: { path: { type: 'string', description: 'Workspace-relative file path.' } },
-      required: ['path'],
-    },
-  },
-  {
-    name: 'write_file',
-    description: 'Write UTF-8 text to a workspace file after user approval.',
-    risk: 'write',
-    parameters: {
-      properties: {
-        path: { type: 'string', description: 'Workspace-relative file path.' },
-        content: { type: 'string', description: 'Full file content.' },
-      },
-      required: ['path', 'content'],
-    },
-  },
-  {
-    name: 'run_command',
-    description: 'Run a shell command in the workspace after user approval.',
-    risk: 'execute',
-    parameters: {
-      properties: {
-        command: { type: 'string', description: 'Shell command to run.' },
-        timeoutMs: { type: 'number', description: 'Timeout in milliseconds, max 30000.' },
-      },
-      required: ['command'],
-    },
-  },
-  {
-    name: 'web_search',
-    description: 'Search the public web for current information through the configured OpenAI provider after user approval.',
-    risk: 'network',
-    parameters: {
-      properties: {
-        query: { type: 'string', description: 'Focused web search query.' },
-        domains: { type: 'string', description: 'Optional comma-separated domains to restrict the search.' },
-      },
-      required: ['query'],
-    },
-  },
-];
-
-export function getAgentToolDefinition(toolName: string) {
-  return AGENT_TOOL_DEFINITIONS.find((tool) => tool.name === toolName);
-}
 
 export function evaluateToolPolicy(tool: AgentToolDefinition | undefined, permissionMode: PermissionMode): ToolPolicyDecision {
   if (!tool) return { allowed: false, requiresApproval: false, reason: 'Unknown tool.' };

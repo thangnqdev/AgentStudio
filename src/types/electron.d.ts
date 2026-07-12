@@ -3,6 +3,8 @@ import type { ChatThread } from '../domain/entities/chatThread';
 import type { AIModel, AppSettings, PermissionMode } from '../domain/entities/settings';
 import type { KnowledgeDocument } from '../domain/entities/knowledge';
 import type { AppUpdateSnapshot } from '../domain/entities/appUpdate';
+import type { SkillStatus } from '../domain/entities/skill';
+import type { McpServerStatus, SaveMcpServerPayload } from '../domain/entities/mcp';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -179,6 +181,14 @@ declare global {
       syncWorkspaceKnowledge: () => Promise<IpcResult<KnowledgeWorkspaceSyncPayload>>;
       stopWorkspaceKnowledgeSync: () => Promise<IpcResult<{ watching: boolean }>>;
       removeKnowledgeDocument: (documentId: string) => Promise<IpcResult<{ ok: boolean }>>;
+      listSkills: () => Promise<IpcResult<SkillStatus[]>>;
+      setSkillEnabled: (payload: { skillId: string; enabled: boolean }) => Promise<IpcResult<SkillStatus[]>>;
+      setSkillTrusted: (payload: { skillId: string; trusted: boolean }) => Promise<IpcResult<SkillStatus[]>>;
+      listMcpServers: () => Promise<IpcResult<McpServerStatus[]>>;
+      saveMcpServer: (payload: SaveMcpServerPayload) => Promise<IpcResult<McpServerStatus[]>>;
+      removeMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;
+      startMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;
+      stopMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;
       startChat: (payload: { requestId: string; taskId?: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;
       respondToToolApproval: (payload: { requestId: string; actionId: string; approved: boolean }) => void;
@@ -198,5 +208,3 @@ declare global {
     };
   }
 }
-
-export {};

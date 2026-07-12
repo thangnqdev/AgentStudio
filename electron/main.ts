@@ -12,12 +12,16 @@ import { registerKnowledgeIpc } from './ipc/registerKnowledgeIpc.js';
 import { registerWebSearchIpc } from './ipc/registerWebSearchIpc.js';
 import { registerUpdateIpc } from './ipc/registerUpdateIpc.js';
 import { registerStartupIpc } from './ipc/registerStartupIpc.js';
+import { registerSkillIpc } from './ipc/registerSkillIpc.js';
+import { registerMcpIpc } from './ipc/registerMcpIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
 import { ElectronAutoUpdater } from './infrastructure/ElectronAutoUpdater.js';
 import { SplashWindow } from './infrastructure/SplashWindow.js';
 import { configureExternalNavigation } from './infrastructure/ExternalNavigationPolicy.js';
 import { stopWorkspaceKnowledgeSync } from './knowledgeRuntime.js';
 import { ManageAppUpdate } from './application/usecases/ManageAppUpdate.js';
+import { mcpServerManager } from './mcpRuntime.js';
+import { workspaceManager } from './infrastructure/WorkspaceManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
@@ -67,6 +71,8 @@ function registerIpcHandlers() {
   registerKnowledgeIpc(win);
   registerAgentIpc();
   registerWebSearchIpc();
+  registerSkillIpc();
+  registerMcpIpc();
   if (appUpdate) registerUpdateIpc(() => win, appUpdate);
   registerStartupIpc(() => win, splashWindow);
 }
@@ -74,6 +80,7 @@ function registerIpcHandlers() {
 app.on('window-all-closed', () => {
   terminalManager.killAllTerminals();
   void stopWorkspaceKnowledgeSync();
+  void mcpServerManager.stopAll();
   if (process.platform !== 'darwin') {
     app.quit();
     win = null;
@@ -91,5 +98,6 @@ app.whenReady().then(() => {
   createWindow();
   appUpdate = new ManageAppUpdate(new ElectronAutoUpdater());
   registerIpcHandlers();
+  void workspaceManager.getWorkspaceRoot().then((workspaceRoot) => mcpServerManager.startAuto(workspaceRoot));
   void appUpdate.checkForUpdates();
 });

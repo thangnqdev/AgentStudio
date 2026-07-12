@@ -1,6 +1,7 @@
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import type { IAiProvider } from '../../domain/ports/IAiProvider.js';
 import type { IToolExecutor } from '../../domain/ports/IToolExecutor.js';
+import type { IToolCatalog } from '../../domain/ports/IToolCatalog.js';
 import type { IAttachmentMessageFormatter } from '../../domain/ports/IAttachmentMessageFormatter.js';
 import type { IToolApprovalGateway } from '../../domain/ports/IToolApprovalGateway.js';
 import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
@@ -22,15 +23,18 @@ export class RunAgentSession {
   private readonly provider: IAiProvider;
   private readonly attachmentFormatter: IAttachmentMessageFormatter;
   private readonly toolCallRunner: AgentToolCallRunner;
+  private readonly toolCatalog: IToolCatalog;
 
   constructor(
     provider: IAiProvider,
     toolExecutor: IToolExecutor,
+    toolCatalog: IToolCatalog,
     attachmentFormatter: IAttachmentMessageFormatter,
     approvalGateway: IToolApprovalGateway,
     auditLogger: IToolAuditLogger,
   ) {
     this.provider = provider;
+    this.toolCatalog = toolCatalog;
     this.attachmentFormatter = attachmentFormatter;
     this.toolCallRunner = new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger);
   }
@@ -41,6 +45,7 @@ export class RunAgentSession {
     settings: AgentProviderSettings,
     workspaceRoot: string,
     knowledgeContext?: string,
+    skillContext?: string,
     signal?: AbortSignal,
     task?: AgentTaskRun,
   ) {
@@ -56,6 +61,8 @@ export class RunAgentSession {
 
     const messages = Array.isArray(payload.messages) ? payload.messages : [];
     const inputContextTokens = getInputContextTokenBudget(settings.contextWindow);
+    const toolDefinitions = await this.toolCatalog.list(workspaceRoot);
+    const toolsByName = new Map(toolDefinitions.map((tool) => [tool.name, tool]));
 
     let currentMessages = task?.messages.length ? [...task.messages] : [...messages];
     let conversation: ChatMessage[] = task?.conversation.length ? [...task.conversation] : [];
@@ -66,7 +73,7 @@ export class RunAgentSession {
       conversation = [
         {
           role: 'system',
-          content: buildAgentSystemPrompt(workspaceRoot, settings.permissionMode, knowledgeContext),
+          content: buildAgentSystemPrompt(workspaceRoot, settings.permissionMode, knowledgeContext, skillContext),
         },
         ...(compactedContext.summary ? [{
           role: 'system' as const,
@@ -86,6 +93,7 @@ export class RunAgentSession {
       const assistantMessage = await this.provider.requestAssistantMessage(
         settings,
         conversation,
+        toolDefinitions,
         eventSink,
         requestId,
         signal,
@@ -115,7 +123,16 @@ export class RunAgentSession {
 
       for (const toolCall of toolCalls) {
         if (signal?.aborted) throw new Error('Agent session stopped.');
-        const result = await this.toolCallRunner.run({ eventSink, permissionMode: settings.permissionMode, requestId, step, toolCall, workspaceRoot });
+        const toolName = toolCall.function?.name || '';
+        const result = await this.toolCallRunner.run({
+          eventSink,
+          permissionMode: settings.permissionMode,
+          requestId,
+          step,
+          toolCall,
+          workspaceRoot,
+          toolDefinition: toolsByName.get(toolName),
+        });
         conversation.push(result.toolMessage);
         stepContent += result.stepContent;
       }

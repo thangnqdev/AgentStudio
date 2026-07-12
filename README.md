@@ -65,12 +65,32 @@ người dùng cuối không thể nhận update mà không có cơ chế xác t
 
 The current JSON store remains appropriate for small knowledge bases. Move to a vector database only after the evaluation corpus shows unacceptable retrieval latency or recall at the intended chunk count. The migration must retain SQLite-or-equivalent metadata, a benchmark suite, index-version migration, and Electron packaging tests; ANN alone is not a quality improvement.
 
+### Knowledge Evaluation Harness
+
+- Generate reviewable, chunk-anchored candidate queries with `npm run eval:knowledge -- generate <knowledge-store.json> <dataset.json>`.
+- After reviewing `cases[].relevantChunkIds`, run the benchmark with `npm run eval:knowledge -- run <dataset.json> <report.json>`.
+- Reports include Recall@k, Precision@k, MRR, nDCG, per-case misses, and mean/p50/p95/p99 latency. Generated cases are candidates, not trusted ground truth until reviewed.
+
 ## Tool Platform
 
 - Local tools are registered from one typed catalog, shared by the model schema and execution policy.
-- Read-only tools run automatically. File writes and shell commands require an explicit per-action approval in the chat UI, even in `danger-full-access` mode.
+- Read-only tools run automatically. In `workspace-write`, file writes and shell commands require explicit per-action approval and remain workspace-scoped/sandboxed. In `danger-full-access`, all tools run automatically without manual approval, commands are unsandboxed, and absolute file paths are allowed.
 - Tool audit records persist locally as JSONL with a hashed workspace identifier. File contents and tool arguments are not written to that audit log.
-- MCP and OpenAI Responses/Codex integrations are intentionally disabled until they have an allow-listed adapter, approval policy, lifecycle management, and credential configuration. Do not launch arbitrary MCP commands supplied by a model, document, or repository.
+- `apply_patch` performs one exact, unambiguous replacement so edits do not need to resend a complete file.
+
+### Agent Skills
+
+- Skills are discovered from app `userData/skills`, `~/.agents/skills`, `.agents/skills`, and `.agent/skills`.
+- A skill must have valid YAML-frontmatter `SKILL.md`, and must be explicitly trusted and enabled in Settings before its instructions can enter the agent prompt.
+- Skill `allowed-tools` metadata never bypasses the central tool policy. Skill scripts are not executed automatically.
+
+### MCP Servers
+
+- MCP servers are added only through Settings; models, repository files, and skills cannot register or launch servers.
+- stdio servers use command/argument arrays without a shell and receive only the MCP SDK safe environment plus explicitly configured encrypted environment credentials.
+- Streamable HTTP requires HTTPS except on localhost. Static bearer tokens and OAuth 2 client-credentials authentication are supported; secrets use Electron `safeStorage` when available.
+- Server tool metadata and output are marked untrusted. Each server receives a local default risk classification, and all MCP calls pass through the same approval and audit pipeline as local tools.
+- Lifecycle controls include start, stop, auto-start, connection status, error reporting, pagination-aware tool discovery, request timeout, and shutdown cleanup.
 
 ## Project Structure
 

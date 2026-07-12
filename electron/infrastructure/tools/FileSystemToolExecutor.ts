@@ -74,4 +74,39 @@ export class FileSystemToolExecutor {
       output: `Wrote ${Buffer.byteLength(content, 'utf8')} bytes to ${path.relative(workspaceRoot, filePath) || filePath}.`,
     };
   }
+
+  async applyPatch(
+    args: Record<string, unknown>,
+    workspaceRoot: string,
+    permissionMode: PermissionMode,
+  ): Promise<ToolResult> {
+    if (permissionMode === 'read-only') {
+      return { ok: false, output: 'apply_patch is blocked in read-only mode.' };
+    }
+
+    const filePath = resolvePath(getString(args.path), workspaceRoot, permissionMode);
+    const oldText = getString(args.oldText);
+    const newText = getString(args.newText);
+    if (!oldText) return { ok: false, output: 'oldText is required.' };
+
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) return { ok: false, output: 'Path is not a file.' };
+    if (stat.size > MAX_FILE_BYTES) {
+      return { ok: false, output: `File too large (${stat.size} bytes). Limit is ${MAX_FILE_BYTES} bytes.` };
+    }
+
+    const content = await fs.readFile(filePath, 'utf8');
+    const firstIndex = content.indexOf(oldText);
+    if (firstIndex < 0) return { ok: false, output: 'oldText was not found; no changes were written.' };
+    if (content.indexOf(oldText, firstIndex + oldText.length) >= 0) {
+      return { ok: false, output: 'oldText occurs more than once; provide a more specific block.' };
+    }
+
+    const nextContent = `${content.slice(0, firstIndex)}${newText}${content.slice(firstIndex + oldText.length)}`;
+    if (Buffer.byteLength(nextContent, 'utf8') > MAX_FILE_BYTES) {
+      return { ok: false, output: `Patched file would exceed the ${MAX_FILE_BYTES}-byte limit.` };
+    }
+    await fs.writeFile(filePath, nextContent, 'utf8');
+    return { ok: true, output: `Patched ${path.relative(workspaceRoot, filePath) || filePath}.` };
+  }
 }

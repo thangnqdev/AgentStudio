@@ -4,6 +4,12 @@ export function summarizeToolArguments(toolName: string, args: Record<string, un
     const content = typeof args.content === 'string' ? args.content : '';
     return `path=${path} (${Buffer.byteLength(content, 'utf8')} bytes)`;
   }
+  if (toolName === 'apply_patch') {
+    const path = typeof args.path === 'string' ? args.path : '';
+    const oldText = typeof args.oldText === 'string' ? args.oldText : '';
+    const newText = typeof args.newText === 'string' ? args.newText : '';
+    return `path=${path} (replace ${Buffer.byteLength(oldText, 'utf8')} bytes with ${Buffer.byteLength(newText, 'utf8')} bytes)`;
+  }
   if (toolName === 'run_command') {
     const command = typeof args.command === 'string' ? args.command.trim() : '';
     return command.length > 320 ? `${command.slice(0, 320)}...` : command;
@@ -15,5 +21,6 @@ export function summarizeToolArguments(toolName: string, args: Record<string, un
     const domains = typeof args.domains === 'string' ? args.domains.trim() : '';
     return domains ? `query=${query} | domains=${domains}` : `query=${query}`;
   }
+  if (toolName === 'load_skill') return `skillId=${typeof args.skillId === 'string' ? args.skillId : ''}`;
   return Object.keys(args).sort().join(', ');
 }

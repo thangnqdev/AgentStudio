@@ -1,5 +1,5 @@
 import type { ChatMessage, PermissionMode, ToolCall } from '../../domain/entities/agent.js';
-import { evaluateToolPolicy, getAgentToolDefinition } from '../../domain/entities/tool.js';
+import { evaluateToolPolicy, type AgentToolDefinition } from '../../domain/entities/tool.js';
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import type { IToolApprovalGateway } from '../../domain/ports/IToolApprovalGateway.js';
 import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
@@ -12,6 +12,7 @@ type ToolCallRunInput = {
   requestId: string;
   step: number;
   toolCall: ToolCall;
+  toolDefinition?: AgentToolDefinition;
   workspaceRoot: string;
 };
 
@@ -35,7 +36,7 @@ export class AgentToolCallRunner {
     const args = parseToolArguments(input.toolCall.function?.arguments || '{}');
     const actionId = input.toolCall.id || `${input.requestId}-${toolName}-${input.step}`;
     const argsText = JSON.stringify(args);
-    const tool = getAgentToolDefinition(toolName);
+    const tool = input.toolDefinition;
     const risk = tool?.risk ?? 'execute';
     const argsSummary = summarizeToolArguments(toolName, args);
     const policy = evaluateToolPolicy(tool, input.permissionMode);

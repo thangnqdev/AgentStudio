@@ -3,6 +3,8 @@ import { useAppStore } from '../store/useAppStore';
 import type { AIProvider } from '../domain/entities/settings';
 import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
 import { WebSearchSettings } from './WebSearchSettings';
+import { SkillSettingsPanel } from './settings/SkillSettingsPanel';
+import { McpSettingsPanel } from './settings/McpSettingsPanel';
 
 type EditableProvider = Partial<AIProvider> & {
   apiKey?: string;
@@ -257,6 +259,8 @@ export function SettingsView() {
           </section>
         )}
         <WebSearchSettings />
+        <SkillSettingsPanel />
+        <McpSettingsPanel />
       </div>
     </div>
   );

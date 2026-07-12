@@ -12,6 +12,10 @@ export class WebSearchExecutor {
     this.settings = settings;
   }
 
+  isEnabled() {
+    return this.settings.provider !== 'disabled';
+  }
+
   async search(args: Record<string, unknown>): Promise<ToolResult> {
     const query = readQuery(args.query);
     if (!query) return { ok: false, output: 'Web search query is empty.' };

@@ -11,6 +11,8 @@ import { JsonAgentTaskRepository } from './infrastructure/tasks/JsonAgentTaskRep
 import { AgentTaskService } from './application/usecases/AgentTaskService.js';
 import type { AgentTaskRecord } from './domain/entities/agentTask.js';
 import { webSearchSettingsRepository } from './infrastructure/WebSearchSettingsRepository.js';
+import { skillManager } from './skillRuntime.js';
+import { mcpGateway } from './mcpRuntime.js';
 
 export * from './domain/entities/agent.js';
 
@@ -25,16 +27,24 @@ export async function runAgentSession(
   settings: AgentProviderSettings,
   workspaceRoot: string,
   knowledgeContext?: string,
+  skillContext?: string,
   signal?: AbortSignal,
   task?: AgentTaskRecord,
 ) {
   const webSearchSettings = await webSearchSettingsRepository.load();
-  const providerSettings = { ...settings, webSearchEnabled: webSearchSettings.provider !== 'disabled' };
   const provider = new OpenAIProvider();
   const eventSink = new ElectronAgentEventSink(sender);
-  const toolExecutor = new AgentToolExecutor(webSearchSettings);
-  const session = new RunAgentSession(provider, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger);
-  const result = await session.execute(payload, eventSink, providerSettings, workspaceRoot, knowledgeContext, signal, task
+  const toolExecutor = new AgentToolExecutor(
+    webSearchSettings,
+    async (skillId, root) => {
+      const loaded = await skillManager.loadInstructions(root, skillId);
+      return `<skill name="${loaded.skill.name}">\n${loaded.instructions}\n</skill>`;
+    },
+    mcpGateway,
+    mcpGateway,
+  );
+  const session = new RunAgentSession(provider, toolExecutor, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger);
+  const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, skillContext, signal, task
     ? {
       id: task.id,
       workspaceRoot: task.workspaceRoot,

@@ -74,5 +74,5 @@ export function streamChatCompletion(
 }
 
 export function stopChatCompletion(requestId: string) {
-  AgentBridge.isAvailable && AgentBridge.stopChat(requestId);
+  if (AgentBridge.isAvailable) AgentBridge.stopChat(requestId);
 }
