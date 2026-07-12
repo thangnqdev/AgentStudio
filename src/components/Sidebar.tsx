@@ -37,7 +37,7 @@ export function Sidebar() {
           A
         </div>
         <div>
-          <h1 className="font-display-serif text-summary-title text-primary leading-tight">Agent Customer</h1>
+          <h1 className="font-display-serif text-summary-title text-primary leading-tight">Agent Studio</h1>
           <p className="text-on-surface-variant font-ui-label-caps text-ui-label-caps">v1.0.4 Premium</p>
         </div>
       </div>
