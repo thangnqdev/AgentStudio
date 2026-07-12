@@ -1,15 +1,10 @@
-/**
- * Pure functions để parse nội dung agent message thành các phần có kiểu rõ ràng.
- * Đặt tại application/services để có thể unit-test độc lập với React.
- */
+import type { AgentAction } from '../../domain/entities/message';
 
 export type AgentContentPart =
   | { type: 'text'; value: string }
   | { type: 'code'; language: string; value: string }
   | { type: 'think'; value: string }
-  | { type: 'tool'; actionId: string };
-
-
+  | { type: 'tool'; actionId: string; action?: AgentAction };
 
 /**
  * Parse đoạn text + code fence thành mảng AgentContentPart.
@@ -59,7 +54,29 @@ export function parseAgentContent(content: string): AgentContentPart[] {
     if (match[1] !== undefined) {
       parts.push({ type: 'think', value: match[1] });
     } else if (match[2] !== undefined) {
-      parts.push({ type: 'tool', actionId: match[2] });
+      const toolName = match[2];
+      const trace = (match[3] || '').trim();
+      const lines = trace.split('\n');
+      
+      let args = '{}';
+      let status: AgentAction['status'] = 'ok';
+      let output = '';
+
+      if (lines.length > 0) args = lines[0];
+      if (lines.length > 1) status = lines[1].trim() === '[ok]' ? 'ok' : 'error';
+      if (lines.length > 2) output = lines.slice(2).join('\n');
+
+      const action: AgentAction = {
+        id: `historical-${toolName}-${match.index}`,
+        requestId: '',
+        toolName,
+        args,
+        status,
+        output,
+        risk: 'execute',
+      };
+
+      parts.push({ type: 'tool', actionId: match[2], action });
     }
 
     lastIndex = match.index + match[0].length;

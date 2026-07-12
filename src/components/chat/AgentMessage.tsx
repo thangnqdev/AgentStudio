@@ -56,7 +56,7 @@ export function AgentMessage({ msg }: { msg: Message }) {
         {parts.map((part, index) => {
           if (part.type === 'think') return <ThinkStep key={`think-${index}`} text={part.value} />;
           if (part.type === 'tool') {
-            const action = actionsMap.get(part.actionId);
+            const action = part.action || actionsMap.get(part.actionId);
             return action ? <ToolStep key={`tool-${index}`} action={action} /> : null;
           }
           if (part.type === 'code') return <CodeBlock key={`code-${index}`} language={part.language} code={part.value} />;
