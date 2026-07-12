@@ -1,0 +1,36 @@
+{
+  "output": {
+    "filePath": "repomix-output.xml",
+    "style": "xml",
+    "removeComments": false,
+    "removeEmptyLines": true,
+    "showLineNumbers": true
+  },
+  "include": [
+    "electron/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.css",
+    "AGENTS.md",
+    ".agent/**/*.md",
+    "README.md",
+    "package.json"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "dist/",
+      "dist-electron/",
+      "release/",
+      "node_modules/",
+      "public/",
+      ".github/",
+      "*.test.ts",
+      "*.spec.ts",
+      "*.log",
+      "*.jsonl",
+      "package-lock.json"
+    ]
+  }
+}
