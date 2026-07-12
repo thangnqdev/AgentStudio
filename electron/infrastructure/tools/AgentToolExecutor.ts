@@ -17,17 +17,20 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
   private readonly skillLoader?: (skillId: string, workspaceRoot: string) => Promise<string>;
   private readonly externalCatalog?: IToolCatalog;
   private readonly externalExecutor?: IToolExecutor;
+  private readonly defaultTimeoutMs: number;
 
   constructor(
     webSearchSettings: WebSearchSettings,
     skillLoader?: (skillId: string, workspaceRoot: string) => Promise<string>,
     externalCatalog?: IToolCatalog,
     externalExecutor?: IToolExecutor,
+    defaultTimeoutMs = 15_000,
   ) {
     this.webSearch = new WebSearchExecutor(webSearchSettings);
     this.skillLoader = skillLoader;
     this.externalCatalog = externalCatalog;
     this.externalExecutor = externalExecutor;
+    this.defaultTimeoutMs = defaultTimeoutMs;
   }
 
   async list(workspaceRoot: string) {
@@ -91,7 +94,7 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
       return { ok: false, output: 'Command is empty.' };
     }
 
-    const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || 15_000, 1_000), 30_000);
+    const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || this.defaultTimeoutMs, 1_000), 30_000);
     return runSandboxedCommand(command, workspaceRoot, permissionMode, timeoutMs);
   }
 }

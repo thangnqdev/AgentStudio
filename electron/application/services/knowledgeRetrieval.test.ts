@@ -20,4 +20,13 @@ describe('retrieveKnowledge', () => {
     expect(retrieval.mode).toBe('lexical');
     expect(retrieval.results[0]?.semanticScore).toBe(0);
   });
+
+  it('applies reversible lexical and semantic ranking weights', () => {
+    const semanticChunk: KnowledgeChunk = { ...chunk, id: 'semantic', content: 'unrelated material', embedding: [1, 0] };
+    const lexicalChunk: KnowledgeChunk = { ...chunk, id: 'lexical', content: 'bookings customer relationship', embedding: [0, 1] };
+    const lexical = retrieveKnowledge([semanticChunk, lexicalChunk], [document], 'bookings customer', [1, 0], 'profile-a', 2, { lexicalWeight: 1, semanticWeight: 0 });
+    const semantic = retrieveKnowledge([semanticChunk, lexicalChunk], [document], 'bookings customer', [1, 0], 'profile-a', 2, { lexicalWeight: 0, semanticWeight: 1 });
+    expect(lexical.results[0]?.chunkId).toBe('lexical');
+    expect(semantic.results[0]?.chunkId).toBe('semantic');
+  });
 });

@@ -5,7 +5,8 @@ import type { IWorkflowNodeExecutor } from '../../domain/ports/IWorkflowNodeExec
 export class RunWorkflow {
   private readonly executor: IWorkflowNodeExecutor;
   private readonly checkpoints: IWorkflowCheckpointRepository;
-  constructor(executor: IWorkflowNodeExecutor, checkpoints: IWorkflowCheckpointRepository) { this.executor = executor; this.checkpoints = checkpoints; }
+  private readonly getDefaultRetryCount: () => Promise<number>;
+  constructor(executor: IWorkflowNodeExecutor, checkpoints: IWorkflowCheckpointRepository, getDefaultRetryCount: () => Promise<number> = async () => 0) { this.executor = executor; this.checkpoints = checkpoints; this.getDefaultRetryCount = getDefaultRetryCount; }
 
   async start(definition: WorkflowDefinition) {
     assertWorkflowDefinition(definition);
@@ -67,7 +68,7 @@ export class RunWorkflow {
 
   private async executeAction(node: ActionWorkflowNode): Promise<NodeExecution> {
     const startedAt = new Date().toISOString();
-    const maxAttempts = node.retry?.maxAttempts ?? 1;
+    const maxAttempts = node.retry?.maxAttempts ?? 1 + Math.min(Math.max(await this.getDefaultRetryCount(), 0), 5);
     let last: Awaited<ReturnType<IWorkflowNodeExecutor['execute']>> = { ok: false, errorCode: 'not_started' };
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       last = await this.executor.execute(structuredClone(node));

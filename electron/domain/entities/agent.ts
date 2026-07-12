@@ -49,6 +49,7 @@ export type AgentProviderSettings = {
   apiKey: string;
   model: string;
   contextWindow?: number;
+  contextBudgetTokens?: number;
   permissionMode: PermissionMode;
 };
 

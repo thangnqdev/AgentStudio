@@ -114,7 +114,7 @@ export class KnowledgeBaseUseCase {
     return { removed: documentIds.size };
   }
 
-  async search(workspacePath: string, rawQuery: string, limit = 6): Promise<KnowledgeSearchResponse> {
+  async search(workspacePath: string, rawQuery: string, limit = 6, weights?: { lexicalWeight: number; semanticWeight: number }): Promise<KnowledgeSearchResponse> {
     const query = rawQuery.trim();
     const store = await this.repository.load(workspacePath);
     if (!query || store.chunks.length === 0) return { query, mode: 'lexical', results: [] };
@@ -122,7 +122,7 @@ export class KnowledgeBaseUseCase {
     const embeddingProfile = config ? createEmbeddingProfile(config) : undefined;
     const hasCompatibleEmbeddings = Boolean(embeddingProfile && store.documents.some((document) => document.embeddingProfile === embeddingProfile));
     const queryEmbedding = config && hasCompatibleEmbeddings ? await this.embeddingService.embedQuery(query, config) : null;
-    const retrieval = retrieveKnowledge(store.chunks, store.documents, query, queryEmbedding, embeddingProfile, limit);
+    const retrieval = retrieveKnowledge(store.chunks, store.documents, query, queryEmbedding, embeddingProfile, limit, weights);
     return { query, ...retrieval };
   }
 
@@ -130,9 +130,9 @@ export class KnowledgeBaseUseCase {
     return (await this.buildContextDetails(workspacePath, question, retrievalContext)).context;
   }
 
-  async buildContextDetails(workspacePath: string, question: string, retrievalContext = '') {
+  async buildContextDetails(workspacePath: string, question: string, retrievalContext = '', tuning?: { retrievalTopK: number; lexicalWeight: number; semanticWeight: number }) {
     const query = buildKnowledgeQuery(question, retrievalContext ? [retrievalContext] : []);
-    const search = await this.search(workspacePath, query, 5);
+    const search = await this.search(workspacePath, query, tuning?.retrievalTopK ?? 5, tuning);
     let usedCharacters = 0;
     const sources = search.results.flatMap((result) => {
       const block = `${result.citation}\n${result.content}`;

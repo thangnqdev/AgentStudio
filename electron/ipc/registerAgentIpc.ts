@@ -5,11 +5,12 @@ import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { knowledgeBaseUseCase } from '../knowledgeRuntime.js';
 import { skillManager } from '../skillRuntime.js';
 import { PrepareAgentSession } from '../application/usecases/PrepareAgentSession.js';
+import { optimizerRepository, safeOptimizer } from '../optimizerRuntime.js';
 
 const activeAgentControllers = new Map<string, AbortController>();
 const activeAgentTaskIds = new Map<string, string>();
 let interruptedTaskRecovery: Promise<void> | null = null;
-const prepareAgentSession = new PrepareAgentSession(agentTaskService, knowledgeBaseUseCase, skillManager, agentTraceService);
+const prepareAgentSession = new PrepareAgentSession(agentTaskService, knowledgeBaseUseCase, skillManager, agentTraceService, optimizerRepository);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -62,16 +63,19 @@ export function registerAgentIpc() {
       }
 
       const workspaceRoot = await workspaceManager.getWorkspaceRoot();
+      const tuning = (await safeOptimizer.getState()).active;
+      const selectedModel = tuning.modelChoice && activeProvider.models.some((model) => model.id === tuning.modelChoice) ? tuning.modelChoice : settings.activeModelId;
       const { task, skillContext } = await prepareAgentSession.execute({ payload, taskId, requestId, workspaceRoot });
       activeAgentTaskIds.set(requestId, task.id);
 
       await runAgentSession(payload, event.sender, {
         baseUrl: activeProvider.baseUrl,
         apiKey: settingsRepo.decryptApiKey(activeProvider),
-        model: settings.activeModelId || '',
-        contextWindow: activeProvider.models.find(m => m.id === settings.activeModelId)?.contextWindow,
+        model: selectedModel || '',
+        contextWindow: activeProvider.models.find(m => m.id === selectedModel)?.contextWindow,
+        contextBudgetTokens: tuning.contextBudgetTokens,
         permissionMode: settings.permissionMode,
-      }, workspaceRoot, task.knowledgeContext, skillContext, controller.signal, task);
+      }, workspaceRoot, task.knowledgeContext, skillContext, controller.signal, task, tuning);
     } catch (error) {
       if (activeAgentControllers.get(requestId)?.signal.aborted) {
         const activeTaskId = activeAgentTaskIds.get(requestId);

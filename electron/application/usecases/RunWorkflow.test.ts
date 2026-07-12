@@ -38,6 +38,14 @@ describe('RunWorkflow integration', () => {
     expect(denied.status).toBe('failed');
     expect(denied.executions.find((item) => item.nodeId === 'approval')?.status).toBe('denied');
   });
+
+  it('uses bounded optimizer retries only when a node has no explicit policy', async () => {
+    const checkpoints = new MemoryCheckpoints(); let attempts = 0; const tuned = definition();
+    delete (tuned.nodes.find((node) => node.id === 'start') as ActionWorkflowNode).retry;
+    const runtime = new RunWorkflow({ execute: async (node) => { if (node.id === 'start' && attempts++ === 0) return { ok: false, errorCode: 'transient' }; return { ok: true, result: true }; } }, checkpoints, async () => 1);
+    const paused = await runtime.start(tuned);
+    expect(paused.executions.find((item) => item.nodeId === 'start')?.attempts).toBe(2);
+  });
 });
 
 class MemoryCheckpoints {

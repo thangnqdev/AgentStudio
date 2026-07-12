@@ -127,6 +127,14 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - Unknown metrics and costs remain `null`/`unknown` instead of being treated as zero.
 - Architecture decision and invariants: [`docs/adr/0004-capability-registry.md`](docs/adr/0004-capability-registry.md).
 
+## Safe Optimizer
+
+- The active tuning snapshot is limited to retrieval top-K/weights, an allow-listed model, context budget, bounded workflow retry count, command timeout and skill-ranking weight.
+- Candidates are immutable snapshots tied to an active revision. Evaluation compares two passing reports from the same versioned agent suite and records their IDs, scores, evaluator version and configuration digest.
+- Promotion requires a strict measured improvement; ties, failed reports and stale candidates are rejected. Every promotion retains the previous full snapshot for rollback.
+- Runtime consumers read the active snapshot for retrieval, context compaction, model selection, workflow retry, command timeout and skill ranking. Optimizer state contains no permission, approval, credential, command or path fields.
+- Architecture decision and invariants: [`docs/adr/0005-safe-optimizer.md`](docs/adr/0005-safe-optimizer.md).
+
 ## Project Structure
 
 ```

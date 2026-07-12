@@ -64,7 +64,7 @@ export class RunAgentSession {
     }
 
     const messages = Array.isArray(payload.messages) ? payload.messages : [];
-    const inputContextTokens = getInputContextTokenBudget(settings.contextWindow);
+    const inputContextTokens = Math.min(getInputContextTokenBudget(settings.contextWindow), settings.contextBudgetTokens ?? Number.POSITIVE_INFINITY);
     const toolDefinitions = await this.toolCatalog.list(workspaceRoot);
     const toolsByName = new Map(toolDefinitions.map((tool) => [tool.name, tool]));
 

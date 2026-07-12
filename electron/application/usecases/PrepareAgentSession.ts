@@ -3,30 +3,36 @@ import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 import type { ManageSkills } from './ManageSkills.js';
 import type { KnowledgeBaseUseCase } from './KnowledgeBaseUseCase.js';
 import type { AgentTaskService } from './AgentTaskService.js';
+import type { IOptimizerRepository } from '../../domain/ports/IOptimizerRepository.js';
 
 type TaskPreparation = Pick<AgentTaskService, 'create' | 'resume' | 'checkpoint'>;
 type KnowledgePreparation = Pick<KnowledgeBaseUseCase, 'buildContextDetails'>;
 type SkillPreparation = Pick<ManageSkills, 'buildPromptContext'>;
+type TuningProvider = Pick<IOptimizerRepository, 'load'>;
 
 export class PrepareAgentSession {
   private readonly tasks: TaskPreparation;
   private readonly knowledge: KnowledgePreparation;
   private readonly skills: SkillPreparation;
   private readonly tracer: IAgentTracer;
+  private readonly tuning?: TuningProvider;
 
   constructor(
     tasks: TaskPreparation,
     knowledge: KnowledgePreparation,
     skills: SkillPreparation,
     tracer: IAgentTracer,
+    tuning?: TuningProvider,
   ) {
     this.tasks = tasks;
     this.knowledge = knowledge;
     this.skills = skills;
     this.tracer = tracer;
+    this.tuning = tuning;
   }
 
   async execute(input: { payload: AgentStartPayload; taskId: string; requestId: string; workspaceRoot: string }) {
+    const tuning = (await this.tuning?.load())?.active;
     let task;
     if (input.taskId) {
       task = await this.tasks.resume(input.taskId, input.workspaceRoot);
@@ -37,7 +43,7 @@ export class PrepareAgentSession {
       if (latest?.content) {
         const startedAt = new Date().toISOString();
         try {
-          const retrieval = await this.knowledge.buildContextDetails(input.workspaceRoot, latest.content, userMessages.slice(-3, -1).map((message) => message.content).join('\n'));
+          const retrieval = await this.knowledge.buildContextDetails(input.workspaceRoot, latest.content, userMessages.slice(-3, -1).map((message) => message.content).join('\n'), tuning);
           await this.tracer.recordSpan({ kind: 'retrieval', traceId: task.traceId, taskId: task.id, requestId: input.requestId, step: 0, startedAt, endedAt: new Date().toISOString(), status: 'succeeded', mode: retrieval.mode, resultCount: retrieval.resultCount }).catch(() => undefined);
           task = { ...task, knowledgeContext: retrieval.context };
           await this.tasks.checkpoint(task);
@@ -49,7 +55,7 @@ export class PrepareAgentSession {
     }
     const userMessages = task.messages.filter((message) => message.sender === 'user' && typeof message.content === 'string');
     const question = userMessages.at(-1)?.content || '';
-    const skillContext = question ? await this.skills.buildPromptContext(input.workspaceRoot, question) : '';
+    const skillContext = question ? await this.skills.buildPromptContext(input.workspaceRoot, question, tuning?.skillRankingWeight) : '';
     return { task, skillContext };
   }
 }

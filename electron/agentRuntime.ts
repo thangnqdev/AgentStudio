@@ -15,6 +15,7 @@ import { skillManager } from './skillRuntime.js';
 import { mcpGateway } from './mcpRuntime.js';
 import { JsonlAgentTraceRepository } from './infrastructure/tracing/JsonlAgentTraceRepository.js';
 import { AgentTraceService } from './application/services/AgentTraceService.js';
+import type { RuntimeOptimizationConfig } from './domain/entities/optimizer.js';
 
 export * from './domain/entities/agent.js';
 
@@ -33,6 +34,7 @@ export async function runAgentSession(
   skillContext?: string,
   signal?: AbortSignal,
   task?: AgentTaskRecord,
+  tuning?: RuntimeOptimizationConfig,
 ) {
   const webSearchSettings = await webSearchSettingsRepository.load();
   const provider = new OpenAIProvider();
@@ -45,6 +47,7 @@ export async function runAgentSession(
     },
     mcpGateway,
     mcpGateway,
+    tuning?.timeoutMs,
   );
   const session = new RunAgentSession(provider, toolExecutor, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService);
   const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, skillContext, signal, task

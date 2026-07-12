@@ -17,6 +17,7 @@ export function retrieveKnowledge(
   queryEmbedding: number[] | null,
   embeddingProfile: string | undefined,
   limit: number,
+  weights: { lexicalWeight: number; semanticWeight: number } = { lexicalWeight: 0.5, semanticWeight: 0.5 },
 ) {
   const documentsById = new Map(documents.map((document) => [document.id, document]));
   const queryTerms = tokenizeKnowledgeText(query);
@@ -37,8 +38,8 @@ export function retrieveKnowledge(
   for (const candidate of candidates) {
     const lexicalRank = lexicalRanks.get(candidate.chunk.id);
     const semanticRank = semanticRanks.get(candidate.chunk.id);
-    candidate.fusionScore = (lexicalRank ? 1 / (60 + lexicalRank) : 0)
-      + (semanticAvailable && semanticRank ? 1 / (60 + semanticRank) : 0)
+    candidate.fusionScore = (lexicalRank ? 2 * weights.lexicalWeight / (60 + lexicalRank) : 0)
+      + (semanticAvailable && semanticRank ? 2 * weights.semanticWeight / (60 + semanticRank) : 0)
       + candidate.phraseScore * 0.015;
   }
 

@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'evaluations', label: 'Đánh giá agent', icon: 'fact_check' },
   { id: 'workflows', label: 'Workflows', icon: 'account_tree' },
   { id: 'capabilities', label: 'Capabilities', icon: 'extension' },
+  { id: 'optimizer', label: 'Safe Optimizer', icon: 'tune' },
 ];
 
 export function Sidebar() {

@@ -18,6 +18,7 @@ import { registerTraceIpc } from './ipc/registerTraceIpc.js';
 import { registerEvaluationIpc } from './ipc/registerEvaluationIpc.js';
 import { registerWorkflowIpc } from './ipc/registerWorkflowIpc.js';
 import { registerCapabilityIpc } from './ipc/registerCapabilityIpc.js';
+import { registerOptimizerIpc } from './ipc/registerOptimizerIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
 import { ElectronAutoUpdater } from './infrastructure/ElectronAutoUpdater.js';
 import { SplashWindow } from './infrastructure/SplashWindow.js';
@@ -81,6 +82,7 @@ function registerIpcHandlers() {
   registerEvaluationIpc(win);
   registerWorkflowIpc();
   registerCapabilityIpc();
+  registerOptimizerIpc();
   if (appUpdate) registerUpdateIpc(() => win, appUpdate);
   registerStartupIpc(() => win, splashWindow);
 }
