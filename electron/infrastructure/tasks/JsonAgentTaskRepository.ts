@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentTaskCheckpoint, AgentTaskRecord, AgentTaskSummary } from '../../domain/entities/agentTask.js';
@@ -37,9 +37,11 @@ export class JsonAgentTaskRepository implements IAgentTaskRepository {
   }
 
   async recoverInterrupted() {
+    const interrupted = (await this.read()).filter((task) => task.status === 'running');
     await this.mutate((tasks) => tasks.map((task) => task.status === 'running'
       ? { ...task, status: 'paused', lastError: 'Ứng dụng đã đóng trước khi tác vụ hoàn tất.', updatedAt: new Date().toISOString() }
       : task));
+    return interrupted.map((task) => ({ ...task, status: 'paused' as const, lastError: 'Ứng dụng đã đóng trước khi tác vụ hoàn tất.' }));
   }
 
   async markFailed(taskId: string, error: string) {
@@ -62,7 +64,10 @@ export class JsonAgentTaskRepository implements IAgentTaskRepository {
     try {
       const raw = await fs.readFile(this.getPath(), 'utf8');
       const parsed = JSON.parse(raw) as StoredTasks;
-      return Array.isArray(parsed.tasks) ? parsed.tasks : [];
+      return Array.isArray(parsed.tasks) ? parsed.tasks.map((task) => ({
+        ...task,
+        traceId: typeof task.traceId === 'string' && task.traceId ? task.traceId : createHash('sha256').update(`legacy-task:${task.id}`).digest('hex').slice(0, 32),
+      })) : [];
     } catch {
       return [];
     }

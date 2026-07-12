@@ -1,13 +1,15 @@
 import { ipcMain } from 'electron';
-import { agentTaskService, agentToolApprovalManager, runAgentSession, type AgentStartPayload } from '../agentRuntime.js';
+import { agentTaskService, agentToolApprovalManager, agentTraceService, runAgentSession, type AgentStartPayload } from '../agentRuntime.js';
 import { settingsRepo } from '../infrastructure/JsonSettingsRepository.js';
 import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { knowledgeBaseUseCase } from '../knowledgeRuntime.js';
 import { skillManager } from '../skillRuntime.js';
+import { PrepareAgentSession } from '../application/usecases/PrepareAgentSession.js';
 
 const activeAgentControllers = new Map<string, AbortController>();
 const activeAgentTaskIds = new Map<string, string>();
 let interruptedTaskRecovery: Promise<void> | null = null;
+const prepareAgentSession = new PrepareAgentSession(agentTaskService, knowledgeBaseUseCase, skillManager, agentTraceService);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -60,24 +62,7 @@ export function registerAgentIpc() {
       }
 
       const workspaceRoot = await workspaceManager.getWorkspaceRoot();
-      let task;
-      if (taskId) {
-        task = await agentTaskService.resume(taskId, workspaceRoot);
-      } else {
-        const payloadUserMessages = (payload.messages ?? []).filter((message) => message.sender === 'user' && typeof message.content === 'string');
-        const latestPayloadMessage = payloadUserMessages.at(-1);
-        const knowledgeContext = latestPayloadMessage?.content
-          ? await knowledgeBaseUseCase.buildContext(
-            workspaceRoot,
-            latestPayloadMessage.content,
-            payloadUserMessages.slice(-3, -1).map((message) => message.content).join('\n'),
-          )
-          : '';
-        task = await agentTaskService.create(payload, workspaceRoot, knowledgeContext);
-      }
-      const taskUserMessages = task.messages.filter((message) => message.sender === 'user' && typeof message.content === 'string');
-      const skillQuestion = taskUserMessages.at(-1)?.content || '';
-      const skillContext = skillQuestion ? await skillManager.buildPromptContext(workspaceRoot, skillQuestion) : '';
+      const { task, skillContext } = await prepareAgentSession.execute({ payload, taskId, requestId, workspaceRoot });
       activeAgentTaskIds.set(requestId, task.id);
 
       await runAgentSession(payload, event.sender, {

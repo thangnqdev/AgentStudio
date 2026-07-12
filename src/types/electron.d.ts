@@ -5,6 +5,7 @@ import type { KnowledgeDocument } from '../domain/entities/knowledge';
 import type { AppUpdateSnapshot } from '../domain/entities/appUpdate';
 import type { SkillStatus } from '../domain/entities/skill';
 import type { McpServerStatus, SaveMcpServerPayload } from '../domain/entities/mcp';
+import type { AgentTraceDetails, AgentTraceSummary } from '../domain/entities/agentTrace';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -97,6 +98,7 @@ export type ChatHistoryPayload = {
 
 export type AgentTaskSummary = {
   id: string;
+  traceId: string;
   title: string;
   workspaceRoot: string;
   status: 'running' | 'paused' | 'completed' | 'failed';
@@ -198,6 +200,9 @@ declare global {
       onChatError: (listener: ChatEventListener) => () => void;
       onChatTaskStatus: (listener: ChatEventListener) => () => void;
       listResumableAgentTasks: () => Promise<AgentTaskListResult>;
+      listAgentTraces: (limit?: number) => Promise<IpcResult<AgentTraceSummary[]>>;
+      getAgentTrace: (traceId: string) => Promise<IpcResult<AgentTraceDetails>>;
+      exportAgentTrace: (traceId: string) => Promise<IpcResult<{ canceled: boolean; recordCount: number }>>;
       listCommandShells: () => Promise<CommandShellPayload[]>;
       createTerminal: (payload: TerminalCreatePayload) => Promise<TerminalCreatedPayload>;
       writeTerminal: (payload: { terminalId: string; data: string }) => void;

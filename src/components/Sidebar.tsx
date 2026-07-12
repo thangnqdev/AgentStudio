@@ -9,6 +9,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'tasks', label: 'Tác vụ hiện tại', icon: 'bolt' },
   { id: 'knowledge', label: 'Cơ sở tri thức', icon: 'menu_book' },
+  { id: 'observability', label: 'Quan sát agent', icon: 'monitoring' },
 ];
 
 export function Sidebar() {

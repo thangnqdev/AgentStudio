@@ -4,6 +4,7 @@ export type AgentTaskStatus = 'running' | 'paused' | 'completed' | 'failed';
 
 export type AgentTaskRecord = {
   id: string;
+  traceId: string;
   title: string;
   workspaceRoot: string;
   status: AgentTaskStatus;
@@ -17,10 +18,10 @@ export type AgentTaskRecord = {
 };
 
 export type AgentTaskCheckpoint = Pick<AgentTaskRecord,
-  'id' | 'workspaceRoot' | 'status' | 'completedSteps' | 'messages' | 'conversation' | 'knowledgeContext' | 'lastError'>;
+  'id' | 'traceId' | 'workspaceRoot' | 'status' | 'completedSteps' | 'messages' | 'conversation' | 'knowledgeContext' | 'lastError'>;
 
 export type AgentTaskSummary = Pick<AgentTaskRecord,
-  'id' | 'title' | 'workspaceRoot' | 'status' | 'createdAt' | 'updatedAt' | 'completedSteps' | 'lastError'>;
+  'id' | 'traceId' | 'title' | 'workspaceRoot' | 'status' | 'createdAt' | 'updatedAt' | 'completedSteps' | 'lastError'>;
 
 export function summarizeAgentTask(task: AgentTaskRecord): AgentTaskSummary {
   const { conversation: _conversation, knowledgeContext: _knowledgeContext, messages: _messages, ...summary } = task;

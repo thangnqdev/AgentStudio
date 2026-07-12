@@ -13,13 +13,16 @@ import type { AgentTaskRecord } from './domain/entities/agentTask.js';
 import { webSearchSettingsRepository } from './infrastructure/WebSearchSettingsRepository.js';
 import { skillManager } from './skillRuntime.js';
 import { mcpGateway } from './mcpRuntime.js';
+import { JsonlAgentTraceRepository } from './infrastructure/tracing/JsonlAgentTraceRepository.js';
+import { AgentTraceService } from './application/services/AgentTraceService.js';
 
 export * from './domain/entities/agent.js';
 
 export const agentToolApprovalManager = new ElectronToolApprovalManager();
 const toolAuditLogger = new JsonlToolAuditLogger();
 const taskRepository = new JsonAgentTaskRepository();
-export const agentTaskService = new AgentTaskService(taskRepository);
+export const agentTraceService = new AgentTraceService(new JsonlAgentTraceRepository());
+export const agentTaskService = new AgentTaskService(taskRepository, agentTraceService);
 
 export async function runAgentSession(
   payload: AgentStartPayload,
@@ -43,10 +46,11 @@ export async function runAgentSession(
     mcpGateway,
     mcpGateway,
   );
-  const session = new RunAgentSession(provider, toolExecutor, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger);
+  const session = new RunAgentSession(provider, toolExecutor, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService);
   const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, skillContext, signal, task
     ? {
       id: task.id,
+      traceId: task.traceId,
       workspaceRoot: task.workspaceRoot,
       completedSteps: task.completedSteps,
       messages: task.messages,

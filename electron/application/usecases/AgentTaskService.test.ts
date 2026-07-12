@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { AgentTaskService } from './AgentTaskService.js';
 import type { IAgentTaskRepository } from '../../domain/ports/IAgentTaskRepository.js';
 import type { AgentTaskCheckpoint, AgentTaskRecord, AgentTaskSummary } from '../../domain/entities/agentTask.js';
+import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 
 describe('AgentTaskService', () => {
   it('creates a durable task from valid chat messages', async () => {
     const repository = new MemoryTaskRepository();
-    const service = new AgentTaskService(repository);
+    const service = new AgentTaskService(repository, new MemoryTracer());
 
     const task = await service.create({
       messages: [
@@ -19,11 +20,12 @@ describe('AgentTaskService', () => {
     expect(task.title).toBe('Refactor the import pipeline.');
     expect(task.messages).toHaveLength(1);
     expect(repository.tasks).toHaveLength(1);
+    expect(task.traceId).toBeTruthy();
   });
 
   it('rejects resume when the task step budget is exhausted', async () => {
     const repository = new MemoryTaskRepository([task({ completedSteps: 180, status: 'paused' })]);
-    const service = new AgentTaskService(repository);
+    const service = new AgentTaskService(repository, new MemoryTracer());
 
     await expect(service.resume('task-1', '/workspace')).rejects.toThrow('180 bước');
   });
@@ -42,14 +44,22 @@ class MemoryTaskRepository implements IAgentTaskRepository {
   async saveCheckpoint(checkpoint: AgentTaskCheckpoint) {
     this.tasks = this.tasks.map((record) => record.id === checkpoint.id ? { ...record, ...checkpoint } : record);
   }
-  async recoverInterrupted() {}
-  async markPaused() {}
-  async markFailed() {}
+  async recoverInterrupted() { return []; }
+  async markPaused(taskId: string, reason?: string) { this.tasks = this.tasks.map((record) => record.id === taskId ? { ...record, status: 'paused', lastError: reason } : record); }
+  async markFailed(taskId: string, error: string) { this.tasks = this.tasks.map((record) => record.id === taskId ? { ...record, status: 'failed', lastError: error } : record); }
+}
+
+class MemoryTracer implements IAgentTracer {
+  newSpanId() { return crypto.randomUUID(); }
+  async startTrace() {}
+  async updateTrace() {}
+  async recordSpan() { return this.newSpanId(); }
 }
 
 function task(overrides: Partial<AgentTaskRecord> = {}): AgentTaskRecord {
   return {
     id: 'task-1',
+    traceId: 'trace-1',
     title: 'Task',
     workspaceRoot: '/workspace',
     status: 'paused',

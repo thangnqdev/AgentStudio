@@ -92,6 +92,15 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - Server tool metadata and output are marked untrusted. Each server receives a local default risk classification, and all MCP calls pass through the same approval and audit pipeline as local tools.
 - Lifecycle controls include start, stop, auto-start, connection status, error reporting, pagination-aware tool discovery, request timeout, and shutdown cleanup.
 
+## Unified Observability
+
+- Every durable agent task owns one stable `traceId` that survives pause, failure recovery, and resume.
+- Typed spans cover model calls, tool calls, retrieval, approvals, checkpoints, and versioned evaluations. Tool and approval spans retain task/step/parent linkage without storing arguments or output.
+- Traces are append-only JSONL under Electron `userData/observability`; files use owner-only permissions where supported.
+- The **Quan sát agent** view lists local trajectories, displays sanitized span metadata, and exports a selected trace as JSONL.
+- Prompts, chat content, retrieval queries/results, tool arguments/output, API keys, credentials, workspace paths, and provider URLs are not part of the trace schema and are rejected by runtime validation.
+- Architecture decision and invariants: [`docs/adr/0001-unified-observability.md`](docs/adr/0001-unified-observability.md).
+
 ## Project Structure
 
 ```

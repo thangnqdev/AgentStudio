@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AgentToolCallRunner } from './AgentToolCallRunner.js';
 import { getLocalToolDefinition } from '../../infrastructure/tools/localToolDefinitions.js';
+import type { AgentSpanInput } from '../../domain/entities/agentTrace.js';
 
 describe('AgentToolCallRunner', () => {
   it('waits for approval before executing a write tool', async () => {
@@ -60,5 +61,24 @@ describe('AgentToolCallRunner', () => {
     });
     expect(requestApproval).toHaveBeenCalledOnce();
     expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it('links sanitized tool and approval spans to the task step', async () => {
+    const spans: AgentSpanInput[] = [];
+    const tracer = {
+      newSpanId: () => 'tool-span', startTrace: async () => undefined, updateTrace: async () => undefined,
+      recordSpan: async (span: AgentSpanInput) => { spans.push(span); return span.spanId ?? 'generated-span'; },
+    };
+    const runner = new AgentToolCallRunner({ execute: async () => ({ ok: true, output: 'sensitive output' }) }, { requestApproval: async () => true }, { record: async () => undefined }, tracer);
+    await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'workspace-write', requestId: 'request-3', step: 7, workspaceRoot: '/workspace', traceContext: { traceId: 'trace-1', taskId: 'task-1' },
+      toolCall: { id: 'action-3', function: { name: 'write_file', arguments: '{"path":"secret.txt","content":"sensitive input"}' } },
+      toolDefinition: getLocalToolDefinition('write_file'),
+    });
+    expect(spans.find((span) => span.kind === 'tool_call')).toMatchObject({ traceId: 'trace-1', taskId: 'task-1', step: 7, spanId: 'tool-span' });
+    expect(spans.find((span) => span.kind === 'approval')).toMatchObject({ parentSpanId: 'tool-span', toolSpanId: 'tool-span', decision: 'approved' });
+    expect(JSON.stringify(spans)).not.toContain('sensitive input');
+    expect(JSON.stringify(spans)).not.toContain('sensitive output');
   });
 });

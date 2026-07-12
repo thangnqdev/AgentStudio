@@ -5,6 +5,7 @@ import type { IToolCatalog } from '../../domain/ports/IToolCatalog.js';
 import type { IAttachmentMessageFormatter } from '../../domain/ports/IAttachmentMessageFormatter.js';
 import type { IToolApprovalGateway } from '../../domain/ports/IToolApprovalGateway.js';
 import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
+import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 import type { AgentTaskCheckpoint } from '../../domain/entities/agentTask.js';
 import { buildSummarySystemMessage, compactContext } from '../../contextCompaction.js';
 import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
@@ -24,6 +25,7 @@ export class RunAgentSession {
   private readonly attachmentFormatter: IAttachmentMessageFormatter;
   private readonly toolCallRunner: AgentToolCallRunner;
   private readonly toolCatalog: IToolCatalog;
+  private readonly tracer: IAgentTracer;
 
   constructor(
     provider: IAiProvider,
@@ -32,11 +34,13 @@ export class RunAgentSession {
     attachmentFormatter: IAttachmentMessageFormatter,
     approvalGateway: IToolApprovalGateway,
     auditLogger: IToolAuditLogger,
+    tracer: IAgentTracer,
   ) {
     this.provider = provider;
     this.toolCatalog = toolCatalog;
     this.attachmentFormatter = attachmentFormatter;
-    this.toolCallRunner = new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger);
+    this.tracer = tracer;
+    this.toolCallRunner = new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger, tracer);
   }
 
   async execute(
@@ -90,14 +94,15 @@ export class RunAgentSession {
     for (let step = completedSteps; step < runStepLimit; step += 1) {
       if (signal?.aborted) throw new Error('Agent session stopped.');
 
-      const assistantMessage = await this.provider.requestAssistantMessage(
-        settings,
-        conversation,
-        toolDefinitions,
-        eventSink,
-        requestId,
-        signal,
-      );
+      const modelStartedAt = new Date().toISOString();
+      let assistantMessage: Awaited<ReturnType<IAiProvider['requestAssistantMessage']>>;
+      try {
+        assistantMessage = await this.provider.requestAssistantMessage(settings, conversation, toolDefinitions, eventSink, requestId, signal);
+        await this.recordModelSpan(task, requestId, step, modelStartedAt, settings.model, 'succeeded', assistantMessage.finishReason);
+      } catch (error) {
+        await this.recordModelSpan(task, requestId, step, modelStartedAt, settings.model, 'failed');
+        throw error;
+      }
 
       const content = this.readAssistantContent(assistantMessage);
       const toolCalls = Array.isArray(assistantMessage.tool_calls) ? assistantMessage.tool_calls : [];
@@ -132,6 +137,7 @@ export class RunAgentSession {
           toolCall,
           workspaceRoot,
           toolDefinition: toolsByName.get(toolName),
+          traceContext: task ? { traceId: task.traceId, taskId: task.id } : undefined,
         });
         conversation.push(result.toolMessage);
         stepContent += result.stepContent;
@@ -172,6 +178,7 @@ export class RunAgentSession {
     if (!task?.onCheckpoint) return;
     await task.onCheckpoint({
       id: task.id,
+      traceId: task.traceId,
       workspaceRoot: task.workspaceRoot,
       status,
       completedSteps,
@@ -179,6 +186,11 @@ export class RunAgentSession {
       conversation,
       knowledgeContext: task.knowledgeContext,
     });
+  }
+
+  private async recordModelSpan(task: AgentTaskRun | undefined, requestId: string, step: number, startedAt: string, model: string, status: 'succeeded' | 'failed', finishReason?: string) {
+    if (!task) return;
+    await this.tracer.recordSpan({ kind: 'model_call', traceId: task.traceId, taskId: task.id, requestId, step, startedAt, endedAt: new Date().toISOString(), status, model, finishReason }).catch(() => undefined);
   }
 
   private readAssistantContent(message: ChatMessage) {
@@ -192,6 +204,7 @@ export class RunAgentSession {
 
 export type AgentTaskRun = {
   id: string;
+  traceId: string;
   workspaceRoot: string;
   completedSteps: number;
   messages: Message[];

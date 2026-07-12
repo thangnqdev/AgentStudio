@@ -7,6 +7,7 @@ import { PlaceholderView } from './components/PlaceholderView';
 import { SettingsView } from './components/SettingsView';
 import { AiSetupDialog } from './components/AiSetupDialog';
 import { KnowledgeView } from './components/KnowledgeView';
+import { TraceView } from './components/TraceView';
 import { AgentBridge } from './infrastructure/ipc/agentStudioBridge';
 import { useAppStore, type ViewId } from './store/useAppStore';
 import type { Message, Attachment } from './domain/entities/message';
@@ -72,6 +73,9 @@ function MainContent({ view }: { view: ViewId }) {
   }
   if (view === 'knowledge') {
     return <KnowledgeView />;
+  }
+  if (view === 'observability') {
+    return <TraceView />;
   }
   return <PlaceholderView view={view} />;
 }
