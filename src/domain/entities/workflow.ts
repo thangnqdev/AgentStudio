@@ -1,0 +1,4 @@
+export type WorkflowNode = { id: string; label: string; kind: 'action' | 'branch' | 'approval' | 'parallel'; capabilityId?: string; risk?: 'read' | 'write' | 'execute' | 'network'; childNodeIds?: string[]; summary?: string };
+export type WorkflowDefinition = { id: string; version: string; name: string; startNodeId: string; nodes: WorkflowNode[]; edges: Array<{ from: string; to: string; when?: 'true' | 'false' }> };
+export type NodeExecution = { nodeId: string; status: 'running' | 'succeeded' | 'failed' | 'denied' | 'awaiting_approval'; attempts: number; startedAt: string; endedAt?: string; result?: string | number | boolean | null; errorCode?: string };
+export type NodeCheckpoint = { runId: string; workflowId: string; workflowVersion: string; status: 'running' | 'paused' | 'completed' | 'failed'; currentNodeId?: string; executions: NodeExecution[]; createdAt: string; updatedAt: string };

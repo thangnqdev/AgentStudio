@@ -11,6 +11,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'knowledge', label: 'Cơ sở tri thức', icon: 'menu_book' },
   { id: 'observability', label: 'Quan sát agent', icon: 'monitoring' },
   { id: 'evaluations', label: 'Đánh giá agent', icon: 'fact_check' },
+  { id: 'workflows', label: 'Workflows', icon: 'account_tree' },
 ];
 
 export function Sidebar() {

@@ -7,6 +7,7 @@ import type { SkillStatus } from '../domain/entities/skill';
 import type { McpServerStatus, SaveMcpServerPayload } from '../domain/entities/mcp';
 import type { AgentTraceDetails, AgentTraceSummary } from '../domain/entities/agentTrace';
 import type { AgentEvaluationReport } from '../domain/entities/agentEvaluation';
+import type { NodeCheckpoint, WorkflowDefinition } from '../domain/entities/workflow';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -207,6 +208,10 @@ declare global {
       listAgentEvaluations: (limit?: number) => Promise<IpcResult<AgentEvaluationReport[]>>;
       runGoldenAgentEvaluation: () => Promise<IpcResult<AgentEvaluationReport>>;
       exportAgentEvaluation: (runId: string) => Promise<IpcResult<{ canceled: boolean }>>;
+      listWorkflowDefinitions: () => Promise<IpcResult<WorkflowDefinition[]>>;
+      listWorkflowRuns: (limit?: number) => Promise<IpcResult<NodeCheckpoint[]>>;
+      startWorkflow: (workflowId: string) => Promise<IpcResult<NodeCheckpoint>>;
+      resumeWorkflow: (payload: { workflowId: string; runId: string; nodeId: string; approved: boolean }) => Promise<IpcResult<NodeCheckpoint>>;
       listCommandShells: () => Promise<CommandShellPayload[]>;
       createTerminal: (payload: TerminalCreatePayload) => Promise<TerminalCreatedPayload>;
       writeTerminal: (payload: { terminalId: string; data: string }) => void;

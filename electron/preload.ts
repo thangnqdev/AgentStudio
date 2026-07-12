@@ -130,6 +130,10 @@ contextBridge.exposeInMainWorld('agentStudio', {
   listAgentEvaluations: (limit?: number) => ipcRenderer.invoke('evaluations:list', limit),
   runGoldenAgentEvaluation: () => ipcRenderer.invoke('evaluations:run-golden'),
   exportAgentEvaluation: (runId: string) => ipcRenderer.invoke('evaluations:export', runId),
+  listWorkflowDefinitions: () => ipcRenderer.invoke('workflows:list-definitions'),
+  listWorkflowRuns: (limit?: number) => ipcRenderer.invoke('workflows:list-runs', limit),
+  startWorkflow: (workflowId: string) => ipcRenderer.invoke('workflows:start', workflowId),
+  resumeWorkflow: (payload: unknown) => ipcRenderer.invoke('workflows:resume', payload),
 
   createTerminal: (payload: unknown) => ipcRenderer.invoke('terminal:create', payload),
   listCommandShells: () => ipcRenderer.invoke('terminal:list-shells'),

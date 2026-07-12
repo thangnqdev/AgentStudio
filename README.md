@@ -110,6 +110,15 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - Reports persist as owner-only JSONL under Electron `userData/evaluations`; the **Đánh giá agent** view can run the golden suite and export a selected report.
 - Architecture decision and invariants: [`docs/adr/0002-agent-wide-evaluation.md`](docs/adr/0002-agent-wide-evaluation.md).
 
+## Workflow Runtime
+
+- Versioned DAG workflows support sequence, equality-based branch, bounded retry, durable approval and parallel read-only action nodes.
+- Each transition persists a `NodeCheckpoint`; paused approval runs resume from the same node and do not replay successful predecessors.
+- Parallel children are rejected unless every child is a uniquely owned `read` action. Cycles, unbounded retries, arbitrary expressions and parallel writes are rejected by domain validation.
+- The built-in **Local Agent Readiness** workflow checks workspace/provider/knowledge state, demonstrates parallel reads and pauses for explicit approval without changing tool permissions.
+- The **Workflows** view starts runs, displays node executions and submits approve/deny decisions through typed IPC.
+- Architecture decision and invariants: [`docs/adr/0003-workflow-runtime.md`](docs/adr/0003-workflow-runtime.md).
+
 ## Project Structure
 
 ```
