@@ -10,6 +10,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'tasks', label: 'Tác vụ hiện tại', icon: 'bolt' },
   { id: 'knowledge', label: 'Cơ sở tri thức', icon: 'menu_book' },
   { id: 'observability', label: 'Quan sát agent', icon: 'monitoring' },
+  { id: 'evaluations', label: 'Đánh giá agent', icon: 'fact_check' },
 ];
 
 export function Sidebar() {

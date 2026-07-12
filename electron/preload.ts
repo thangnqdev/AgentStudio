@@ -127,6 +127,9 @@ contextBridge.exposeInMainWorld('agentStudio', {
   listAgentTraces: (limit?: number) => ipcRenderer.invoke('traces:list', limit),
   getAgentTrace: (traceId: string) => ipcRenderer.invoke('traces:get', traceId),
   exportAgentTrace: (traceId: string) => ipcRenderer.invoke('traces:export', traceId),
+  listAgentEvaluations: (limit?: number) => ipcRenderer.invoke('evaluations:list', limit),
+  runGoldenAgentEvaluation: () => ipcRenderer.invoke('evaluations:run-golden'),
+  exportAgentEvaluation: (runId: string) => ipcRenderer.invoke('evaluations:export', runId),
 
   createTerminal: (payload: unknown) => ipcRenderer.invoke('terminal:create', payload),
   listCommandShells: () => ipcRenderer.invoke('terminal:list-shells'),

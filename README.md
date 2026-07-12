@@ -101,6 +101,15 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - Prompts, chat content, retrieval queries/results, tool arguments/output, API keys, credentials, workspace paths, and provider URLs are not part of the trace schema and are rejected by runtime validation.
 - Architecture decision and invariants: [`docs/adr/0001-unified-observability.md`](docs/adr/0001-unified-observability.md).
 
+## Agent-wide Evaluation
+
+- `npm run eval:agent -- [report.json]` runs the versioned golden suite and exits non-zero when aggregate or dimension thresholds regress.
+- The suite grades task outcome, tool selection, code-change scope/tests, policy violations, trajectory efficiency and knowledge retrieval in one report.
+- Retrieval evaluation reuses the existing Recall@k, reciprocal-rank and nDCG implementation rather than defining a second metric path.
+- Evaluators receive a deep-cloned, frozen fixture and have no task repository, tool executor or policy mutation capability. Every score includes fixture/evaluator provenance and semantic versions.
+- Reports persist as owner-only JSONL under Electron `userData/evaluations`; the **Đánh giá agent** view can run the golden suite and export a selected report.
+- Architecture decision and invariants: [`docs/adr/0002-agent-wide-evaluation.md`](docs/adr/0002-agent-wide-evaluation.md).
+
 ## Project Structure
 
 ```

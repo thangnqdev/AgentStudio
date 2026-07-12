@@ -15,6 +15,7 @@ import { registerStartupIpc } from './ipc/registerStartupIpc.js';
 import { registerSkillIpc } from './ipc/registerSkillIpc.js';
 import { registerMcpIpc } from './ipc/registerMcpIpc.js';
 import { registerTraceIpc } from './ipc/registerTraceIpc.js';
+import { registerEvaluationIpc } from './ipc/registerEvaluationIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
 import { ElectronAutoUpdater } from './infrastructure/ElectronAutoUpdater.js';
 import { SplashWindow } from './infrastructure/SplashWindow.js';
@@ -75,6 +76,7 @@ function registerIpcHandlers() {
   registerSkillIpc();
   registerMcpIpc();
   registerTraceIpc(win);
+  registerEvaluationIpc(win);
   if (appUpdate) registerUpdateIpc(() => win, appUpdate);
   registerStartupIpc(() => win, splashWindow);
 }

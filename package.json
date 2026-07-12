@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "eval:knowledge": "tsx scripts/evaluateKnowledge.ts",
+    "eval:agent": "tsx scripts/evaluateAgent.ts",
     "preview": "vite preview",
     "package": "npm run build && electron-builder --win --publish never",
     "release": "npm run build && electron-builder --win --publish always"

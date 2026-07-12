@@ -6,6 +6,7 @@ import type { AppUpdateSnapshot } from '../domain/entities/appUpdate';
 import type { SkillStatus } from '../domain/entities/skill';
 import type { McpServerStatus, SaveMcpServerPayload } from '../domain/entities/mcp';
 import type { AgentTraceDetails, AgentTraceSummary } from '../domain/entities/agentTrace';
+import type { AgentEvaluationReport } from '../domain/entities/agentEvaluation';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -203,6 +204,9 @@ declare global {
       listAgentTraces: (limit?: number) => Promise<IpcResult<AgentTraceSummary[]>>;
       getAgentTrace: (traceId: string) => Promise<IpcResult<AgentTraceDetails>>;
       exportAgentTrace: (traceId: string) => Promise<IpcResult<{ canceled: boolean; recordCount: number }>>;
+      listAgentEvaluations: (limit?: number) => Promise<IpcResult<AgentEvaluationReport[]>>;
+      runGoldenAgentEvaluation: () => Promise<IpcResult<AgentEvaluationReport>>;
+      exportAgentEvaluation: (runId: string) => Promise<IpcResult<{ canceled: boolean }>>;
       listCommandShells: () => Promise<CommandShellPayload[]>;
       createTerminal: (payload: TerminalCreatePayload) => Promise<TerminalCreatedPayload>;
       writeTerminal: (payload: { terminalId: string; data: string }) => void;
