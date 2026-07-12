@@ -73,7 +73,10 @@ export class RunAgentSession {
     let completedSteps = task?.completedSteps ?? 0;
 
     const rebuildConversation = async () => {
-      const compactedContext = compactContext(currentMessages, inputContextTokens);
+      const compactedContext = compactContext(
+        currentMessages.filter((m) => m.sender !== 'system'),
+        inputContextTokens
+      );
       conversation = [
         {
           role: 'system',
@@ -85,6 +88,17 @@ export class RunAgentSession {
         }] : []),
         ...await this.attachmentFormatter.format(compactedContext.recentMessages),
       ];
+
+      if (compactedContext.didCompact) {
+        const lastMsg = currentMessages[currentMessages.length - 1];
+        if (!lastMsg || lastMsg.sender !== 'system' || !lastMsg.content.includes('đã được nén')) {
+          currentMessages.push({
+            id: `compaction-${Date.now()}`,
+            sender: 'system',
+            content: `Ngữ cảnh cũ đã được nén (còn lại ~${compactedContext.compactedApproxTokens} tokens) để tối ưu bộ nhớ.`,
+          });
+        }
+      }
     };
 
     if (conversation.length === 0) await rebuildConversation();

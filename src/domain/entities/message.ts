@@ -28,7 +28,7 @@ export interface AgentThought {
 
 export interface Message {
   id: string;
-  sender: 'user' | 'agent';
+  sender: 'user' | 'agent' | 'system';
   content: string;
   type?: 'text' | 'code' | 'permission_request';
   status?: 'sending' | 'done' | 'error';

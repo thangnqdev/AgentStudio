@@ -31,7 +31,7 @@ export function estimateAttachmentTokens(attachment: Pick<Attachment, 'name' | '
 }
 
 export function estimateMessageTokens(message: {
-  sender: 'user' | 'agent';
+  sender: 'user' | 'agent' | 'system';
   content: string;
   attachments?: Attachment[];
 }) {

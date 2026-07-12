@@ -14,7 +14,7 @@ export type Attachment = {
 
 export type Message = {
   id: string;
-  sender: 'user' | 'agent';
+  sender: 'user' | 'agent' | 'system';
   content: string;
   attachments?: Attachment[];
 };

@@ -10,7 +10,7 @@ export type CompactableAttachment = {
 import { TOOL_PATTERN, TOOL_PREFIX_PATTERN } from './domain/entities/agent.js';
 
 export type CompactableMessage = {
-  sender: 'user' | 'agent';
+  sender: 'user' | 'agent' | 'system';
   content: string;
   attachments?: CompactableAttachment[];
 };

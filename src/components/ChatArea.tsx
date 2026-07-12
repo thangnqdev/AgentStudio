@@ -3,6 +3,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useAgentChat } from '../application/hooks/useAgentChat';
 import { UserMessage } from './chat/UserMessage';
 import { AgentMessage } from './chat/AgentMessage';
+import { SystemMessage } from './chat/SystemMessage';
 import { TypingIndicator } from './chat/TypingIndicator';
 import { ChatEmptyState } from './chat/ChatEmptyState';
 
@@ -93,8 +94,10 @@ export function ChatArea() {
             {messages.map((msg) =>
               msg.sender === 'user' ? (
                 <UserMessage key={msg.id} msg={msg} onRegenerate={handleRegenerate} />
-              ) : (
+              ) : msg.sender === 'agent' ? (
                 <AgentMessage key={msg.id} msg={msg} />
+              ) : (
+                <SystemMessage key={msg.id} msg={msg} />
               )
             )}
             {isAgentTyping && <TypingIndicator />}

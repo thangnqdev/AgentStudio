@@ -46,7 +46,7 @@ export function parseTextAndCode(content: string): AgentContentPart[] {
  */
 export function parseAgentContent(content: string): AgentContentPart[] {
   const parts: AgentContentPart[] = [];
-  const pattern = /(?:<(?:think|thinking)>([\s\S]*?)(?:<\/(?:think|thinking)>|$))|(?:\[tool:([^\]]+)\])/gi;
+  const pattern = /(?:<(?:think|thinking)>([\s\S]*?)(?:<\/(?:think|thinking)>|$))|(?:\[tool:([^\]]+)\]([\s\S]*?)(?=\[tool:|<think>|<\/think>|$))/gi;
 
   let lastIndex = 0;
   let match: RegExpExecArray | null;
