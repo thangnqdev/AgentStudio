@@ -5,7 +5,7 @@ import { createBlankThread, deriveThreadTitle, reviveThread } from '../domain/en
 import type { AppSettings } from '../domain/entities/settings';
 import { reduceAgentAction, reduceAgentThoughtChunk } from '../application/services/agentStateReducers';
 
-export type ViewId = 'tasks' | 'workspace' | 'knowledge' | 'observability' | 'evaluations' | 'workflows' | 'files' | 'terminal' | 'agents' | 'settings';
+export type ViewId = 'tasks' | 'workspace' | 'knowledge' | 'observability' | 'evaluations' | 'workflows' | 'capabilities' | 'files' | 'terminal' | 'agents' | 'settings';
 
 interface AppState {
   projectPath: string | null;

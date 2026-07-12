@@ -8,6 +8,7 @@ import type { McpServerStatus, SaveMcpServerPayload } from '../domain/entities/m
 import type { AgentTraceDetails, AgentTraceSummary } from '../domain/entities/agentTrace';
 import type { AgentEvaluationReport } from '../domain/entities/agentEvaluation';
 import type { NodeCheckpoint, WorkflowDefinition } from '../domain/entities/workflow';
+import type { CapabilityRecommendation, CapabilityRecommendationRequest, CapabilitySnapshot } from '../domain/entities/capability';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -212,6 +213,8 @@ declare global {
       listWorkflowRuns: (limit?: number) => Promise<IpcResult<NodeCheckpoint[]>>;
       startWorkflow: (workflowId: string) => Promise<IpcResult<NodeCheckpoint>>;
       resumeWorkflow: (payload: { workflowId: string; runId: string; nodeId: string; approved: boolean }) => Promise<IpcResult<NodeCheckpoint>>;
+      listCapabilities: () => Promise<IpcResult<CapabilitySnapshot[]>>;
+      recommendCapabilities: (payload: CapabilityRecommendationRequest) => Promise<IpcResult<CapabilityRecommendation[]>>;
       listCommandShells: () => Promise<CommandShellPayload[]>;
       createTerminal: (payload: TerminalCreatePayload) => Promise<TerminalCreatedPayload>;
       writeTerminal: (payload: { terminalId: string; data: string }) => void;

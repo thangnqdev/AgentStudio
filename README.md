@@ -119,6 +119,14 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - The **Workflows** view starts runs, displays node executions and submits approve/deny decisions through typed IPC.
 - Architecture decision and invariants: [`docs/adr/0003-workflow-runtime.md`](docs/adr/0003-workflow-runtime.md).
 
+## Capability Registry
+
+- Local tools, connected MCP tools, knowledge retrieval, trusted skills, web search and PTY terminal appear in one typed, read-only inventory.
+- Each snapshot reports availability, risk, explicit cost confidence, sample count, success rate, mean/p95 latency and categorized failures derived from sanitized traces.
+- The **Capabilities** view shows the inventory and advisory ranking. Recommendations contain no tool arguments, executor access or permission mutation; execution still passes through the existing central policy.
+- Unknown metrics and costs remain `null`/`unknown` instead of being treated as zero.
+- Architecture decision and invariants: [`docs/adr/0004-capability-registry.md`](docs/adr/0004-capability-registry.md).
+
 ## Project Structure
 
 ```

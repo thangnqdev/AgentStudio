@@ -12,6 +12,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'observability', label: 'Quan sát agent', icon: 'monitoring' },
   { id: 'evaluations', label: 'Đánh giá agent', icon: 'fact_check' },
   { id: 'workflows', label: 'Workflows', icon: 'account_tree' },
+  { id: 'capabilities', label: 'Capabilities', icon: 'extension' },
 ];
 
 export function Sidebar() {

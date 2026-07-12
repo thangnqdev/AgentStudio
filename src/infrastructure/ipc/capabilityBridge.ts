@@ -4,6 +4,8 @@ function bridge() {
 }
 
 export const CapabilityBridge = {
+  list: () => bridge().listCapabilities(),
+  recommend: (payload: Parameters<NonNullable<Window['agentStudio']>['recommendCapabilities']>[0]) => bridge().recommendCapabilities(payload),
   listSkills: () => bridge().listSkills(),
   setSkillEnabled: (payload: Parameters<NonNullable<Window['agentStudio']>['setSkillEnabled']>[0]) => bridge().setSkillEnabled(payload),
   setSkillTrusted: (payload: Parameters<NonNullable<Window['agentStudio']>['setSkillTrusted']>[0]) => bridge().setSkillTrusted(payload),

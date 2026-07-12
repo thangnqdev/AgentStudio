@@ -134,6 +134,8 @@ contextBridge.exposeInMainWorld('agentStudio', {
   listWorkflowRuns: (limit?: number) => ipcRenderer.invoke('workflows:list-runs', limit),
   startWorkflow: (workflowId: string) => ipcRenderer.invoke('workflows:start', workflowId),
   resumeWorkflow: (payload: unknown) => ipcRenderer.invoke('workflows:resume', payload),
+  listCapabilities: () => ipcRenderer.invoke('capabilities:list'),
+  recommendCapabilities: (payload: unknown) => ipcRenderer.invoke('capabilities:recommend', payload),
 
   createTerminal: (payload: unknown) => ipcRenderer.invoke('terminal:create', payload),
   listCommandShells: () => ipcRenderer.invoke('terminal:list-shells'),
