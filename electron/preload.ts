@@ -102,7 +102,7 @@ contextBridge.exposeInMainWorld('agentStudio', {
   getFilePath: (file: unknown) => webUtils.getPathForFile(file as File),
   loadChatHistory: (workspacePath: string) => ipcRenderer.invoke('chat:load-workspace', workspacePath),
   saveChatHistory: (payload: unknown) => ipcRenderer.invoke('chat:save-workspace', payload),
-  getGitBranch: (workspacePath: string) => ipcRenderer.invoke('git:get-branch', workspacePath),
+  getGitBranch: () => ipcRenderer.invoke('git:get-branch'),
   listKnowledge: () => ipcRenderer.invoke('knowledge:list'),
   selectAndImportKnowledge: () => ipcRenderer.invoke('knowledge:select-and-import'),
   syncWorkspaceKnowledge: () => ipcRenderer.invoke('knowledge:sync-workspace'),

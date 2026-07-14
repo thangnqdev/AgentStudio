@@ -11,10 +11,11 @@ spawn('/bin/sh', ['-lc', command], { cwd, env: safeEnv });
 ```
 Không bao giờ dùng `exec`/`execAsync` với template string chứa biến động.
 
-> **Lưu ý về git:** `SimpleGitAdapter.ts` hiện chỉ implement `getBranch()` dùng `execAsync('git
-> rev-parse --abbrev-ref HEAD', { cwd })` — lệnh này không interpolate biến người dùng nên an
-> toàn. Các thao tác git khác (diff, status, commit, push, pull) là **roadmap chưa implement**.
-> Khi implement, bắt buộc dùng `simple-git` library, không dùng execAsync template string.
+> **Lưu ý về git:** `SimpleGitAdapter.ts` hiện chỉ implement `getBranch()` bằng
+> `execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'])`; workspace lấy từ
+> `WorkspaceManager`, không nhận `cwd` từ renderer. Các thao tác git khác (diff, status,
+> commit, push, pull) là **roadmap chưa implement**. Khi implement, bắt buộc dùng argument
+> array hoặc `simple-git`, không dùng `exec`/`execAsync`.
 
 **Checklist:**
 - [ ] Không có biến động (path, tên branch, tên file, nội dung do agent/người dùng tạo) nào
@@ -26,14 +27,13 @@ Không bao giờ dùng `exec`/`execAsync` với template string chứa biến đ
 - [ ] **Env var allowlist bắt buộc**: `spawnAndCollect.ts` filter chỉ cho qua
       `PATH`, `HOME`, `LANG`, `LC_ALL`, `LC_CTYPE`, `TMPDIR`, `TEMP`, `TMP`, `TERM`, `USER`,
       `LOGNAME`, `SHELL`. Không truyền `process.env` nguyên vẹn vào tiến trình con.
-- [ ] Sandbox macOS (`sandbox-exec`) hiện chỉ giới hạn **ghi**, không giới hạn **đọc**
-      (`file-read*` được allow không điều kiện). Nếu tool đọc file nhạy cảm là mối lo với use
-      case của bạn, cân nhắc giới hạn đọc theo subpath tương tự như ghi.
+- [ ] Sandbox macOS (`sandbox-exec`) giới hạn đọc/ghi vào workspace, thư mục tạm và các
+      system paths cần để chạy binary; không thêm `file-read*` toàn cục.
 - [ ] **Parity 3 hệ điều hành:**
-      - macOS: sandbox-exec + Seatbelt ✅ (`macOsSandbox.ts`)
-      - Linux: bwrap ✅ (`linuxSandbox.ts`)
-      - Windows danger-full-access: cmd.exe /c ✅ (`windowsSandbox.ts`)
-      - Windows workspace-write: fail rõ ràng với hướng dẫn ✅ (`windowsSandbox.ts`)
+      - macOS: sandbox-exec + Seatbelt ✅ (`SandboxedCommandExecutor.ts`)
+      - Linux: bwrap ✅ (`SandboxedCommandExecutor.ts`)
+      - Windows danger-full-access: cmd.exe /c ✅ (`SandboxedCommandExecutor.ts`)
+      - Windows workspace-write: fail rõ ràng với hướng dẫn ✅ (`SandboxedCommandExecutor.ts`)
 - [ ] SIGTERM timeout: sau khi SIGTERM, có SIGKILL fallback 5 giây nếu process không phản hồi.
 - [ ] Output của tool (stdout/stderr) được gửi thẳng vào model — nhắc rõ trong tài liệu người
       dùng rằng lệnh chạy trong `workspace-write`/`danger-full-access` có thể làm lộ dữ liệu

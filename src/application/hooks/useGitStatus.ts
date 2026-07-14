@@ -14,7 +14,7 @@ export function useGitStatus() {
     }
 
     let isMounted = true;
-    AgentBridge.getGitBranch(projectPath)
+    AgentBridge.getGitBranch()
       .then((branch) => {
         if (isMounted) {
           setCurrentBranch(branch || null);

@@ -4,7 +4,7 @@ import type { ChatThread } from '../domain/entities/chatThread';
 import type { AgentAction, AgentThought, Message } from '../domain/entities/message';
 import type { AppSettings } from '../domain/entities/settings';
 
-export type ViewId = 'tasks' | 'workspace' | 'knowledge' | 'observability' | 'evaluations' | 'workflows' | 'capabilities' | 'optimizer' | 'skill-learning' | 'files' | 'terminal' | 'agents' | 'settings';
+export type ViewId = 'tasks' | 'knowledge' | 'observability' | 'evaluations' | 'workflows' | 'capabilities' | 'optimizer' | 'skill-learning' | 'agents' | 'settings';
 
 export interface UiSlice {
   projectPath: string | null;

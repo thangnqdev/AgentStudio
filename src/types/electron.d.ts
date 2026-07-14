@@ -188,7 +188,7 @@ declare global {
       getFilePath: (file: File) => string;
       loadChatHistory: (workspacePath: string) => Promise<ChatHistoryPayload>;
       saveChatHistory: (payload: { workspacePath: string; threads: ChatThread[]; activeThreadId: string | null }) => Promise<{ ok: boolean }>;
-      getGitBranch: (workspacePath: string) => Promise<string | null>;
+      getGitBranch: () => Promise<string | null>;
       listKnowledge: () => Promise<IpcResult<KnowledgeLibraryPayload>>;
       selectAndImportKnowledge: () => Promise<IpcResult<KnowledgeImportPayload>>;
       syncWorkspaceKnowledge: () => Promise<IpcResult<KnowledgeWorkspaceSyncPayload>>;

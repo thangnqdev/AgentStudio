@@ -3,7 +3,6 @@ import { Sidebar } from './components/Sidebar';
 import { TopAppBar } from './components/TopAppBar';
 import { ChatArea } from './components/ChatArea';
 import { PromptComposer } from './components/PromptComposer';
-import { PlaceholderView } from './components/PlaceholderView';
 import { SettingsView } from './components/SettingsView';
 import { AiSetupDialog } from './components/AiSetupDialog';
 import { KnowledgeView } from './components/KnowledgeView';
@@ -101,7 +100,7 @@ function MainContent({ view }: { view: ViewId }) {
   if (view === 'agents') {
     return <AgentProfilesView />;
   }
-  return <PlaceholderView view={view} />;
+  return null;
 }
 
 function App() {

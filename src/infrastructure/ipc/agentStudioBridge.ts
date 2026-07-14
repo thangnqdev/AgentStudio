@@ -150,9 +150,9 @@ export const AgentBridge = {
     return window.agentStudio.saveChatHistory(payload);
   },
 
-  async getGitBranch(workspacePath: string) {
+  async getGitBranch() {
     if (!window.agentStudio) return null;
-    return window.agentStudio.getGitBranch(workspacePath);
+    return window.agentStudio.getGitBranch();
   },
 
   async listKnowledge() {
