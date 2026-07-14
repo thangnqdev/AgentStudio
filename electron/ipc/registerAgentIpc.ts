@@ -82,6 +82,7 @@ export function registerAgentIpc() {
         fallbackModels: fallbackModel ? [fallbackModel] : [],
         modelContextWindows,
         retryCount: tuning.retryCount,
+        requestTimeoutMs: tuning.timeoutMs,
         contextWindow: activeProvider.models.find(m => m.id === selectedModel)?.contextWindow,
         contextBudgetTokens: tuning.contextBudgetTokens,
         permissionMode: settings.permissionMode,

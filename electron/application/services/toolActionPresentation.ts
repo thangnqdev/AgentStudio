@@ -22,5 +22,10 @@ export function summarizeToolArguments(toolName: string, args: Record<string, un
     return domains ? `query=${query} | domains=${domains}` : `query=${query}`;
   }
   if (toolName === 'load_skill') return `skillId=${typeof args.skillId === 'string' ? args.skillId : ''}`;
+  if (toolName === 'delegate_task') {
+    const role = typeof args.role === 'string' ? args.role : 'explore';
+    const characters = typeof args.prompt === 'string' ? args.prompt.length : 0;
+    return `role=${role} (${characters} prompt characters)`;
+  }
   return Object.keys(args).sort().join(', ');
 }

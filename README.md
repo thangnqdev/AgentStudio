@@ -106,6 +106,12 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - A paused or failed task can resume in place, or continue on an independent branch. A branch preserves the source context and conversation, records `parentTaskId` lineage, receives a fresh trace and step budget, and never mutates the source task.
 - Running tasks cannot be forked because their latest in-memory tool/model state may not yet be durable. Branch depth is bounded at 20.
 
+### Read-only Subagents
+
+- The root model can use `delegate_task` for bounded `explore`, `review`, or `plan` work. Delegation is classified as network risk and therefore follows the same central approval rules as every other tool.
+- Each subagent gets at most eight model steps, a 12,000-character task prompt, a 40,000-character final result, and only the local `list_files`, `read_file`, and `load_skill` tools.
+- Subagents always run in `read-only`, cannot delegate recursively, and cannot open an interactive approval prompt. A matching `ask` or `deny` rule blocks the child tool call rather than weakening policy.
+
 ### MCP Servers
 
 - MCP servers are added only through Settings; models, repository files, and skills cannot register or launch servers.

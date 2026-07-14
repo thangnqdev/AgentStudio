@@ -17,6 +17,8 @@ import { JsonlAgentTraceRepository } from './infrastructure/tracing/JsonlAgentTr
 import { AgentTraceService } from './application/services/AgentTraceService.js';
 import type { RuntimeOptimizationConfig } from './domain/entities/optimizer.js';
 import { toolPermissionPolicy } from './permissionRuntime.js';
+import { RunReadOnlySubagent } from './application/usecases/RunReadOnlySubagent.js';
+import { DelegatingToolPlatform } from './application/services/DelegatingToolPlatform.js';
 
 export * from './domain/entities/agent.js';
 
@@ -40,7 +42,7 @@ export async function runAgentSession(
   const webSearchSettings = await webSearchSettingsRepository.load();
   const provider = new OpenAIProvider();
   const eventSink = new ElectronAgentEventSink(sender);
-  const toolExecutor = new AgentToolExecutor(
+  const baseToolPlatform = new AgentToolExecutor(
     webSearchSettings,
     async (skillId, root) => {
       const loaded = await skillManager.loadInstructions(root, skillId);
@@ -50,7 +52,9 @@ export async function runAgentSession(
     mcpGateway,
     tuning?.timeoutMs,
   );
-  const session = new RunAgentSession(provider, toolExecutor, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, toolPermissionPolicy);
+  const subagent = new RunReadOnlySubagent(provider, baseToolPlatform, baseToolPlatform, settings, toolPermissionPolicy, signal);
+  const toolPlatform = new DelegatingToolPlatform(baseToolPlatform, baseToolPlatform, subagent);
+  const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, toolPermissionPolicy);
   const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, skillContext, signal, task
     ? {
       id: task.id,

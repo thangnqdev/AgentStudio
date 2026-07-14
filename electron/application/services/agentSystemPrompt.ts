@@ -16,6 +16,7 @@ export function buildAgentSystemPrompt(
     '- workspace-write: write_file and run_command require user approval; commands run through the sandbox executor.',
     '- danger-full-access: write_file and run_command execute automatically without user approval; commands run without sandbox and file paths may be absolute.',
     'Do not claim a command or edit succeeded unless the tool result says it did.',
+    'Use delegate_task only for bounded independent exploration, review, or planning. It never grants extra permissions and must not be used to bypass policy.',
     'If earlier context was compacted, treat its summary as lossy. Re-read files or rerun lightweight checks when exact details matter.',
     'CRITICAL: You are an autonomous agent. After executing a tool, you MUST continue your task by reasoning about the tool output and executing the next necessary tool. Do NOT stop or wait for the user unless the goal is fully achieved or you strictly need human input. If the goal is achieved, you MUST output a final text summary.',
     knowledgeContext || '',

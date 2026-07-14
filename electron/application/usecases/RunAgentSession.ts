@@ -24,6 +24,7 @@ import { ResilientModelRequester } from '../services/ResilientModelRequester.js'
 import { contextProjectionPolicy, projectConversationForModel } from '../services/conversationProjection.js';
 import { AgentConversationBuilder } from '../services/AgentConversationBuilder.js';
 import { OUTPUT_CONTINUATION_PROMPT, shouldContinueModelOutput } from '../services/outputContinuation.js';
+import { readAssistantContent } from '../services/assistantMessage.js';
 
 export class RunAgentSession {
   private readonly modelRequester: ResilientModelRequester;
@@ -111,7 +112,7 @@ export class RunAgentSession {
         throw error;
       }
 
-      const content = this.readAssistantContent(assistantMessage);
+      const content = readAssistantContent(assistantMessage);
       const toolCalls = Array.isArray(assistantMessage.tool_calls) ? assistantMessage.tool_calls : [];
       const requiresContinuation = toolCalls.length === 0
         && shouldContinueModelOutput(assistantMessage.finishReason, outputContinuations);
@@ -215,13 +216,6 @@ export class RunAgentSession {
     await this.tracer.recordSpan({ kind: 'model_call', traceId: task.traceId, taskId: task.id, requestId, step, startedAt, endedAt: new Date().toISOString(), status, model, finishReason }).catch(() => undefined);
   }
 
-  private readAssistantContent(message: ChatMessage) {
-    if (typeof message.content === 'string') return message.content;
-    if (Array.isArray(message.content)) {
-      return message.content.map((part) => typeof part === 'object' && part !== null && typeof part.text === 'string' ? part.text : '').join('');
-    }
-    return '';
-  }
 }
 
 export type AgentTaskRun = {
