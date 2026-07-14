@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'capabilities', label: 'Capabilities', icon: 'extension' },
   { id: 'optimizer', label: 'Safe Optimizer', icon: 'tune' },
   { id: 'skill-learning', label: 'Skill Learning', icon: 'school' },
+  { id: 'agents', label: 'Agent Profiles', icon: 'smart_toy' },
 ];
 
 export function Sidebar() {

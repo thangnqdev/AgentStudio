@@ -5,6 +5,7 @@ import { RunReadOnlySubagent } from './RunReadOnlySubagent.js';
 
 const readTool: AgentToolDefinition = { name: 'read_file', description: '', risk: 'read', parameters: { properties: { path: { type: 'string' } }, required: ['path'] } };
 const writeTool: AgentToolDefinition = { name: 'write_file', description: '', risk: 'write', parameters: { properties: {} } };
+const listTool: AgentToolDefinition = { name: 'list_files', description: '', risk: 'read', parameters: { properties: {} } };
 const settings = { baseUrl: 'https://provider.invalid', apiKey: '', model: 'model', permissionMode: 'workspace-write' as const, retryCount: 0 };
 
 describe('RunReadOnlySubagent', () => {
@@ -60,6 +61,25 @@ describe('RunReadOnlySubagent', () => {
     );
     await expect(runner.run({ prompt: 'Inspect', role: 'explore', workspaceRoot: '/workspace' })).rejects.toThrow('stopped');
     expect(provider.requestAssistantMessage).not.toHaveBeenCalled();
+  });
+
+  it('loads only trusted profile instructions and lets profiles narrow read tools', async () => {
+    const seen: Array<{ messages: ChatMessage[]; tools: AgentToolDefinition[] }> = [];
+    const provider = {
+      requestAssistantMessage: vi.fn(async (_settings: unknown, messages: ChatMessage[], tools: AgentToolDefinition[]) => {
+        seen.push({ messages, tools });
+        return { role: 'assistant' as const, content: 'Profile review complete.' };
+      }),
+    };
+    const runner = new RunReadOnlySubagent(
+      provider, { list: async () => [readTool, listTool] }, { execute: async () => ({ ok: true, output: '' }) }, settings,
+      { evaluate: async () => ({ allowed: true, requiresApproval: false }) }, undefined,
+      { load: async () => ({ id: 'profile-1', name: 'strict-reviewer', instructions: 'Check every claim.', allowedTools: ['read_file'] }) },
+    );
+    const result = await runner.run({ prompt: 'Review', role: 'review', agentId: 'profile-1', workspaceRoot: '/workspace' });
+    expect(result).toMatchObject({ agentId: 'profile-1', content: 'Profile review complete.' });
+    expect(seen[0].tools.map((tool) => tool.name)).toEqual(['read_file']);
+    expect(String(seen[0].messages[0].content)).toContain('Check every claim.');
   });
 });
 

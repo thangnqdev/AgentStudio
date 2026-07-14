@@ -24,8 +24,9 @@ export function summarizeToolArguments(toolName: string, args: Record<string, un
   if (toolName === 'load_skill') return `skillId=${typeof args.skillId === 'string' ? args.skillId : ''}`;
   if (toolName === 'delegate_task') {
     const role = typeof args.role === 'string' ? args.role : 'explore';
+    const agentId = typeof args.agentId === 'string' ? ` agentId=${args.agentId}` : '';
     const characters = typeof args.prompt === 'string' ? args.prompt.length : 0;
-    return `role=${role} (${characters} prompt characters)`;
+    return `role=${role}${agentId} (${characters} prompt characters)`;
   }
   return Object.keys(args).sort().join(', ');
 }

@@ -111,6 +111,19 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - The root model can use `delegate_task` for bounded `explore`, `review`, or `plan` work. Delegation is classified as network risk and therefore follows the same central approval rules as every other tool.
 - Each subagent gets at most eight model steps, a 12,000-character task prompt, a 40,000-character final result, and only the local `list_files`, `read_file`, and `load_skill` tools.
 - Subagents always run in `read-only`, cannot delegate recursively, and cannot open an interactive approval prompt. A matching `ask` or `deny` rule blocks the child tool call rather than weakening policy.
+- Custom profiles are discovered from `userData/agents`, `~/.agents/agents`, `.agents/agents`, `.agent/agents`, and `.claude/agents`. Both user and workspace profiles require explicit trust and enablement in **Agent Profiles**.
+- Profile identity is bound to a content hash. Editing metadata or instructions creates a new untrusted identity, and a second hash check at load time closes the discover/load race.
+
+```md
+---
+name: strict-reviewer
+description: Review correctness and cite file evidence
+tools: [list_files, read_file]
+---
+Check assumptions, identify concrete failure modes, and clearly label uncertainty.
+```
+
+- Architecture decision and invariants: [`docs/adr/0007-bounded-subagents-and-profiles.md`](docs/adr/0007-bounded-subagents-and-profiles.md).
 
 ### MCP Servers
 

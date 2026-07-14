@@ -13,6 +13,7 @@ import { WorkflowView } from './components/WorkflowView';
 import { CapabilityView } from './components/CapabilityView';
 import { OptimizerView } from './components/OptimizerView';
 import { SkillLearningView } from './components/SkillLearningView';
+import { AgentProfilesView } from './components/AgentProfilesView';
 import { AgentBridge } from './infrastructure/ipc/agentStudioBridge';
 import { useAppStore, type ViewId } from './store/useAppStore';
 import type { Message, Attachment } from './domain/entities/message';
@@ -96,6 +97,9 @@ function MainContent({ view }: { view: ViewId }) {
   }
   if (view === 'skill-learning') {
     return <SkillLearningView />;
+  }
+  if (view === 'agents') {
+    return <AgentProfilesView />;
   }
   return <PlaceholderView view={view} />;
 }

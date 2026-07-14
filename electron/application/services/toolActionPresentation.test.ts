@@ -7,8 +7,8 @@ describe('summarizeToolArguments', () => {
   });
 
   it('does not expose delegated prompts in the approval summary', () => {
-    const summary = summarizeToolArguments('delegate_task', { role: 'review', prompt: 'private investigation details' });
-    expect(summary).toBe('role=review (29 prompt characters)');
+    const summary = summarizeToolArguments('delegate_task', { role: 'review', agentId: 'profile-1', prompt: 'private investigation details' });
+    expect(summary).toBe('role=review agentId=profile-1 (29 prompt characters)');
     expect(summary).not.toContain('private investigation');
   });
 });

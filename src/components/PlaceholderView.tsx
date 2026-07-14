@@ -6,7 +6,7 @@ interface ViewConfig {
   description: string;
 }
 
-type PlaceholderViewId = Exclude<ViewId, 'tasks' | 'settings' | 'observability' | 'evaluations' | 'workflows' | 'capabilities' | 'optimizer' | 'skill-learning'>;
+type PlaceholderViewId = Exclude<ViewId, 'tasks' | 'settings' | 'observability' | 'evaluations' | 'workflows' | 'capabilities' | 'optimizer' | 'skill-learning' | 'agents'>;
 
 const VIEW_CONFIGS: Record<PlaceholderViewId, ViewConfig> = {
   workspace: {
@@ -28,11 +28,6 @@ const VIEW_CONFIGS: Record<PlaceholderViewId, ViewConfig> = {
     icon: 'terminal',
     title: 'Trình lệnh',
     description: 'Chạy PowerShell, Command Prompt, zsh, bash hoặc shell hệ thống khác trong workspace hiện tại.',
-  },
-  agents: {
-    icon: 'smart_toy',
-    title: 'Trợ lý AI',
-    description: 'Cấu hình các trợ lý AI chuyên biệt, quản lý phiên làm việc và theo dõi hoạt động trên các tác vụ.',
   },
 };
 

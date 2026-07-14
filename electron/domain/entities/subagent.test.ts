@@ -9,5 +9,6 @@ describe('parseSubagentRequest', () => {
   it('rejects unknown roles and oversized prompts', () => {
     expect(() => parseSubagentRequest({ prompt: 'review', role: 'admin' })).toThrow('role is invalid');
     expect(() => parseSubagentRequest({ prompt: 'x'.repeat(MAX_SUBAGENT_PROMPT_CHARACTERS + 1) })).toThrow('exceeds');
+    expect(() => parseSubagentRequest({ prompt: 'review', agentId: '../escape' })).toThrow('agentId is invalid');
   });
 });

@@ -11,6 +11,7 @@ import type { NodeCheckpoint, WorkflowDefinition } from '../domain/entities/work
 import type { CapabilityRecommendation, CapabilityRecommendationRequest, CapabilitySnapshot } from '../domain/entities/capability';
 import type { OptimizationCandidate, OptimizerState, RuntimeOptimizationConfig } from '../domain/entities/optimizer';
 import type { SkillCandidate } from '../domain/entities/skillLearning';
+import type { AgentProfileStatus } from '../domain/entities/agentProfile';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -196,6 +197,9 @@ declare global {
       listSkills: () => Promise<IpcResult<SkillStatus[]>>;
       setSkillEnabled: (payload: { skillId: string; enabled: boolean }) => Promise<IpcResult<SkillStatus[]>>;
       setSkillTrusted: (payload: { skillId: string; trusted: boolean }) => Promise<IpcResult<SkillStatus[]>>;
+      listAgentProfiles: () => Promise<IpcResult<AgentProfileStatus[]>>;
+      setAgentProfileEnabled: (payload: { profileId: string; value: boolean }) => Promise<IpcResult<AgentProfileStatus[]>>;
+      setAgentProfileTrusted: (payload: { profileId: string; value: boolean }) => Promise<IpcResult<AgentProfileStatus[]>>;
       listMcpServers: () => Promise<IpcResult<McpServerStatus[]>>;
       saveMcpServer: (payload: SaveMcpServerPayload) => Promise<IpcResult<McpServerStatus[]>>;
       removeMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;

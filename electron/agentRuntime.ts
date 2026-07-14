@@ -19,6 +19,7 @@ import type { RuntimeOptimizationConfig } from './domain/entities/optimizer.js';
 import { toolPermissionPolicy } from './permissionRuntime.js';
 import { RunReadOnlySubagent } from './application/usecases/RunReadOnlySubagent.js';
 import { DelegatingToolPlatform } from './application/services/DelegatingToolPlatform.js';
+import { agentProfileManager } from './agentProfileRuntime.js';
 
 export * from './domain/entities/agent.js';
 
@@ -42,6 +43,7 @@ export async function runAgentSession(
   const webSearchSettings = await webSearchSettingsRepository.load();
   const provider = new OpenAIProvider();
   const eventSink = new ElectronAgentEventSink(sender);
+  const agentProfileContext = await agentProfileManager.buildPromptContext(workspaceRoot);
   const baseToolPlatform = new AgentToolExecutor(
     webSearchSettings,
     async (skillId, root) => {
@@ -52,10 +54,11 @@ export async function runAgentSession(
     mcpGateway,
     tuning?.timeoutMs,
   );
-  const subagent = new RunReadOnlySubagent(provider, baseToolPlatform, baseToolPlatform, settings, toolPermissionPolicy, signal);
+  const subagent = new RunReadOnlySubagent(provider, baseToolPlatform, baseToolPlatform, settings, toolPermissionPolicy, signal, agentProfileManager);
   const toolPlatform = new DelegatingToolPlatform(baseToolPlatform, baseToolPlatform, subagent);
   const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, toolPermissionPolicy);
-  const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, skillContext, signal, task
+  const combinedSkillContext = [skillContext, agentProfileContext].filter(Boolean).join('\n\n');
+  const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, combinedSkillContext, signal, task
     ? {
       id: task.id,
       traceId: task.traceId,
