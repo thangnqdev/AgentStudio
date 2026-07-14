@@ -7,6 +7,7 @@ import { skillManager } from '../skillRuntime.js';
 import { PrepareAgentSession } from '../application/usecases/PrepareAgentSession.js';
 import { optimizerRepository, safeOptimizer } from '../optimizerRuntime.js';
 import { parseAgentStartPayload } from '../application/services/agentStartPayloadValidation.js';
+import { buildAgentProviderSettings } from '../application/services/buildAgentProviderSettings.js';
 import { FileSystemProjectInstructionLoader } from '../infrastructure/instructions/FileSystemProjectInstructionLoader.js';
 import { lifecycleHookDispatcher } from '../hookRuntime.js';
 
@@ -75,28 +76,16 @@ export function registerAgentIpc() {
 
       const workspaceRoot = await workspaceManager.getWorkspaceRoot();
       const tuning = (await safeOptimizer.getState()).active;
-      const selectedModel = tuning.modelChoice && activeProvider.models.some((model) => model.id === tuning.modelChoice) ? tuning.modelChoice : settings.activeModelId;
-      const fallbackModel = settings.fallbackModelId && activeProvider.models.some((model) => model.id === settings.fallbackModelId) && settings.fallbackModelId !== selectedModel
-        ? settings.fallbackModelId
-        : null;
-      const modelContextWindows = Object.fromEntries(activeProvider.models.flatMap((model) => (
-        model.contextWindow ? [[model.id, model.contextWindow] as const] : []
-      )));
       const { task, skillContext, projectInstructionContext, lifecycleHookContext } = await prepareAgentSession.execute({ payload, taskId, requestId, workspaceRoot });
       activeAgentTaskIds.set(requestId, task.id);
 
-      await runAgentSession(payload, event.sender, {
-        baseUrl: activeProvider.baseUrl,
+      const providerSettings = buildAgentProviderSettings({
+        settings,
+        provider: activeProvider,
+        tuning,
         apiKey: settingsRepo.decryptApiKey(activeProvider),
-        model: selectedModel || '',
-        fallbackModels: fallbackModel ? [fallbackModel] : [],
-        modelContextWindows,
-        retryCount: tuning.retryCount,
-        requestTimeoutMs: tuning.timeoutMs,
-        contextWindow: activeProvider.models.find(m => m.id === selectedModel)?.contextWindow,
-        contextBudgetTokens: tuning.contextBudgetTokens,
-        permissionMode: settings.permissionMode,
-      }, workspaceRoot, task.knowledgeContext, [projectInstructionContext, lifecycleHookContext, skillContext].filter(Boolean).join('\n\n'), controller.signal, task, tuning);
+      });
+      await runAgentSession(payload, event.sender, providerSettings, workspaceRoot, task.knowledgeContext, [projectInstructionContext, lifecycleHookContext, skillContext].filter(Boolean).join('\n\n'), controller.signal, task, tuning);
     } catch (error) {
       if (activeAgentControllers.get(requestId)?.signal.aborted) {
         const activeTaskId = activeAgentTaskIds.get(requestId);
