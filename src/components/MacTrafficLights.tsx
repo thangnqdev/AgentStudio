@@ -1,27 +1,16 @@
-import { useEffect, useState } from 'react';
-import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
+import { useWindowControls } from '../application/hooks/useWindowControls';
 
 export function MacTrafficLights() {
-  const [isMac, setIsMac] = useState(true);
-
-  useEffect(() => {
-    // Only show custom buttons if the platform is not macOS (darwin)
-    // On macOS, Electron provides native traffic lights when titleBarStyle is 'hidden'
-    if (AgentBridge.isAvailable) {
-      setIsMac(AgentBridge.getPlatform() === 'darwin');
-    } else {
-      // Fallback if IPC isn't available
-      setIsMac(window.navigator.userAgent.toLowerCase().includes('mac'));
-    }
-  }, []);
+  const { platform, closeWindow, minimizeWindow, maximizeWindow } = useWindowControls();
+  const isMac = platform === 'darwin';
 
   if (isMac) {
     return null;
   }
 
-  const handleClose = () => AgentBridge.closeWindow();
-  const handleMinimize = () => AgentBridge.minimizeWindow();
-  const handleMaximize = () => AgentBridge.maximizeWindow();
+  const handleClose = () => closeWindow();
+  const handleMinimize = () => minimizeWindow();
+  const handleMaximize = () => maximizeWindow();
 
   return (
     <div className="flex items-center gap-2 px-4 h-full" style={{ WebkitAppRegion: 'no-drag' } as any}>

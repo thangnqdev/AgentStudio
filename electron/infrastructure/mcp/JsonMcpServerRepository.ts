@@ -3,6 +3,7 @@ import path from 'node:path';
 import { app, safeStorage } from 'electron';
 import type { McpCredentials, McpServerRecord } from '../../domain/entities/mcp.js';
 import type { IMcpServerRepository } from '../../domain/ports/IMcpServerRepository.js';
+import { writePrivateFileAtomic } from '../storage/privateFile.js';
 
 type StoredServer = Omit<McpServerRecord, 'credentials' | 'hasCredentials'> & {
   encryptedCredentials?: string;
@@ -10,6 +11,7 @@ type StoredServer = Omit<McpServerRecord, 'credentials' | 'hasCredentials'> & {
 };
 
 export class JsonMcpServerRepository implements IMcpServerRepository {
+  private queue = Promise.resolve();
   async loadAll(): Promise<McpServerRecord[]> {
     try {
       const parsed = JSON.parse(await fs.readFile(this.getPath(), 'utf8')) as unknown;
@@ -21,15 +23,14 @@ export class JsonMcpServerRepository implements IMcpServerRepository {
   }
 
   async save(server: McpServerRecord) {
-    const servers = await this.loadStored();
-    const stored = this.toStored(server);
-    const index = servers.findIndex((item) => item.id === server.id);
-    if (index >= 0) servers[index] = stored; else servers.push(stored);
-    await this.write(servers);
+    await this.mutate((servers) => {
+      const stored = this.toStored(server); const index = servers.findIndex((item) => item.id === server.id);
+      if (index >= 0) servers[index] = stored; else servers.push(stored); return servers;
+    });
   }
 
   async remove(serverId: string) {
-    await this.write((await this.loadStored()).filter((server) => server.id !== serverId));
+    await this.mutate((servers) => servers.filter((server) => server.id !== serverId));
   }
 
   private async loadStored(): Promise<StoredServer[]> {
@@ -72,9 +73,13 @@ export class JsonMcpServerRepository implements IMcpServerRepository {
   }
 
   private async write(servers: StoredServer[]) {
-    const target = this.getPath();
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, JSON.stringify(servers, null, 2), 'utf8');
+    await writePrivateFileAtomic(this.getPath(), JSON.stringify(servers, null, 2));
+  }
+
+  private async mutate(mutation: (servers: StoredServer[]) => StoredServer[]) {
+    const operation = this.queue.then(async () => this.write(mutation(await this.loadStored())));
+    this.queue = operation.catch(() => undefined);
+    await operation;
   }
 
   private getPath() {

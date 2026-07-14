@@ -1,11 +1,12 @@
 import { ipcMain } from 'electron';
-import { agentTaskService, agentToolApprovalManager, agentTraceService, runAgentSession, type AgentStartPayload } from '../agentRuntime.js';
+import { agentTaskService, agentToolApprovalManager, agentTraceService, runAgentSession } from '../agentRuntime.js';
 import { settingsRepo } from '../infrastructure/JsonSettingsRepository.js';
 import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { knowledgeBaseUseCase } from '../knowledgeRuntime.js';
 import { skillManager } from '../skillRuntime.js';
 import { PrepareAgentSession } from '../application/usecases/PrepareAgentSession.js';
 import { optimizerRepository, safeOptimizer } from '../optimizerRuntime.js';
+import { parseAgentStartPayload } from '../application/services/agentStartPayloadValidation.js';
 
 const activeAgentControllers = new Map<string, AbortController>();
 const activeAgentTaskIds = new Map<string, string>();
@@ -27,7 +28,7 @@ function getBoolean(value: unknown) {
 export function registerAgentIpc() {
   interruptedTaskRecovery ??= agentTaskService.recoverInterrupted().catch(() => undefined);
 
-  ipcMain.on('ai:chat:stop', (_event, rawPayload: { requestId?: string }) => {
+  ipcMain.on('ai:chat:stop', (_event, rawPayload: unknown) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
     const requestId = getString(payload.requestId);
     activeAgentControllers.get(requestId)?.abort();
@@ -42,8 +43,8 @@ export function registerAgentIpc() {
     agentToolApprovalManager.respond(requestId, actionId, getBoolean(payload.approved));
   });
 
-  ipcMain.on('ai:chat:start', async (event, rawPayload: AgentStartPayload) => {
-    const payload = isObject(rawPayload) ? rawPayload : {};
+  ipcMain.on('ai:chat:start', async (event, rawPayload: unknown) => {
+    const payload = parseAgentStartPayload(rawPayload);
     const requestId = getString(payload.requestId);
     const taskId = getString(payload.taskId);
 

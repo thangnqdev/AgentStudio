@@ -28,6 +28,10 @@ import { stopWorkspaceKnowledgeSync } from './knowledgeRuntime.js';
 import { ManageAppUpdate } from './application/usecases/ManageAppUpdate.js';
 import { mcpServerManager } from './mcpRuntime.js';
 import { workspaceManager } from './infrastructure/WorkspaceManager.js';
+import { settingsRepo } from './infrastructure/JsonSettingsRepository.js';
+import { HttpProviderModelCatalog } from './infrastructure/providers/HttpProviderModelCatalog.js';
+import { ManageProviderSettings } from './application/usecases/ManageProviderSettings.js';
+import { randomUUID } from 'node:crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
@@ -38,15 +42,21 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.
 let win: BrowserWindow | null = null;
 let appUpdate: ManageAppUpdate | null = null;
 const splashWindow = new SplashWindow(() => win);
+const providerSettings = new ManageProviderSettings(
+  settingsRepo,
+  new HttpProviderModelCatalog(),
+  { createId: randomUUID, defaultWorkspacePath: () => process.cwd() },
+);
 
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC || '', 'favicon.svg'),
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
+      webviewTag: false,
       webSecurity: true,
     },
     width: 1440,
@@ -70,7 +80,7 @@ function createWindow() {
 
 function registerIpcHandlers() {
   registerAppIpc(win);
-  registerSettingsIpc();
+  registerSettingsIpc(providerSettings);
   registerWorkspaceIpc(win);
   registerGitIpc();
   registerTerminalIpc();

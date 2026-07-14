@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs/promises';
 
 /**
  * Xử lý đường dẫn để chống path-traversal (directory traversal).
@@ -34,4 +35,41 @@ export function resolveSafePath(candidatePath: string, rootPath: string): string
 export function isInsidePath(resolvedPath: string, rootPath: string): boolean {
   const relative = path.relative(rootPath, resolvedPath);
   return relative === '' || (Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/**
+ * Resolves an agent-controlled workspace path without following symbolic links.
+ * `path.resolve` alone is not sufficient: a symlink nested under the workspace
+ * can otherwise point to an arbitrary host path.
+ */
+export async function resolveSafeWorkspacePath(
+  candidatePath: string,
+  workspaceRoot: string,
+  options: { allowMissingFinalPath?: boolean } = {},
+): Promise<string> {
+  if (!candidatePath) throw new Error('Path is required.');
+
+  const realRoot = await fs.realpath(workspaceRoot);
+  const resolved = path.resolve(realRoot, candidatePath);
+  if (!isInsidePath(resolved, realRoot)) throw new Error(`Path escapes workspace: ${candidatePath}`);
+
+  const segments = path.relative(realRoot, resolved).split(path.sep).filter(Boolean);
+  let current = realRoot;
+  for (let index = 0; index < segments.length; index += 1) {
+    current = path.join(current, segments[index]);
+    try {
+      const stat = await fs.lstat(current);
+      if (stat.isSymbolicLink()) throw new Error(`Symbolic links are not allowed in workspace paths: ${candidatePath}`);
+      if (index < segments.length - 1 && !stat.isDirectory()) throw new Error(`Path parent is not a directory: ${candidatePath}`);
+    } catch (error) {
+      if (isMissingPath(error) && options.allowMissingFinalPath) return resolved;
+      throw error;
+    }
+  }
+
+  return resolved;
+}
+
+function isMissingPath(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }

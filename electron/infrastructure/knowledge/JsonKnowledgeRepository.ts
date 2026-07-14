@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { CURRENT_KNOWLEDGE_STORE_VERSION, type KnowledgeStore } from '../../domain/entities/knowledge.js';
 import type { IKnowledgeRepository } from '../../domain/ports/IKnowledgeRepository.js';
+import { writePrivateFileAtomic } from '../storage/privateFile.js';
 
 const EMPTY_STORE: KnowledgeStore = { version: CURRENT_KNOWLEDGE_STORE_VERSION, documents: [], chunks: [] };
 
@@ -24,10 +25,7 @@ export class JsonKnowledgeRepository implements IKnowledgeRepository {
 
   async save(workspacePath: string, store: KnowledgeStore) {
     const targetPath = this.getStorePath(workspacePath);
-    await fs.mkdir(path.dirname(targetPath), { recursive: true });
-    const temporaryPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
-    await fs.writeFile(temporaryPath, JSON.stringify(store), 'utf8');
-    await fs.rename(temporaryPath, targetPath);
+    await writePrivateFileAtomic(targetPath, JSON.stringify(store));
   }
 
   private getStorePath(workspacePath: string) {

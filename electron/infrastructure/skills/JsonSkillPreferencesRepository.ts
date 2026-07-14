@@ -3,6 +3,7 @@ import path from 'node:path';
 import { app } from 'electron';
 import type { SkillPreferences } from '../../domain/entities/skill.js';
 import type { ISkillPreferencesRepository } from '../../domain/ports/ISkillPreferencesRepository.js';
+import { writePrivateFileAtomic } from '../storage/privateFile.js';
 
 const EMPTY_PREFERENCES: SkillPreferences = { enabledSkillIds: [], trustedSkillIds: [] };
 
@@ -20,9 +21,7 @@ export class JsonSkillPreferencesRepository implements ISkillPreferencesReposito
   }
 
   async save(preferences: SkillPreferences) {
-    const target = this.getPath();
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, JSON.stringify(preferences, null, 2), 'utf8');
+    await writePrivateFileAtomic(this.getPath(), JSON.stringify(preferences, null, 2));
   }
 
   private getPath() {

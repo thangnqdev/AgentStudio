@@ -193,7 +193,13 @@ export class PtyTerminalManager {
           currentRows = nextRows;
         },
         kill: () => {
-          child.kill();
+          // Remove all listeners first to prevent data events firing during/after kill
+          child.stdout?.removeAllListeners();
+          child.stderr?.removeAllListeners();
+          child.removeAllListeners();
+          // Close stdin to signal EOF to the shell
+          child.stdin?.end();
+          child.kill('SIGTERM');
         },
       };
     }

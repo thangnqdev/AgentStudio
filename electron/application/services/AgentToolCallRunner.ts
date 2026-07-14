@@ -6,6 +6,7 @@ import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
 import type { IToolExecutor } from '../../domain/ports/IToolExecutor.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 import { summarizeToolArguments } from './toolActionPresentation.js';
+import { parseAndValidateToolArguments } from './toolArgumentValidation.js';
 
 type ToolCallRunInput = {
   eventSink: IAgentEventSink;
@@ -38,22 +39,30 @@ export class AgentToolCallRunner {
 
   async run(input: ToolCallRunInput) {
     const toolName = input.toolCall.function?.name || '';
-    const args = parseToolArguments(input.toolCall.function?.arguments || '{}');
     const actionId = input.toolCall.id || `${input.requestId}-${toolName}-${input.step}`;
-    const argsText = JSON.stringify(args);
     const tool = input.toolDefinition;
     const risk = tool?.risk ?? 'execute';
-    const argsSummary = summarizeToolArguments(toolName, args);
     const policy = evaluateToolPolicy(tool, input.permissionMode);
     const toolSpanId = this.tracer?.newSpanId();
     const startedAt = new Date().toISOString();
 
-    if (!policy.allowed) {
+    if (!tool || !policy.allowed) {
       const output = policy.reason || 'Tool execution is blocked by policy.';
-      input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: 'error', output });
+      input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: '', risk, status: 'error', output });
       await this.recordAudit(actionId, 'error', input, risk, toolName);
       await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, 'blocked', 'denied');
-      return this.result(input.toolCall, toolName, argsText, { ok: false, output });
+      return this.result(input.toolCall, toolName, '{}', { ok: false, output });
+    }
+
+    const parsed = parseAndValidateToolArguments(input.toolCall.function?.arguments || '{}', tool);
+    const args = parsed.args;
+    const argsText = JSON.stringify(args);
+    const argsSummary = summarizeToolArguments(toolName, args);
+    if (!parsed.ok) {
+      input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: 'error', output: parsed.error });
+      await this.recordAudit(actionId, 'error', input, risk, toolName);
+      await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, 'failed', 'failed');
+      return this.result(input.toolCall, toolName, argsText, { ok: false, output: parsed.error });
     }
 
     if (policy.requiresApproval) {
@@ -99,14 +108,5 @@ export class AgentToolCallRunner {
   private async recordApprovalSpan(input: ToolCallRunInput, toolSpanId: string | undefined, startedAt: string, toolName: string, decision: 'approved' | 'denied') {
     if (!this.tracer || !input.traceContext || !toolSpanId) return;
     await this.tracer.recordSpan({ kind: 'approval', ...input.traceContext, requestId: input.requestId, parentSpanId: toolSpanId, step: input.step, startedAt, endedAt: new Date().toISOString(), status: decision === 'approved' ? 'succeeded' : 'denied', toolName, toolSpanId, decision }).catch(() => undefined);
-  }
-}
-
-function parseToolArguments(raw: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : {};
-  } catch {
-    return {};
   }
 }

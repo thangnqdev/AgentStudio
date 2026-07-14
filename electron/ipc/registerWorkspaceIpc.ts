@@ -1,12 +1,17 @@
 import { ipcMain, dialog, BrowserWindow, type OpenDialogOptions } from 'electron';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { settingsRepo } from '../infrastructure/JsonSettingsRepository.js';
 import { stopWorkspaceKnowledgeSync } from '../knowledgeRuntime.js';
+import { FileSystemToolExecutor } from '../infrastructure/tools/FileSystemToolExecutor.js';
+
+const workspaceFileExecutor = new FileSystemToolExecutor();
 
 function getString(value: unknown) {
   return typeof value === 'string' ? value : '';
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 export function registerWorkspaceIpc(win: BrowserWindow | null) {
@@ -34,9 +39,9 @@ export function registerWorkspaceIpc(win: BrowserWindow | null) {
     return { path: settings.workspacePath, canceled: false };
   });
 
-  ipcMain.handle('workspace:write-file', async (_event, rawPayload: { path?: string; content?: string }) => {
+  ipcMain.handle('workspace:write-file', async (_event, rawPayload: unknown) => {
     try {
-      const payload = typeof rawPayload === 'object' && rawPayload !== null ? rawPayload : {};
+      const payload = isObject(rawPayload) ? rawPayload : {};
       
       const settings = await settingsRepo.loadStoredSettings();
       if (settings.permissionMode === 'read-only') {
@@ -44,11 +49,9 @@ export function registerWorkspaceIpc(win: BrowserWindow | null) {
       }
 
       const workspaceRoot = await workspaceManager.getWorkspaceRoot();
-      const targetPath = await workspaceManager.resolveWorkspacePath(getString(payload.path));
-      const content = getString(payload.content);
-      await fs.mkdir(path.dirname(targetPath), { recursive: true });
-      await fs.writeFile(targetPath, content, 'utf8');
-      return { success: true, path: path.relative(workspaceRoot, targetPath) };
+      const result = await workspaceFileExecutor.writeFile({ path: getString(payload.path), content: getString(payload.content) }, workspaceRoot, 'workspace-write');
+      if (!result.ok) return { success: false, error: result.output };
+      return { success: true, path: getString(payload.path) };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }

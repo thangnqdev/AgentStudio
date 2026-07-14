@@ -1,10 +1,11 @@
 import { app } from 'electron';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentTaskCheckpoint, AgentTaskRecord, AgentTaskSummary } from '../../domain/entities/agentTask.js';
 import { summarizeAgentTask } from '../../domain/entities/agentTask.js';
 import type { IAgentTaskRepository } from '../../domain/ports/IAgentTaskRepository.js';
+import { writePrivateFileAtomic } from '../storage/privateFile.js';
 
 type StoredTasks = { tasks: AgentTaskRecord[] };
 
@@ -76,10 +77,7 @@ export class JsonAgentTaskRepository implements IAgentTaskRepository {
   private async mutate(mutation: (tasks: AgentTaskRecord[]) => AgentTaskRecord[]) {
     const operation = this.queue.then(async () => {
       const tasks = mutation(await this.read()).slice(0, 100);
-      await fs.mkdir(path.dirname(this.getPath()), { recursive: true });
-      const temporaryPath = `${this.getPath()}.${randomUUID()}.tmp`;
-      await fs.writeFile(temporaryPath, JSON.stringify({ tasks }), 'utf8');
-      await fs.rename(temporaryPath, this.getPath());
+      await writePrivateFileAtomic(this.getPath(), JSON.stringify({ tasks }));
     });
     this.queue = operation.catch(() => undefined);
     await operation;

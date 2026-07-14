@@ -47,3 +47,15 @@ export function getContextUsageTone(percent: number) {
   if (percent >= 75) return { text: 'text-[#9C4326]', stroke: 'text-[#9C4326]' };
   return { text: 'text-on-surface-variant/70', stroke: 'text-secondary' };
 }
+
+/**
+ * Tính phần trăm sử dụng context window (0–999).
+ * Trả về null nếu contextWindow không xác định (model không có thông tin context).
+ */
+export function calculateContextUsagePercent(
+  estimatedTokens: number,
+  contextWindow: number | undefined,
+): number | null {
+  if (!contextWindow) return null;
+  return Math.min(999, Math.round((estimatedTokens / contextWindow) * 100));
+}

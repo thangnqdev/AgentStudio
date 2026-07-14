@@ -3,7 +3,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useAppStore } from '../store/useAppStore';
-import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
+import { useTerminalBridge } from '../application/hooks/useTerminalBridge';
 
 type TerminalSession = {
   terminalId: string;
@@ -28,8 +28,10 @@ export function TerminalView() {
   const [selectedShellId, setSelectedShellId] = useState('');
   const [restartKey, setRestartKey] = useState(0);
 
+  const terminalBridge = useTerminalBridge();
+
   useEffect(() => {
-    const bridge = AgentBridge;
+    const bridge = terminalBridge;
     if (!bridge) return;
 
     let disposed = false;
@@ -48,10 +50,10 @@ export function TerminalView() {
     return () => {
       disposed = true;
     };
-  }, []);
+  }, [terminalBridge]);
 
   useEffect(() => {
-    const bridge = AgentBridge;
+    const bridge = terminalBridge;
     const container = containerRef.current;
     if (!bridge || !container || !selectedShellId) return;
 
@@ -165,7 +167,7 @@ export function TerminalView() {
       terminalIdRef.current = null;
       terminal.dispose();
     };
-  }, [restartKey, selectedShellId, shells]);
+  }, [restartKey, selectedShellId, shells, terminalBridge]);
 
   const handleShellChange = (shellId: string) => {
     setSelectedShellId(shellId);

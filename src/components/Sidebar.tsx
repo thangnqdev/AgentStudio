@@ -1,4 +1,5 @@
 import { useAppStore, type ViewId } from '../store/useAppStore';
+import { useAppVersion } from '../application/hooks/useAppVersion';
 
 interface NavItem {
   id: ViewId;
@@ -18,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Sidebar() {
+  const appVersion = useAppVersion();
   const activeView = useAppStore((s) => s.activeView);
   const setActiveView = useAppStore((s) => s.setActiveView);
   const threads = useAppStore((s) => s.threads);
@@ -38,7 +40,9 @@ export function Sidebar() {
         </div>
         <div>
           <h1 className="font-display-serif text-summary-title text-primary leading-tight">Agent Studio</h1>
-          <p className="text-on-surface-variant font-ui-label-caps text-ui-label-caps">v1.0.4 Premium</p>
+          <p className="text-on-surface-variant font-ui-label-caps text-ui-label-caps">
+            {appVersion ? `v${appVersion}` : 'Desktop Agent'}
+          </p>
         </div>
       </div>
 

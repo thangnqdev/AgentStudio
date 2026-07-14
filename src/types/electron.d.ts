@@ -157,6 +157,7 @@ declare global {
   interface Window {
     agentStudio?: {
       ping: () => Promise<string>;
+      getAppVersion: () => Promise<string>;
       getPlatform: () => string;
       minimizeWindow: () => void;
       maximizeWindow: () => void;

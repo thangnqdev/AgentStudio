@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { AgentBridge } from '../../infrastructure/ipc/agentStudioBridge';
+import { useFileWriter } from '../../application/hooks/useFileWriter';
 
 export function CodeBlock({ language, code }: { language: string; code: string }) {
   const [copied, setCopied] = useState(false);
-  const [isApplying, setIsApplying] = useState(false);
+  const { isWriting, writeWorkspaceFile } = useFileWriter();
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code);
@@ -16,21 +16,13 @@ export function CodeBlock({ language, code }: { language: string; code: string }
     if (!targetPath) return;
 
     try {
-      setIsApplying(true);
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const result = await AgentBridge.writeWorkspaceFile({ path: targetPath, content: code });
-      
-      if ('error' in result) {
-        throw new Error(result.error || 'Lỗi không xác định.');
-      }
-      
-      window.alert(`Đã áp dụng vào ${result.path || targetPath}`);
+      await writeWorkspaceFile(targetPath, code);
+      window.alert(`Đã áp dụng vào ${targetPath}`);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Apply code thất bại.');
-    } finally {
-      setIsApplying(false);
     }
   };
+
 
   return (
     <div className="my-4 overflow-hidden rounded-xl border border-white/10 bg-[#0a0a0a] shadow-sm">
@@ -46,7 +38,7 @@ export function CodeBlock({ language, code }: { language: string; code: string }
           </button>
           <button
             onClick={handleApply}
-            disabled={isApplying}
+            disabled={isWriting}
             className="h-7 px-2.5 rounded-md text-[11px] font-medium text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-50 transition-colors"
             title="Apply code vào file"
           >

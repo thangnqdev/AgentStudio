@@ -15,13 +15,13 @@ function TextBlock({ text }: { text: string }) {
       <ReactMarkdown 
         remarkPlugins={[remarkGfm]}
         components={{
-          p: ({node, ...props}) => <p className="mb-4 last:mb-0" {...props} />,
-          ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-1 marker:text-on-surface-variant/50" {...props} />,
-          ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-4 space-y-1 marker:text-on-surface-variant/50" {...props} />,
-          li: ({node, ...props}) => <li className="" {...props} />,
-          a: ({node, ...props}) => <a className="text-primary hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
-          strong: ({node, ...props}) => <strong className="font-semibold text-on-surface" {...props} />,
-          code: ({node, className, children, ...props}) => {
+          p: ({node: _node, ...props}) => <p className="mb-4 last:mb-0" {...props} />,
+          ul: ({node: _node, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-1 marker:text-on-surface-variant/50" {...props} />,
+          ol: ({node: _node, ...props}) => <ol className="list-decimal pl-5 mb-4 space-y-1 marker:text-on-surface-variant/50" {...props} />,
+          li: ({node: _node, ...props}) => <li className="" {...props} />,
+          a: ({node: _node, ...props}) => <a className="text-primary hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
+          strong: ({node: _node, ...props}) => <strong className="font-semibold text-on-surface" {...props} />,
+          code: ({node: _node, className, children, ...props}) => {
             const isInline = !className;
             return isInline ? (
               <code className="bg-surface-container-high text-primary px-1.5 py-0.5 rounded-md text-[13px] font-code-base border border-outline-variant/50" {...props}>{children}</code>
@@ -29,10 +29,10 @@ function TextBlock({ text }: { text: string }) {
               <code className={className} {...props}>{children}</code>
             );
           },
-          table: ({node, ...props}) => <div className="overflow-x-auto mb-4"><table className="w-full text-left border-collapse" {...props} /></div>,
-          th: ({node, ...props}) => <th className="border-b border-outline-variant py-2 px-3 bg-surface-container font-semibold text-on-surface text-[14px]" {...props} />,
-          td: ({node, ...props}) => <td className="border-b border-outline-variant/50 py-2 px-3 text-on-surface-variant" {...props} />,
-          blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary/50 pl-4 py-1 italic text-on-surface-variant bg-primary/[0.05] rounded-r-lg mb-4" {...props} />
+          table: ({node: _node, ...props}) => <div className="overflow-x-auto mb-4"><table className="w-full text-left border-collapse" {...props} /></div>,
+          th: ({node: _node, ...props}) => <th className="border-b border-outline-variant py-2 px-3 bg-surface-container font-semibold text-on-surface text-[14px]" {...props} />,
+          td: ({node: _node, ...props}) => <td className="border-b border-outline-variant/50 py-2 px-3 text-on-surface-variant" {...props} />,
+          blockquote: ({node: _node, ...props}) => <blockquote className="border-l-4 border-primary/50 pl-4 py-1 italic text-on-surface-variant bg-primary/[0.05] rounded-r-lg mb-4" {...props} />
         }}
       >
         {text}

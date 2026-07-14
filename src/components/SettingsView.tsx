@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import type { AIProvider } from '../domain/entities/settings';
-import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
+import { useProviderSettings } from '../application/hooks/useProviderSettings';
 import { WebSearchSettings } from './WebSearchSettings';
 import { SkillSettingsPanel } from './settings/SkillSettingsPanel';
 import { McpSettingsPanel } from './settings/McpSettingsPanel';
@@ -12,7 +12,7 @@ type EditableProvider = Partial<AIProvider> & {
 
 export function SettingsView() {
   const settings = useAppStore((s) => s.settings);
-  const setSettings = useAppStore((s) => s.setSettings);
+  const { deleteProvider, setActiveProvider, saveProviderAndScan } = useProviderSettings();
 
   const [editingProvider, setEditingProvider] = useState<EditableProvider | null>(null);
   
@@ -43,9 +43,7 @@ export function SettingsView() {
 
   const handleDelete = async (id: string) => {
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.deleteProvider(id);
-      setSettings(nextSettings);
+      await deleteProvider(id);
       if (editingProvider?.id === id) {
         setEditingProvider(null);
       }
@@ -56,9 +54,7 @@ export function SettingsView() {
 
   const handleSetDefault = async (id: string) => {
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.setActiveProvider(id);
-      setSettings(nextSettings);
+      await setActiveProvider(id);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Đặt provider mặc định thất bại.');
     }
@@ -72,14 +68,12 @@ export function SettingsView() {
     setSuccessMsg('');
     
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.saveProviderAndScan({
+      const nextSettings = await saveProviderAndScan({
         id: editingProvider.id,
-        name: editingProvider.name,
-        baseUrl: editingProvider.baseUrl,
+        name: editingProvider.name || 'Unnamed',
+        baseUrl: editingProvider.baseUrl || '',
         apiKey: editingProvider.apiKey,
       });
-      setSettings(nextSettings);
       
       const updatedProvider = nextSettings.providers.find((provider) => provider.id === editingProvider.id)
         ?? nextSettings.providers.at(-1);

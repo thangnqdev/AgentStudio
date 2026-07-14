@@ -6,6 +6,7 @@ import type { ToolResult, PermissionMode } from '../../../domain/entities/agent.
 // ─── spawnAndCollect (inline — tránh import nội bộ trong thư mục sandbox) ────
 
 const MAX_COMMAND_OUTPUT = 40_000;
+const SIGKILL_GRACE_PERIOD_MS = 5_000;
 
 function trimOutput(output: string): string {
   if (output.length <= MAX_COMMAND_OUTPUT) return output;
@@ -36,28 +37,39 @@ export function spawnAndCollect(
   args: string[],
   cwd: string,
   timeoutMs: number,
+  gracePeriodMs = SIGKILL_GRACE_PERIOD_MS,
 ): Promise<ToolResult> {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
       env: buildSafeEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
     });
     let output = '';
-    let settled = false;
+    let resolved = false;
+    let closed = false;
+    let forceKillTimer: NodeJS.Timeout | undefined;
 
-    const killFallback = (after: number) =>
-      setTimeout(() => {
-        if (!settled) child.kill('SIGKILL');
-      }, after);
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill('SIGTERM');
-      killFallback(5_000);
-      resolve({ ok: false, output: trimOutput(`${output}\nCommand timed out after ${timeoutMs}ms.`) });
+    const timeoutTimer = setTimeout(() => {
+      if (closed || resolved) return;
+      terminateProcessTree(child.pid, 'SIGTERM');
+      forceKillTimer = setTimeout(() => {
+        if (!closed) terminateProcessTree(child.pid, 'SIGKILL');
+      }, gracePeriodMs);
+      settle({ ok: false, output: trimOutput(`${output}\nCommand timed out after ${timeoutMs}ms.`) });
     }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeoutTimer);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
+    };
+
+    const settle = (result: ToolResult) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(result);
+    };
 
     child.stdout.on('data', (chunk: Buffer) => {
       output = trimOutput(output + chunk.toString('utf8'));
@@ -66,16 +78,14 @@ export function spawnAndCollect(
       output = trimOutput(output + chunk.toString('utf8'));
     });
     child.on('error', (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ ok: false, output: error.message });
+      closed = true;
+      cleanup();
+      settle({ ok: false, output: error.message });
     });
     child.on('close', (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({
+      closed = true;
+      cleanup();
+      settle({
         ok: code === 0,
         output: trimOutput(`${output}\nExit code: ${code ?? 'unknown'}`),
       });
@@ -85,7 +95,7 @@ export function spawnAndCollect(
 
 // ─── Platform sandbox implementations (inline — tránh import nội bộ) ──────────
 
-function buildSeatbeltProfile(workspaceRoot: string): string {
+export function buildSeatbeltProfile(workspaceRoot: string): string {
   const escapedWorkspace = workspaceRoot.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
   const tmp = process.env.TMPDIR || process.env.TEMP || '/tmp';
   const escapedTmp = tmp.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
@@ -96,9 +106,27 @@ function buildSeatbeltProfile(workspaceRoot: string): string {
     '(allow process*)',
     '(allow signal (target self))',
     '(allow sysctl-read)',
-    '(allow file-read*)',
+    '(allow file-read* (subpath "/System") (subpath "/usr") (subpath "/bin") (subpath "/sbin") (subpath "/Library/Apple"))',
+    `(allow file-read* (subpath "${escapedWorkspace}") (subpath "${escapedTmp}") (subpath "/tmp") (subpath "/private/tmp"))`,
     `(allow file-write* (subpath "${escapedWorkspace}") (subpath "${escapedTmp}") (subpath "/tmp") (subpath "/private/tmp"))`,
   ].join('\n');
+}
+
+function terminateProcessTree(pid: number | undefined, signal: NodeJS.Signals) {
+  if (!pid) return;
+  try {
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+      return;
+    }
+    try {
+      process.kill(-pid, signal);
+    } catch {
+      process.kill(pid, signal);
+    }
+  } catch {
+    // The process can exit between timeout and termination; that is safe.
+  }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -151,16 +179,7 @@ export async function runSandboxedCommand(
     if (!bwrapFound) {
       return { ok: false, output: 'bubblewrap (bwrap) not found; refusing to run command in workspace-write mode.' };
     }
-    return spawnAndCollect('bwrap', [
-      '--ro-bind', '/', '/',
-      '--dev', '/dev',
-      '--proc', '/proc',
-      '--tmpfs', '/tmp',
-      '--bind', workspaceRoot, workspaceRoot,
-      '--chdir', workspaceRoot,
-      '--unshare-net',
-      '/bin/sh', '-lc', command,
-    ], workspaceRoot, timeoutMs);
+    return spawnAndCollect('bwrap', await buildLinuxSandboxArgs(workspaceRoot, command), workspaceRoot, timeoutMs);
   }
 
   if (process.platform === 'win32') {
@@ -178,4 +197,17 @@ export async function runSandboxedCommand(
   }
 
   return { ok: false, output: `Sandboxed command execution is not implemented on ${process.platform}.` };
+}
+
+async function buildLinuxSandboxArgs(workspaceRoot: string, command: string) {
+  const readOnlySystemPaths = ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc/ld.so.cache'];
+  const available = await Promise.all(readOnlySystemPaths.map(async (item) => {
+    try { await fs.access(item); return item; } catch { return ''; }
+  }));
+  return [
+    ...available.filter(Boolean).flatMap((item) => ['--ro-bind', item, item]),
+    '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp',
+    '--bind', workspaceRoot, workspaceRoot, '--chdir', workspaceRoot, '--unshare-net',
+    '/bin/sh', '-lc', command,
+  ];
 }

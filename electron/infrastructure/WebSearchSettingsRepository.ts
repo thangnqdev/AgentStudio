@@ -2,6 +2,7 @@ import { app, safeStorage } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { PublicWebSearchSettings, WebSearchProvider, WebSearchSettings } from '../domain/entities/webSearch.js';
+import { writePrivateFileAtomic } from './storage/privateFile.js';
 
 type StoredWebSearchSettings = Omit<WebSearchSettings, 'apiKey'> & { encryptedApiKey?: string; plainApiKey?: string };
 
@@ -36,8 +37,7 @@ export class WebSearchSettingsRepository {
       delete stored.encryptedApiKey;
       delete stored.plainApiKey;
     }
-    await fs.mkdir(path.dirname(this.getPath()), { recursive: true });
-    await fs.writeFile(this.getPath(), JSON.stringify(stored, null, 2), 'utf8');
+    await writePrivateFileAtomic(this.getPath(), JSON.stringify(stored, null, 2));
     return { provider: stored.provider, baseUrl: stored.baseUrl, model: stored.model, hasApiKey: Boolean(stored.encryptedApiKey || stored.plainApiKey) };
   }
 

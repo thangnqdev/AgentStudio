@@ -6,6 +6,7 @@ import { AgentMessage } from './chat/AgentMessage';
 import { SystemMessage } from './chat/SystemMessage';
 import { TypingIndicator } from './chat/TypingIndicator';
 import { ChatEmptyState } from './chat/ChatEmptyState';
+import { MessageErrorBoundary } from './chat/MessageErrorBoundary';
 
 export function ChatArea() {
   const messages = useAppStore((s) => s.messages);
@@ -93,11 +94,17 @@ export function ChatArea() {
           <>
             {messages.map((msg) =>
               msg.sender === 'user' ? (
-                <UserMessage key={msg.id} msg={msg} onRegenerate={handleRegenerate} />
+                <MessageErrorBoundary key={msg.id}>
+                  <UserMessage msg={msg} onRegenerate={handleRegenerate} />
+                </MessageErrorBoundary>
               ) : msg.sender === 'agent' ? (
-                <AgentMessage key={msg.id} msg={msg} />
+                <MessageErrorBoundary key={msg.id}>
+                  <AgentMessage msg={msg} />
+                </MessageErrorBoundary>
               ) : (
-                <SystemMessage key={msg.id} msg={msg} />
+                <MessageErrorBoundary key={msg.id}>
+                  <SystemMessage msg={msg} />
+                </MessageErrorBoundary>
               )
             )}
             {isAgentTyping && <TypingIndicator />}

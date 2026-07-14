@@ -1,43 +1,27 @@
 import { useEffect, useState } from 'react';
-import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
-import type { PublicWebSearchSettings, WebSearchProvider } from '../types/electron';
-
-const EMPTY: PublicWebSearchSettings = { provider: 'disabled', hasApiKey: false };
+import { useWebSearch } from '../application/hooks/useWebSearch';
+import type { WebSearchProvider } from '../types/electron';
 
 export function WebSearchSettings() {
-  const [settings, setSettings] = useState<PublicWebSearchSettings>(EMPTY);
+  const { settings, error: hookError, saveWebSearch, updateProvider, updateSettings } = useWebSearch();
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    AgentBridge.loadWebSearchSettings().then((result) => {
-      if (result.success) setSettings(result.settings);
-    }).catch(() => setError('Không thể tải cấu hình web search.'));
-  }, []);
+    if (hookError) setError(hookError);
+  }, [hookError]);
 
   const save = async () => {
     setError('');
     setSaved(false);
     try {
-      const result = await AgentBridge.saveWebSearchSettings({ ...settings, apiKey });
-      if (!result.success) throw new Error(result.error);
-      setSettings(result.settings);
+      await saveWebSearch(settings, apiKey);
       setApiKey('');
       setSaved(true);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Không thể lưu cấu hình web search.');
     }
-  };
-
-  const updateProvider = (provider: WebSearchProvider) => {
-    setSaved(false);
-    setSettings((current) => ({
-      ...current,
-      provider,
-      baseUrl: provider === 'tavily' ? 'https://api.tavily.com/search' : provider === 'openai' ? 'https://api.openai.com/v1' : current.baseUrl,
-      model: provider === 'openai' ? current.model || 'gpt-5.5' : undefined,
-    }));
   };
 
   return (
@@ -62,13 +46,13 @@ export function WebSearchSettings() {
         {settings.provider !== 'disabled' && (
           <label className="grid gap-1.5 text-[13px] font-ui-label-bold text-on-surface">
             Base URL
-            <input className="bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-ui-body" value={settings.baseUrl || ''} onChange={(event) => setSettings((current) => ({ ...current, baseUrl: event.target.value }))} />
+            <input className="bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-ui-body" value={settings.baseUrl || ''} onChange={(event) => updateSettings({ baseUrl: event.target.value })} />
           </label>
         )}
         {settings.provider === 'openai' && (
           <label className="grid gap-1.5 text-[13px] font-ui-label-bold text-on-surface">
             Search model
-            <input className="bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-ui-body" value={settings.model || ''} onChange={(event) => setSettings((current) => ({ ...current, model: event.target.value }))} />
+            <input className="bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-ui-body" value={settings.model || ''} onChange={(event) => updateSettings({ model: event.target.value })} />
           </label>
         )}
         {(settings.provider === 'tavily' || settings.provider === 'openai') && (

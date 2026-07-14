@@ -41,7 +41,7 @@ export function parseTextAndCode(content: string): AgentContentPart[] {
  */
 export function parseAgentContent(content: string): AgentContentPart[] {
   const parts: AgentContentPart[] = [];
-  const pattern = /(?:<(?:think|thinking)>([\s\S]*?)(?:<\/(?:think|thinking)>|$))|(?:\[tool:([^\]]+)\]([\s\S]*?)(?=\[tool:|<think>|<\/think>|$))/gi;
+  const pattern = /(?:<(?:think|thinking)>([\s\S]*?)(?:<\/(?:think|thinking)>|$))|(?:\[tool:([^\]\r\n]+)\])/gi;
 
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -54,29 +54,10 @@ export function parseAgentContent(content: string): AgentContentPart[] {
     if (match[1] !== undefined) {
       parts.push({ type: 'think', value: match[1] });
     } else if (match[2] !== undefined) {
-      const toolName = match[2];
-      const trace = (match[3] || '').trim();
-      const lines = trace.split('\n');
-      
-      let args = '{}';
-      let status: AgentAction['status'] = 'ok';
-      let output = '';
-
-      if (lines.length > 0) args = lines[0];
-      if (lines.length > 1) status = lines[1].trim() === '[ok]' ? 'ok' : 'error';
-      if (lines.length > 2) output = lines.slice(2).join('\n');
-
-      const action: AgentAction = {
-        id: `historical-${toolName}-${match.index}`,
-        requestId: '',
-        toolName,
-        args,
-        status,
-        output,
-        risk: 'execute',
-      };
-
-      parts.push({ type: 'tool', actionId: match[2], action });
+      // Tool markers are placeholders. The actual action metadata is held separately
+      // on the message, so consuming the text after a marker would incorrectly turn
+      // the remainder of the assistant response into tool output.
+      parts.push({ type: 'tool', actionId: match[2].trim() });
     }
 
     lastIndex = match.index + match[0].length;

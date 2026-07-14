@@ -15,6 +15,11 @@ export const AgentBridge = {
     return window.agentStudio.ping();
   },
 
+  async getAppVersion() {
+    if (!window.agentStudio) return '';
+    return window.agentStudio.getAppVersion();
+  },
+
   getPlatform() {
     if (!window.agentStudio) return 'unknown';
     return window.agentStudio.getPlatform();

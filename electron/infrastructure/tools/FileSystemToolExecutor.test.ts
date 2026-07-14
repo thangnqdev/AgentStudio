@@ -41,4 +41,31 @@ describe('FileSystemToolExecutor.applyPatch', () => {
     expect(result.ok).toBe(false);
     expect(await fs.readFile(path.join(workspace, 'sample.txt'), 'utf8')).toBe('same\nsame\n');
   });
+
+  it('refuses symbolic links that point outside the workspace for read, write and patch', async () => {
+    const workspace = await createWorkspace('inside');
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-studio-outside-'));
+    temporaryDirectories.push(outside);
+    const outsideFile = path.join(outside, 'secret.txt');
+    await fs.writeFile(outsideFile, 'outside-secret', 'utf8');
+    const link = path.join(workspace, 'escape.txt');
+    try {
+      await fs.symlink(outsideFile, link);
+    } catch {
+      return;
+    }
+
+    const executor = new FileSystemToolExecutor();
+    await expect(executor.readFile({ path: 'escape.txt' }, workspace, 'workspace-write')).rejects.toThrow('Symbolic links');
+    await expect(executor.writeFile({ path: 'escape.txt', content: 'changed' }, workspace, 'workspace-write')).rejects.toThrow('Symbolic links');
+    await expect(executor.applyPatch({ path: 'escape.txt', oldText: 'outside', newText: 'changed' }, workspace, 'workspace-write')).rejects.toThrow('Symbolic links');
+    expect(await fs.readFile(outsideFile, 'utf8')).toBe('outside-secret');
+  });
+
+  it('caps complete file writes at the shared file-size limit', async () => {
+    const workspace = await createWorkspace('');
+    const result = await new FileSystemToolExecutor().writeFile({ path: 'large.txt', content: 'x'.repeat(200_001) }, workspace, 'workspace-write');
+    expect(result).toMatchObject({ ok: false, output: expect.stringContaining('Content too large') });
+    await expect(fs.access(path.join(workspace, 'large.txt'))).rejects.toThrow();
+  });
 });

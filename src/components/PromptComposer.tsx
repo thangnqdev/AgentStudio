@@ -2,10 +2,10 @@ import { useState, useRef, useEffect, useMemo, type KeyboardEvent } from 'react'
 import { useAppStore } from '../store/useAppStore';
 import type { Attachment } from '../domain/entities/message';
 import type { PermissionMode } from '../domain/entities/settings';
-import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
+import { useProviderSettings } from '../application/hooks/useProviderSettings';
 import { useAgentChat } from '../application/hooks/useAgentChat';
 import { useAttachments } from '../application/hooks/useAttachments';
-import { estimateMessageTokens, formatContextWindow } from '../application/services/tokenEstimator';
+import { estimateMessageTokens, formatContextWindow, calculateContextUsagePercent } from '../application/services/tokenEstimator';
 import { TokenProgressRing } from './chat/TokenProgressRing';
 import { hasUsableAiConfiguration } from '../domain/services/aiConfiguration';
 
@@ -17,11 +17,11 @@ export function PromptComposer() {
   const addMessage = useAppStore((s) => s.addMessage);
   const messages = useAppStore((s) => s.messages);
   const settings = useAppStore((s) => s.settings);
-  const setSettings = useAppStore((s) => s.setSettings);
   const isAgentBusy = useAppStore((s) => s.messages.some((m) => m.sender === 'agent' && m.status === 'sending'));
   const hasAiConfiguration = hasUsableAiConfiguration(settings);
   
   const { startAgentResponse, stopAgentResponse } = useAgentChat();
+  const { setActiveModel: saveActiveModel, setPermissionMode: savePermissionMode } = useProviderSettings();
 
   // Auto-resize textarea as content grows
   useEffect(() => {
@@ -94,30 +94,14 @@ export function PromptComposer() {
 
     return messages.reduce((total, message) => total + estimateMessageTokens(message), 0) + draftTokens;
   }, [attachedFiles, input, messages]);
-  const contextUsagePercent = activeContextWindow
-    ? Math.min(999, Math.round((estimatedContextTokens / activeContextWindow) * 100))
-    : null;
+  const contextUsagePercent = calculateContextUsagePercent(estimatedContextTokens, activeContextWindow);
 
   const handleModelChange = async (modelId: string) => {
-    setSettings({ activeModelId: modelId });
-    try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.setActiveModel(modelId);
-      setSettings(nextSettings);
-    } catch (error) {
-      console.error('Failed to save active model', error);
-    }
+    await saveActiveModel(modelId);
   };
 
   const handlePermissionModeChange = async (permissionMode: PermissionMode) => {
-    setSettings({ permissionMode });
-    try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.setPermissionMode(permissionMode);
-      setSettings(nextSettings);
-    } catch (error) {
-      console.error('Failed to save permission mode', error);
-    }
+    await savePermissionMode(permissionMode);
   };
 
   return (

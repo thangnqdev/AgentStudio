@@ -3,25 +3,6 @@ import { terminalManager } from '../infrastructure/PtyTerminalManager.js';
 import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { randomUUID } from 'node:crypto';
 
-type TerminalCreatePayload = {
-  cols?: number;
-  rows?: number;
-  shellId?: string;
-};
-
-type TerminalTargetPayload = {
-  terminalId?: string;
-};
-
-type TerminalWritePayload = TerminalTargetPayload & {
-  data?: string;
-};
-
-type TerminalResizePayload = TerminalTargetPayload & {
-  cols?: number;
-  rows?: number;
-};
-
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -35,7 +16,7 @@ export function registerTerminalIpc() {
     return terminalManager.getAvailableCommandShells();
   });
 
-  ipcMain.handle('terminal:create', async (event, rawPayload: TerminalCreatePayload) => {
+  ipcMain.handle('terminal:create', async (event, rawPayload: unknown) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
     const terminalId = randomUUID();
     const workspaceRoot = await workspaceManager.getWorkspaceRoot();
@@ -67,14 +48,14 @@ export function registerTerminalIpc() {
     };
   });
 
-  ipcMain.on('terminal:write', (_event, rawPayload: TerminalWritePayload) => {
+  ipcMain.on('terminal:write', (_event, rawPayload: unknown) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
     const terminalId = getString(payload.terminalId);
     const data = getString(payload.data);
     terminalManager.getTerminal(terminalId)?.write(data);
   });
 
-  ipcMain.on('terminal:resize', (_event, rawPayload: TerminalResizePayload) => {
+  ipcMain.on('terminal:resize', (_event, rawPayload: unknown) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
     const terminalId = getString(payload.terminalId);
     const terminal = terminalManager.getTerminal(terminalId);
@@ -86,7 +67,7 @@ export function registerTerminalIpc() {
     );
   });
 
-  ipcMain.on('terminal:kill', (_event, rawPayload: TerminalTargetPayload) => {
+  ipcMain.on('terminal:kill', (_event, rawPayload: unknown) => {
     const payload = isObject(rawPayload) ? rawPayload : {};
     const terminalId = getString(payload.terminalId);
     terminalManager.getTerminal(terminalId)?.kill();

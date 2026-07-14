@@ -1,8 +1,8 @@
 import { type CSSProperties } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
 import { useGitStatus } from '../application/hooks/useGitStatus';
 import { useAppUpdate } from '../application/hooks/useAppUpdate';
+import { useWindowControls } from '../application/hooks/useWindowControls';
 
 type ElectronDragStyle = CSSProperties & {
   WebkitAppRegion: 'drag' | 'no-drag';
@@ -15,34 +15,22 @@ import { MacTrafficLights } from './MacTrafficLights';
 
 export function TopAppBar() {
   const projectPath = useAppStore((s) => s.projectPath);
-  const setProjectPath = useAppStore((s) => s.setProjectPath);
-  const setSettings = useAppStore((s) => s.setSettings);
   const isSidebarOpen = useAppStore((s) => s.isSidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const isTerminalOpen = useAppStore((s) => s.isTerminalOpen);
   const setTerminalOpen = useAppStore((s) => s.setTerminalOpen);
   const currentBranch = useAppStore((s) => s.currentBranch);
 
+
   useGitStatus();
   const { update, download, install } = useAppUpdate();
+  const { platform, selectWorkspace } = useWindowControls();
 
-  const isMac = AgentBridge.isAvailable && AgentBridge.getPlatform() === 'darwin';
+  const isMac = platform === 'darwin';
 
   const handleSelectWorkspace = async () => {
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const workspace = await AgentBridge.selectWorkspace();
-      if (workspace.canceled) return;
-      const currentState = useAppStore.getState();
-      if (currentState.settings.workspacePath && currentState.settings.workspacePath !== 'chưa có dự án') {
-        await AgentBridge.saveChatHistory({
-          workspacePath: currentState.settings.workspacePath,
-          threads: currentState.threads,
-          activeThreadId: currentState.activeThreadId,
-        });
-      }
-      setProjectPath(workspace.path);
-      setSettings({ workspacePath: workspace.path });
+      await selectWorkspace();
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Không chọn được repository.');
     }

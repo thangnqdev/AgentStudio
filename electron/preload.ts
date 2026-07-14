@@ -74,6 +74,7 @@ function subscribeAppUpdate(listener: AppUpdateEventListener) {
 contextBridge.exposeInMainWorld('agentStudio', {
   ping: () => ipcRenderer.invoke('ping'),
 
+  getAppVersion: () => ipcRenderer.invoke('app:get-version'),
   getPlatform: () => process.platform,
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),

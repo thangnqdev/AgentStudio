@@ -63,6 +63,21 @@ describe('AgentToolCallRunner', () => {
     expect(execute).toHaveBeenCalledOnce();
   });
 
+  it('rejects malformed tool arguments before asking for approval or executing', async () => {
+    const execute = vi.fn(async () => ({ ok: true, output: 'written' }));
+    const requestApproval = vi.fn(async () => true);
+    const runner = new AgentToolCallRunner({ execute }, { requestApproval }, { record: async () => undefined });
+    const result = await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'workspace-write', requestId: 'request-invalid', step: 0, workspaceRoot: '/workspace',
+      toolCall: { id: 'invalid-action', function: { name: 'write_file', arguments: '{"path":"notes.md"}' } },
+      toolDefinition: getLocalToolDefinition('write_file'),
+    });
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.parse(result.toolMessage.content as string).output).toContain('required property "content" is missing');
+  });
+
   it('links sanitized tool and approval spans to the task step', async () => {
     const spans: AgentSpanInput[] = [];
     const tracer = {

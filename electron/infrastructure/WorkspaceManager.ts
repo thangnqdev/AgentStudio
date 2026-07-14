@@ -4,6 +4,7 @@ import { app } from 'electron';
 import { createHash } from 'node:crypto';
 import { settingsRepo } from './JsonSettingsRepository.js';
 import { resolveSafePath } from './security/resolveSafePath.js';
+import { writePrivateFileAtomic } from './storage/privateFile.js';
 
 type ChatHistoryPayload = {
   workspacePath?: string;
@@ -57,8 +58,7 @@ export class WorkspaceManager {
       workspacePath,
     };
 
-    await fs.mkdir(this.getChatHistoryDir(), { recursive: true });
-    await fs.writeFile(this.getChatHistoryPath(workspacePath), JSON.stringify(history), 'utf8');
+    await writePrivateFileAtomic(this.getChatHistoryPath(workspacePath), JSON.stringify(history));
     return { ok: true };
   }
 }
