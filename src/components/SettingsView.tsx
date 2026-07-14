@@ -2,6 +2,7 @@ import { McpSettingsPanel } from './settings/McpSettingsPanel';
 import { ProviderSettingsPanel } from './settings/ProviderSettingsPanel';
 import { SkillSettingsPanel } from './settings/SkillSettingsPanel';
 import { WebSearchSettings } from './WebSearchSettings';
+import { PluginSettingsPanel } from './settings/PluginSettingsPanel';
 
 export function SettingsView() {
   return (
@@ -20,6 +21,7 @@ export function SettingsView() {
         <ProviderSettingsPanel />
         <WebSearchSettings />
         <SkillSettingsPanel />
+        <PluginSettingsPanel />
         <McpSettingsPanel />
       </div>
     </div>

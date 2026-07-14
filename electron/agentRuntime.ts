@@ -20,6 +20,7 @@ import { toolPermissionPolicy } from './permissionRuntime.js';
 import { RunReadOnlySubagent } from './application/usecases/RunReadOnlySubagent.js';
 import { DelegatingToolPlatform } from './application/services/DelegatingToolPlatform.js';
 import { agentProfileManager } from './agentProfileRuntime.js';
+import { lifecycleHookDispatcher } from './hookRuntime.js';
 
 export * from './domain/entities/agent.js';
 
@@ -65,7 +66,7 @@ export async function runAgentSession(
     skillContext,
   );
   const toolPlatform = new DelegatingToolPlatform(baseToolPlatform, baseToolPlatform, subagent);
-  const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, toolPermissionPolicy);
+  const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, toolPermissionPolicy, lifecycleHookDispatcher);
   const combinedSkillContext = [skillContext, agentProfileContext].filter(Boolean).join('\n\n');
   const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, combinedSkillContext, signal, task
     ? {

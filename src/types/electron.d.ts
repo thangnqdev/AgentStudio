@@ -12,6 +12,7 @@ import type { CapabilityRecommendation, CapabilityRecommendationRequest, Capabil
 import type { OptimizationCandidate, OptimizerState, RuntimeOptimizationConfig } from '../domain/entities/optimizer';
 import type { SkillCandidate } from '../domain/entities/skillLearning';
 import type { AgentProfileStatus } from '../domain/entities/agentProfile';
+import type { PluginStatus } from '../domain/entities/plugin';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -202,6 +203,9 @@ declare global {
       listAgentProfiles: () => Promise<IpcResult<AgentProfileStatus[]>>;
       setAgentProfileEnabled: (payload: { profileId: string; value: boolean }) => Promise<IpcResult<AgentProfileStatus[]>>;
       setAgentProfileTrusted: (payload: { profileId: string; value: boolean }) => Promise<IpcResult<AgentProfileStatus[]>>;
+      listPlugins: () => Promise<IpcResult<PluginStatus[]>>;
+      setPluginEnabled: (payload: { pluginId: string; value: boolean }) => Promise<IpcResult<PluginStatus[]>>;
+      setPluginTrusted: (payload: { pluginId: string; value: boolean }) => Promise<IpcResult<PluginStatus[]>>;
       listMcpServers: () => Promise<IpcResult<McpServerStatus[]>>;
       saveMcpServer: (payload: SaveMcpServerPayload) => Promise<IpcResult<McpServerStatus[]>>;
       removeMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;

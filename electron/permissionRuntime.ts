@@ -3,6 +3,7 @@ import { app } from 'electron';
 import { ToolPermissionPolicy } from './application/services/ToolPermissionPolicy.js';
 import { FilePermissionRuleSource } from './infrastructure/permissions/FilePermissionRuleSource.js';
 import { resolveSafeWorkspacePath } from './infrastructure/security/resolveSafePath.js';
+import { lifecycleHookPermissionRuleSource } from './hookRuntime.js';
 
 const workspaceRules = new FilePermissionRuleSource({
   source: 'workspace',
@@ -16,4 +17,4 @@ const userRules = new FilePermissionRuleSource({
   resolvePath: () => path.join(app.getPath('userData'), 'permissions', 'rules.json'),
 });
 
-export const toolPermissionPolicy = new ToolPermissionPolicy([workspaceRules, userRules]);
+export const toolPermissionPolicy = new ToolPermissionPolicy([workspaceRules, lifecycleHookPermissionRuleSource, userRules]);

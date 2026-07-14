@@ -71,6 +71,14 @@ export type AgentTaskStatusPayload = {
 
 export type AssistantResponse = ChatMessage & {
   finishReason?: string;
+  usage?: ModelTokenUsage;
+};
+
+export type ModelTokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cachedInputTokens?: number;
 };
 
 export type ToolResult = {

@@ -21,6 +21,7 @@ import { registerCapabilityIpc } from './ipc/registerCapabilityIpc.js';
 import { registerOptimizerIpc } from './ipc/registerOptimizerIpc.js';
 import { registerSkillLearningIpc } from './ipc/registerSkillLearningIpc.js';
 import { registerAgentProfileIpc } from './ipc/registerAgentProfileIpc.js';
+import { registerPluginIpc } from './ipc/registerPluginIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
 import { ElectronAutoUpdater } from './infrastructure/ElectronAutoUpdater.js';
 import { SplashWindow } from './infrastructure/SplashWindow.js';
@@ -97,6 +98,7 @@ function registerIpcHandlers() {
   registerOptimizerIpc();
   registerSkillLearningIpc();
   registerAgentProfileIpc();
+  registerPluginIpc();
   if (appUpdate) registerUpdateIpc(() => win, appUpdate);
   registerStartupIpc(() => win, splashWindow);
 }

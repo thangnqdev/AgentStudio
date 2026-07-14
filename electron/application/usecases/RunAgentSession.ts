@@ -7,6 +7,7 @@ import type { IToolApprovalGateway } from '../../domain/ports/IToolApprovalGatew
 import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 import type { IToolPermissionPolicy } from '../../domain/ports/IToolPermissionPolicy.js';
+import type { ILifecycleHookDispatcher } from '../../domain/ports/ILifecycleHookDispatcher.js';
 import type { AgentTaskCheckpoint } from '../../domain/entities/agentTask.js';
 import { createAgentRunState, transitionAgentRun } from '../../domain/entities/agentRunState.js';
 import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
@@ -42,12 +43,13 @@ export class RunAgentSession {
     auditLogger: IToolAuditLogger,
     tracer: IAgentTracer,
     permissionPolicy?: IToolPermissionPolicy,
+    hooks?: ILifecycleHookDispatcher,
   ) {
     this.modelRequester = new ResilientModelRequester(provider);
     this.toolCatalog = toolCatalog;
     this.conversationBuilder = new AgentConversationBuilder(attachmentFormatter);
     this.tracer = tracer;
-    this.toolBatchRunner = new AgentToolBatchRunner(new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger, tracer, permissionPolicy));
+    this.toolBatchRunner = new AgentToolBatchRunner(new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger, tracer, permissionPolicy, hooks));
   }
 
   async execute(
@@ -106,7 +108,7 @@ export class RunAgentSession {
         const projectedConversation = projectConversationForModel(conversation, contextProjectionPolicy(inputContextTokens));
         const outcome = await this.modelRequester.execute({ settings, messages: projectedConversation.messages, tools: toolDefinitions, eventSink, requestId, signal });
         assistantMessage = outcome.response;
-        await this.recordModelSpan(task, requestId, step, modelStartedAt, outcome.model, 'succeeded', assistantMessage.finishReason);
+        await this.recordModelSpan(task, requestId, step, modelStartedAt, outcome.model, 'succeeded', assistantMessage.finishReason, assistantMessage.usage);
       } catch (error) {
         await this.recordModelSpan(task, requestId, step, modelStartedAt, settings.model, 'failed');
         throw error;
@@ -211,9 +213,9 @@ export class RunAgentSession {
     });
   }
 
-  private async recordModelSpan(task: AgentTaskRun | undefined, requestId: string, step: number, startedAt: string, model: string, status: 'succeeded' | 'failed', finishReason?: string) {
+  private async recordModelSpan(task: AgentTaskRun | undefined, requestId: string, step: number, startedAt: string, model: string, status: 'succeeded' | 'failed', finishReason?: string, usage?: { inputTokens: number; outputTokens: number; totalTokens: number; cachedInputTokens?: number }) {
     if (!task) return;
-    await this.tracer.recordSpan({ kind: 'model_call', traceId: task.traceId, taskId: task.id, requestId, step, startedAt, endedAt: new Date().toISOString(), status, model, finishReason }).catch(() => undefined);
+    await this.tracer.recordSpan({ kind: 'model_call', traceId: task.traceId, taskId: task.id, requestId, step, startedAt, endedAt: new Date().toISOString(), status, model, finishReason, usage }).catch(() => undefined);
   }
 
 }

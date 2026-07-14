@@ -159,4 +159,41 @@ describe('AgentToolCallRunner', () => {
     });
     expect(execute).toHaveBeenCalledWith('run_command', { command: 'npm test' }, '/workspace', 'danger-full-access', controller.signal);
   });
+
+  it('lets declarative PreToolUse hooks restrict danger-full-access', async () => {
+    const execute = vi.fn(async () => ({ ok: true, output: 'executed' }));
+    const runner = new AgentToolCallRunner(
+      { execute }, { requestApproval: async () => true }, { record: async () => undefined }, undefined, undefined,
+      { dispatch: async () => ({ matchedHookIds: ['block-shell'], contexts: [], denyReason: 'Shell is blocked by workspace hooks.', auditLabels: [] }) },
+    );
+    const result = await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'danger-full-access', requestId: 'request-hook-deny', step: 0, workspaceRoot: '/workspace',
+      toolCall: { id: 'hook-deny', function: { name: 'run_command', arguments: '{"command":"npm test"}' } },
+      toolDefinition: getLocalToolDefinition('run_command'),
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.toolMessage.content).toContain('Shell is blocked by workspace hooks');
+  });
+
+  it('adds bounded post-tool hook context to the model-visible tool result', async () => {
+    const runner = new AgentToolCallRunner(
+      { execute: async () => ({ ok: true, output: 'file contents' }) },
+      { requestApproval: async () => true },
+      { record: async () => undefined },
+      undefined,
+      undefined,
+      { dispatch: async (input) => input.event === 'PostToolUse'
+        ? { matchedHookIds: ['review'], contexts: ['Check generated types next.'], auditLabels: [] }
+        : { matchedHookIds: [], contexts: [], auditLabels: [] } },
+    );
+    const result = await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'read-only', requestId: 'request-hook-context', step: 0, workspaceRoot: '/workspace',
+      toolCall: { id: 'hook-context', function: { name: 'read_file', arguments: '{"path":"notes.md"}' } },
+      toolDefinition: getLocalToolDefinition('read_file'),
+    });
+    expect(result.toolMessage.content).toContain('Check generated types next.');
+    expect(result.toolMessage.content).toContain('trust=\\"workspace-declarative\\"');
+  });
 });

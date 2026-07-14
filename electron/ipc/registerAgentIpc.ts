@@ -8,6 +8,7 @@ import { PrepareAgentSession } from '../application/usecases/PrepareAgentSession
 import { optimizerRepository, safeOptimizer } from '../optimizerRuntime.js';
 import { parseAgentStartPayload } from '../application/services/agentStartPayloadValidation.js';
 import { FileSystemProjectInstructionLoader } from '../infrastructure/instructions/FileSystemProjectInstructionLoader.js';
+import { lifecycleHookDispatcher } from '../hookRuntime.js';
 
 const activeAgentControllers = new Map<string, AbortController>();
 const activeAgentTaskIds = new Map<string, string>();
@@ -19,6 +20,7 @@ const prepareAgentSession = new PrepareAgentSession(
   agentTraceService,
   optimizerRepository,
   new FileSystemProjectInstructionLoader(),
+  lifecycleHookDispatcher,
 );
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -80,7 +82,7 @@ export function registerAgentIpc() {
       const modelContextWindows = Object.fromEntries(activeProvider.models.flatMap((model) => (
         model.contextWindow ? [[model.id, model.contextWindow] as const] : []
       )));
-      const { task, skillContext, projectInstructionContext } = await prepareAgentSession.execute({ payload, taskId, requestId, workspaceRoot });
+      const { task, skillContext, projectInstructionContext, lifecycleHookContext } = await prepareAgentSession.execute({ payload, taskId, requestId, workspaceRoot });
       activeAgentTaskIds.set(requestId, task.id);
 
       await runAgentSession(payload, event.sender, {
@@ -94,7 +96,7 @@ export function registerAgentIpc() {
         contextWindow: activeProvider.models.find(m => m.id === selectedModel)?.contextWindow,
         contextBudgetTokens: tuning.contextBudgetTokens,
         permissionMode: settings.permissionMode,
-      }, workspaceRoot, task.knowledgeContext, [projectInstructionContext, skillContext].filter(Boolean).join('\n\n'), controller.signal, task, tuning);
+      }, workspaceRoot, task.knowledgeContext, [projectInstructionContext, lifecycleHookContext, skillContext].filter(Boolean).join('\n\n'), controller.signal, task, tuning);
     } catch (error) {
       if (activeAgentControllers.get(requestId)?.signal.aborted) {
         const activeTaskId = activeAgentTaskIds.get(requestId);

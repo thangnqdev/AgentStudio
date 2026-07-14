@@ -7,8 +7,10 @@ import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
 import type { IToolExecutor } from '../../domain/ports/IToolExecutor.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 import type { IToolPermissionPolicy } from '../../domain/ports/IToolPermissionPolicy.js';
+import type { ILifecycleHookDispatcher } from '../../domain/ports/ILifecycleHookDispatcher.js';
 import { summarizeToolArguments } from './toolActionPresentation.js';
 import { parseAndValidateToolArguments } from './toolArgumentValidation.js';
+import { formatLifecycleHookContext } from './LifecycleHookDispatcher.js';
 
 export type ToolCallRunInput = {
   eventSink: IAgentEventSink;
@@ -28,6 +30,7 @@ export class AgentToolCallRunner {
   private readonly toolExecutor: IToolExecutor;
   private readonly tracer?: IAgentTracer;
   private readonly permissionPolicy?: IToolPermissionPolicy;
+  private readonly hooks?: ILifecycleHookDispatcher;
 
   constructor(
     toolExecutor: IToolExecutor,
@@ -35,12 +38,14 @@ export class AgentToolCallRunner {
     auditLogger: IToolAuditLogger,
     tracer?: IAgentTracer,
     permissionPolicy?: IToolPermissionPolicy,
+    hooks?: ILifecycleHookDispatcher,
   ) {
     this.toolExecutor = toolExecutor;
     this.approvalGateway = approvalGateway;
     this.auditLogger = auditLogger;
     this.tracer = tracer;
     this.permissionPolicy = permissionPolicy;
+    this.hooks = hooks;
   }
 
   async run(input: ToolCallRunInput) {
@@ -71,7 +76,12 @@ export class AgentToolCallRunner {
     }
 
     let policy: ToolPolicyDecision;
+    let preToolHook: Awaited<ReturnType<ILifecycleHookDispatcher['dispatch']>> | undefined;
     try {
+      preToolHook = await this.hooks?.dispatch({
+        event: 'PreToolUse', workspaceRoot: input.workspaceRoot, matchValue: toolName,
+        requestId: input.requestId, toolName,
+      });
       policy = this.permissionPolicy
         ? await this.permissionPolicy.evaluate({ tool, permissionMode: input.permissionMode, args, workspaceRoot: input.workspaceRoot })
         : evaluateToolPermission(tool, input.permissionMode, args, []);
@@ -85,11 +95,19 @@ export class AgentToolCallRunner {
       await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, 'blocked', 'denied');
       return this.result(input.toolCall, toolName, argsText, { ok: false, output });
     }
+    if (preToolHook?.denyReason) {
+      const output = `Tool denied by declarative lifecycle hook: ${preToolHook.denyReason}`;
+      input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: 'error', output });
+      await this.recordAudit(actionId, 'denied', input, risk, toolName);
+      await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, 'blocked', 'denied');
+      return this.result(input.toolCall, toolName, argsText, { ok: false, output });
+    }
 
-    if (policy.requiresApproval) {
+    if (policy.requiresApproval || preToolHook?.approvalReason) {
       const approvalStartedAt = new Date().toISOString();
-      input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: 'awaiting_approval' });
-      const approved = await this.approvalGateway.requestApproval({ actionId, requestId: input.requestId, risk, toolName, summary: argsSummary, workspaceRoot: input.workspaceRoot });
+      const approvalSummary = preToolHook?.approvalReason ? `${argsSummary}\nHook requires approval: ${preToolHook.approvalReason}` : argsSummary;
+      input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: approvalSummary, risk, status: 'awaiting_approval' });
+      const approved = await this.approvalGateway.requestApproval({ actionId, requestId: input.requestId, risk, toolName, summary: approvalSummary, workspaceRoot: input.workspaceRoot });
       await this.recordApprovalSpan(input, toolSpanId, approvalStartedAt, toolName, approved ? 'approved' : 'denied');
       if (!approved) {
         const output = 'Tool execution was denied or approval timed out.';
@@ -104,10 +122,26 @@ export class AgentToolCallRunner {
     input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: 'running' });
     await this.recordAudit(actionId, 'started', input, risk, toolName);
     const toolResult = await this.toolExecutor.execute(toolName, args, input.workspaceRoot, input.permissionMode, input.signal);
-    input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: toolResult.ok ? 'ok' : 'error', output: toolResult.output });
-    await this.recordAudit(actionId, toolResult.ok ? 'succeeded' : 'error', input, risk, toolName);
-    await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, toolResult.ok ? 'succeeded' : 'failed', toolResult.ok ? 'succeeded' : 'failed');
-    return this.result(input.toolCall, toolName, argsText, toolResult);
+    const finalResult = await this.applyPostToolHooks(input, toolName, toolResult);
+    input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: finalResult.ok ? 'ok' : 'error', output: finalResult.output });
+    await this.recordAudit(actionId, finalResult.ok ? 'succeeded' : 'error', input, risk, toolName);
+    await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, finalResult.ok ? 'succeeded' : 'failed', finalResult.ok ? 'succeeded' : 'failed');
+    return this.result(input.toolCall, toolName, argsText, finalResult);
+  }
+
+  private async applyPostToolHooks(input: ToolCallRunInput, toolName: string, toolResult: { ok: boolean; output: string }) {
+    if (!this.hooks) return toolResult;
+    const event = toolResult.ok ? 'PostToolUse' as const : 'PostToolUseFailure' as const;
+    try {
+      const result = await this.hooks.dispatch({
+        event, workspaceRoot: input.workspaceRoot, matchValue: toolName,
+        requestId: input.requestId, toolName,
+      });
+      const context = formatLifecycleHookContext(event, result.contexts);
+      return context ? { ...toolResult, output: `${toolResult.output}\n\n${context}` } : toolResult;
+    } catch {
+      return { ...toolResult, output: `${toolResult.output}\n\n[Post-tool lifecycle hooks could not be evaluated.]` };
+    }
   }
 
   private result(toolCall: ToolCall, toolName: string, argsText: string, toolResult: { ok: boolean; output: string }) {

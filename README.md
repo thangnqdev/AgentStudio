@@ -113,6 +113,57 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - Instruction files are read without following symlinks and enter both root-agent and read-only-subagent prompts with their source labels.
 - Project text is workspace-authored guidance: it cannot grant permissions, authorize data egress, reveal credentials, or override the central tool policy.
 
+### Declarative Lifecycle Hooks
+
+- Workspace hooks live in `.agentstudio/hooks.json`. The versioned schema recognizes the lifecycle vocabulary researched from Claude Code, while AgentStudio currently executes only `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `PostToolUseFailure`.
+- Hook actions are deliberately capability-free: `add_context`, `deny_tool`, `require_approval`, and `audit`. There is no hook action that grants a permission, executes a shell command, invokes a model, or sends an HTTP request.
+- `PreToolUse` restrictions are translated into workspace permission rules, so they also apply to read-only subagents. A malformed hook file fails closed before tool execution.
+- Hook files are bounded, cannot be symlinks, and are read only from the current workspace. Applied hook identities and labels are written to a private JSONL audit file without hook context, tool arguments, output, or the raw workspace path.
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "SessionStart": [
+      {
+        "id": "project-checks",
+        "actions": [{ "type": "add_context", "content": "Run focused tests before the full gate." }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "id": "review-shell",
+        "matcher": "run_*",
+        "actions": [
+          { "type": "require_approval", "reason": "Review every shell command." },
+          { "type": "audit", "label": "shell-review" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+- Architecture decision and security boundary: [`docs/adr/0008-declarative-lifecycle-hooks.md`](docs/adr/0008-declarative-lifecycle-hooks.md).
+
+### Declarative Plugins
+
+- AgentStudio discovers local plugin bundles from Electron `userData/plugins/*` and `.agentstudio/plugins/*`. Each bundle uses the familiar `.claude-plugin/plugin.json` manifest location.
+- A plugin receives a content-bound identity derived from its root, manifest, and hook files. It must be explicitly trusted and enabled in **Settings → Declarative Plugins**; changing any active hook content produces a new untrusted identity.
+- The catalog reports `skills`, `agents`, `commands`, and `mcpServers` declared by a manifest, but this phase activates only declarative hooks. Other components remain visible as unsupported instead of being executed through a side door.
+- Persisted Claude-style command, prompt-model, HTTP, and agent hooks are rejected. Existing skill, agent-profile, and MCP trust gates remain authoritative.
+
+```json
+{
+  "name": "strict-review-pack",
+  "version": "1.0.0",
+  "description": "Workspace review policy",
+  "hooks": "hooks/hooks.json"
+}
+```
+
+The external hook file may use `{ "hooks": { ... } }` or AgentStudio's versioned `{ "version": 1, "hooks": { ... } }` envelope.
+
 ### Durable Agent Tasks
 
 - Running tasks checkpoint to an append-only JSONL journal. Restart recovery pauses interrupted tasks, a torn final record is repaired before the next append, and oversized journals compact atomically.
@@ -150,6 +201,7 @@ Check assumptions, identify concrete failure modes, and clearly label uncertaint
 
 - Every durable agent task owns one stable `traceId` that survives pause, failure recovery, and resume.
 - Typed spans cover model calls, tool calls, retrieval, approvals, checkpoints, and versioned evaluations. Tool and approval spans retain task/step/parent linkage without storing arguments or output.
+- OpenAI-compatible streaming requests ask for usage metadata and persist only bounded input/output/total/cached token counts. Providers that reject `stream_options` are retried once without it; arbitrary model prices are never guessed, so USD remains unknown until explicit pricing is configured.
 - Traces are append-only JSONL under Electron `userData/observability`; files use owner-only permissions where supported.
 - The **Quan sát agent** view lists local trajectories, displays sanitized span metadata, and exports a selected trace as JSONL.
 - Prompts, chat content, retrieval queries/results, tool arguments/output, API keys, credentials, workspace paths, and provider URLs are not part of the trace schema and are rejected by runtime validation.

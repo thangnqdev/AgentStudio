@@ -1,5 +1,5 @@
 import type { IAiProvider } from '../../domain/ports/IAiProvider.js';
-import type { AgentProviderSettings, AssistantResponse, ChatMessage, ToolCall } from '../../domain/entities/agent.js';
+import type { AgentProviderSettings, AssistantResponse, ChatMessage, ModelTokenUsage, ToolCall } from '../../domain/entities/agent.js';
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import { getResponseTokenLimit } from '../../domain/entities/tokenBudget.js';
 import type { AgentToolDefinition } from '../../domain/entities/tool.js';
@@ -44,29 +44,18 @@ export class OpenAIProvider implements IAiProvider {
       headers.Authorization = `Bearer ${settings.apiKey}`;
     }
 
-    let response: Response;
-    try {
-      response = await fetch(this.buildEndpoint(settings.baseUrl, 'chat/completions'), {
-        method: 'POST',
-        headers,
-        signal,
-        body: JSON.stringify({
-          model: settings.model,
-          messages,
-          tools: toProviderToolDefinitions(tools),
-          tool_choice: 'auto',
-          stream: true,
-          max_tokens: getResponseTokenLimit(settings.contextWindow),
-        }),
-      });
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      throw createProviderTransportError(error);
-    }
+    let response = await this.fetchCompletion(settings, messages, tools, headers, signal, true);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw createProviderHttpError(response.status, errorText, response.headers.get('retry-after'));
+      if ([400, 422].includes(response.status) && /stream[_ -]?options/i.test(errorText)) {
+        response = await this.fetchCompletion(settings, messages, tools, headers, signal, false);
+      } else {
+        throw createProviderHttpError(response.status, errorText, response.headers.get('retry-after'));
+      }
+    }
+    if (!response.ok) {
+      throw createProviderHttpError(response.status, await response.text(), response.headers.get('retry-after'));
     }
 
     if (!response.body) {
@@ -79,6 +68,7 @@ export class OpenAIProvider implements IAiProvider {
     let content = '';
     let buffer = '';
     let finishReason = '';
+    let usage: ModelTokenUsage | undefined;
 
     while (true) {
       if (signal?.aborted) throw new Error('Agent session stopped.');
@@ -102,12 +92,14 @@ export class OpenAIProvider implements IAiProvider {
             content,
             tool_calls: this.normalizeStreamingToolCalls(toolCalls),
             finishReason,
+            ...(usage ? { usage } : {}),
           };
         }
 
         const chunk = this.parseSseJson(trimmed.slice(6));
         if (!chunk) continue;
 
+        usage = this.readUsage(chunk) ?? usage;
         finishReason = this.readChoiceFinishReason(chunk) || finishReason;
         const delta = this.readChoiceDelta(chunk);
         if (!delta) continue;
@@ -134,7 +126,37 @@ export class OpenAIProvider implements IAiProvider {
       content,
       tool_calls: normalizedToolCalls,
       finishReason: finishReason || 'stream_closed',
+      ...(usage ? { usage } : {}),
     };
+  }
+
+  private async fetchCompletion(
+    settings: AgentProviderSettings,
+    messages: ChatMessage[],
+    tools: AgentToolDefinition[],
+    headers: Record<string, string>,
+    signal: AbortSignal | undefined,
+    includeUsage: boolean,
+  ) {
+    try {
+      return await fetch(this.buildEndpoint(settings.baseUrl, 'chat/completions'), {
+        method: 'POST',
+        headers,
+        signal,
+        body: JSON.stringify({
+          model: settings.model,
+          messages,
+          tools: toProviderToolDefinitions(tools),
+          tool_choice: 'auto',
+          stream: true,
+          ...(includeUsage ? { stream_options: { include_usage: true } } : {}),
+          max_tokens: getResponseTokenLimit(settings.contextWindow),
+        }),
+      });
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      throw createProviderTransportError(error);
+    }
   }
 
   private buildEndpoint(baseUrl: string, endpoint: string) {
@@ -167,6 +189,18 @@ export class OpenAIProvider implements IAiProvider {
     const choice = chunk.choices[0];
     if (!this.isObject(choice)) return '';
     return typeof choice.finish_reason === 'string' ? choice.finish_reason : '';
+  }
+
+  private readUsage(chunk: unknown): ModelTokenUsage | undefined {
+    if (!this.isObject(chunk) || !this.isObject(chunk.usage)) return undefined;
+    const inputTokens = readTokenCount(chunk.usage.prompt_tokens);
+    const outputTokens = readTokenCount(chunk.usage.completion_tokens);
+    if (inputTokens === undefined || outputTokens === undefined) return undefined;
+    const totalTokens = Math.max(readTokenCount(chunk.usage.total_tokens) ?? 0, inputTokens + outputTokens);
+    const details = this.isObject(chunk.usage.prompt_tokens_details) ? chunk.usage.prompt_tokens_details : undefined;
+    const rawCachedInputTokens = details ? readTokenCount(details.cached_tokens) : undefined;
+    const cachedInputTokens = rawCachedInputTokens !== undefined && rawCachedInputTokens <= inputTokens ? rawCachedInputTokens : undefined;
+    return { inputTokens, outputTokens, totalTokens, ...(cachedInputTokens !== undefined ? { cachedInputTokens } : {}) };
   }
 
   private mergeToolCallDeltas(toolCalls: Map<number, StreamingToolCall>, deltas: unknown[]) {
@@ -215,4 +249,8 @@ export class OpenAIProvider implements IAiProvider {
         },
       }));
   }
+}
+
+function readTokenCount(value: unknown) {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }
