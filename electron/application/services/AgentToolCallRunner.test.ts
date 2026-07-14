@@ -96,4 +96,54 @@ describe('AgentToolCallRunner', () => {
     expect(JSON.stringify(spans)).not.toContain('sensitive input');
     expect(JSON.stringify(spans)).not.toContain('sensitive output');
   });
+
+  it('enforces a central deny rule in danger-full-access mode', async () => {
+    const execute = vi.fn(async () => ({ ok: true, output: 'executed' }));
+    const runner = new AgentToolCallRunner(
+      { execute }, { requestApproval: async () => true }, { record: async () => undefined }, undefined,
+      { evaluate: async () => ({ allowed: false, requiresApproval: false, reason: 'Denied centrally.' }) },
+    );
+    const result = await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'danger-full-access', requestId: 'request-deny', step: 0, workspaceRoot: '/workspace',
+      toolCall: { id: 'action-deny', function: { name: 'run_command', arguments: '{"command":"npm test"}' } },
+      toolDefinition: getLocalToolDefinition('run_command'),
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.toolMessage.content).toContain('Denied centrally');
+  });
+
+  it('uses a central allow rule without opening the approval gateway', async () => {
+    const execute = vi.fn(async () => ({ ok: true, output: 'written' }));
+    const requestApproval = vi.fn(async () => true);
+    const runner = new AgentToolCallRunner(
+      { execute }, { requestApproval }, { record: async () => undefined }, undefined,
+      { evaluate: async () => ({ allowed: true, requiresApproval: false }) },
+    );
+    await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'workspace-write', requestId: 'request-allow', step: 0, workspaceRoot: '/workspace',
+      toolCall: { id: 'action-allow', function: { name: 'write_file', arguments: '{"path":"notes.md","content":"hello"}' } },
+      toolDefinition: getLocalToolDefinition('write_file'),
+    });
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it('fails closed without exposing permission-source paths to the model', async () => {
+    const execute = vi.fn(async () => ({ ok: true, output: 'executed' }));
+    const runner = new AgentToolCallRunner(
+      { execute }, { requestApproval: async () => true }, { record: async () => undefined }, undefined,
+      { evaluate: async () => { throw new Error('Invalid rules at /Users/private/rules.json'); } },
+    );
+    const result = await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'workspace-write', requestId: 'request-policy-error', step: 0, workspaceRoot: '/workspace',
+      toolCall: { id: 'action-policy-error', function: { name: 'read_file', arguments: '{"path":"notes.md"}' } },
+      toolDefinition: getLocalToolDefinition('read_file'),
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.toolMessage.content).toContain('permission rules could not be loaded');
+    expect(result.toolMessage.content).not.toContain('/Users/private');
+  });
 });

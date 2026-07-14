@@ -6,6 +6,7 @@ import type { IAttachmentMessageFormatter } from '../../domain/ports/IAttachment
 import type { IToolApprovalGateway } from '../../domain/ports/IToolApprovalGateway.js';
 import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
+import type { IToolPermissionPolicy } from '../../domain/ports/IToolPermissionPolicy.js';
 import type { AgentTaskCheckpoint } from '../../domain/entities/agentTask.js';
 import { createAgentRunState, transitionAgentRun } from '../../domain/entities/agentRunState.js';
 import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
@@ -39,12 +40,13 @@ export class RunAgentSession {
     approvalGateway: IToolApprovalGateway,
     auditLogger: IToolAuditLogger,
     tracer: IAgentTracer,
+    permissionPolicy?: IToolPermissionPolicy,
   ) {
     this.modelRequester = new ResilientModelRequester(provider);
     this.toolCatalog = toolCatalog;
     this.conversationBuilder = new AgentConversationBuilder(attachmentFormatter);
     this.tracer = tracer;
-    this.toolBatchRunner = new AgentToolBatchRunner(new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger, tracer));
+    this.toolBatchRunner = new AgentToolBatchRunner(new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger, tracer, permissionPolicy));
   }
 
   async execute(

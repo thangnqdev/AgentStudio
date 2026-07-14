@@ -21,6 +21,11 @@ export type ToolPolicyDecision = {
   allowed: boolean;
   requiresApproval: boolean;
   reason?: string;
+  matchedRule?: {
+    id: string;
+    effect: 'allow' | 'ask' | 'deny';
+    source: 'policy' | 'workspace' | 'user' | 'session';
+  };
 };
 
 export type ToolApprovalRequest = {

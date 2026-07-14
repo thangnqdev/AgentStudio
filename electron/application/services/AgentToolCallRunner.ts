@@ -1,10 +1,12 @@
 import type { ChatMessage, PermissionMode, ToolCall } from '../../domain/entities/agent.js';
-import { evaluateToolPolicy, type AgentToolDefinition } from '../../domain/entities/tool.js';
+import { evaluateToolPermission } from '../../domain/entities/permissionRule.js';
+import type { AgentToolDefinition, ToolPolicyDecision } from '../../domain/entities/tool.js';
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import type { IToolApprovalGateway } from '../../domain/ports/IToolApprovalGateway.js';
 import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
 import type { IToolExecutor } from '../../domain/ports/IToolExecutor.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
+import type { IToolPermissionPolicy } from '../../domain/ports/IToolPermissionPolicy.js';
 import { summarizeToolArguments } from './toolActionPresentation.js';
 import { parseAndValidateToolArguments } from './toolArgumentValidation.js';
 
@@ -24,17 +26,20 @@ export class AgentToolCallRunner {
   private readonly auditLogger: IToolAuditLogger;
   private readonly toolExecutor: IToolExecutor;
   private readonly tracer?: IAgentTracer;
+  private readonly permissionPolicy?: IToolPermissionPolicy;
 
   constructor(
     toolExecutor: IToolExecutor,
     approvalGateway: IToolApprovalGateway,
     auditLogger: IToolAuditLogger,
     tracer?: IAgentTracer,
+    permissionPolicy?: IToolPermissionPolicy,
   ) {
     this.toolExecutor = toolExecutor;
     this.approvalGateway = approvalGateway;
     this.auditLogger = auditLogger;
     this.tracer = tracer;
+    this.permissionPolicy = permissionPolicy;
   }
 
   async run(input: ToolCallRunInput) {
@@ -42,12 +47,11 @@ export class AgentToolCallRunner {
     const actionId = input.toolCall.id || `${input.requestId}-${toolName}-${input.step}`;
     const tool = input.toolDefinition;
     const risk = tool?.risk ?? 'execute';
-    const policy = evaluateToolPolicy(tool, input.permissionMode);
     const toolSpanId = this.tracer?.newSpanId();
     const startedAt = new Date().toISOString();
 
-    if (!tool || !policy.allowed) {
-      const output = policy.reason || 'Tool execution is blocked by policy.';
+    if (!tool) {
+      const output = 'Unknown tool.';
       input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: '', risk, status: 'error', output });
       await this.recordAudit(actionId, 'error', input, risk, toolName);
       await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, 'blocked', 'denied');
@@ -63,6 +67,22 @@ export class AgentToolCallRunner {
       await this.recordAudit(actionId, 'error', input, risk, toolName);
       await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, 'failed', 'failed');
       return this.result(input.toolCall, toolName, argsText, { ok: false, output: parsed.error });
+    }
+
+    let policy: ToolPolicyDecision;
+    try {
+      policy = this.permissionPolicy
+        ? await this.permissionPolicy.evaluate({ tool, permissionMode: input.permissionMode, args, workspaceRoot: input.workspaceRoot })
+        : evaluateToolPermission(tool, input.permissionMode, args, []);
+    } catch {
+      policy = { allowed: false, requiresApproval: false, reason: 'Tool execution is blocked because permission rules could not be loaded.' };
+    }
+    if (!policy.allowed) {
+      const output = policy.reason || 'Tool execution is blocked by policy.';
+      input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: 'error', output });
+      await this.recordAudit(actionId, 'error', input, risk, toolName);
+      await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, 'blocked', 'denied');
+      return this.result(input.toolCall, toolName, argsText, { ok: false, output });
     }
 
     if (policy.requiresApproval) {

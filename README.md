@@ -74,9 +74,25 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 ## Tool Platform
 
 - Local tools are registered from one typed catalog, shared by the model schema and execution policy.
-- Read-only tools run automatically. In `workspace-write`, file writes and shell commands require explicit per-action approval and remain workspace-scoped/sandboxed. In `danger-full-access`, all tools run automatically without manual approval, commands are unsandboxed, and absolute file paths are allowed.
+- Read-only tools run automatically. In `workspace-write`, file writes and shell commands require explicit per-action approval and remain workspace-scoped/sandboxed. In `danger-full-access`, tools run automatically by default, commands are unsandboxed, and absolute file paths are allowed; explicit central `ask`/`deny` rules still take precedence.
 - Tool audit records persist locally as JSONL with a hashed workspace identifier. File contents and tool arguments are not written to that audit log.
 - `apply_patch` performs one exact, unambiguous replacement so edits do not need to resend a complete file.
+
+### Permission Rules
+
+- Workspace rules live in `.agentstudio/permissions.json` and may only tighten policy with `ask` or `deny`.
+- User rules live under Electron `userData/permissions/rules.json` and may use `allow`, `ask`, or `deny`.
+- Precedence is `deny` → `ask` → `allow`; `deny` also overrides `danger-full-access`, while no rule can weaken `read-only`.
+- Rules require `effect` and `toolGlob`; optional constraints are `risk`, `pathGlob`, and `commandPrefix`. Globs support `*` and `?`.
+
+```json
+{
+  "rules": [
+    { "id": "deny-delete", "effect": "deny", "toolGlob": "run_command", "commandPrefix": "rm " },
+    { "id": "ask-secrets", "effect": "ask", "toolGlob": "read_file", "pathGlob": "config/*" }
+  ]
+}
+```
 
 ### Agent Skills
 

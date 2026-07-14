@@ -16,6 +16,7 @@ import { mcpGateway } from './mcpRuntime.js';
 import { JsonlAgentTraceRepository } from './infrastructure/tracing/JsonlAgentTraceRepository.js';
 import { AgentTraceService } from './application/services/AgentTraceService.js';
 import type { RuntimeOptimizationConfig } from './domain/entities/optimizer.js';
+import { toolPermissionPolicy } from './permissionRuntime.js';
 
 export * from './domain/entities/agent.js';
 
@@ -49,7 +50,7 @@ export async function runAgentSession(
     mcpGateway,
     tuning?.timeoutMs,
   );
-  const session = new RunAgentSession(provider, toolExecutor, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService);
+  const session = new RunAgentSession(provider, toolExecutor, toolExecutor, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, toolPermissionPolicy);
   const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, skillContext, signal, task
     ? {
       id: task.id,
