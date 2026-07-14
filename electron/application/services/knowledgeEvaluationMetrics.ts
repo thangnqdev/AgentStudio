@@ -11,7 +11,9 @@ export function scoreKnowledgeRetrieval(relevantChunkIds: string[], retrievedChu
   return {
     recallAtK: relevant.size ? hits.length / relevant.size : 1,
     precisionAtK: retrievedChunkIds.length ? hits.length / retrievedChunkIds.length : relevant.size ? 0 : 1,
-    reciprocalRank: firstRelevantRank < 0 ? 0 : 1 / (firstRelevantRank + 1),
+    reciprocalRank: relevant.size === 0
+      ? (retrievedChunkIds.length === 0 ? 1 : 0)
+      : firstRelevantRank < 0 ? 0 : 1 / (firstRelevantRank + 1),
     ndcgAtK: idealDcg ? dcg / idealDcg : 1,
   };
 }

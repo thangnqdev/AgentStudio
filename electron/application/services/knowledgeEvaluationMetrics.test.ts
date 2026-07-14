@@ -21,4 +21,13 @@ describe('knowledge evaluation metrics', () => {
     expect(metrics.latencyMs.p95).toBe(100);
     expect(metrics.recallAtK).toBe(1);
   });
+
+  it('treats an empty expected and observed retrieval as a correct no-op', () => {
+    expect(scoreKnowledgeRetrieval([], [])).toEqual({
+      recallAtK: 1,
+      precisionAtK: 1,
+      reciprocalRank: 1,
+      ndcgAtK: 1,
+    });
+  });
 });

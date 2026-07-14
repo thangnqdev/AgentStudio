@@ -1,5 +1,5 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
-import { agentEvaluationRegression, goldenAgentSuite } from '../evaluationRuntime.js';
+import { agentEvaluationRegression, runGoldenAgentRuntimeEvaluation } from '../evaluationRuntime.js';
 
 function respond<T>(task: () => Promise<T>) {
   return task().then((data) => ({ success: true as const, data })).catch((error: unknown) => ({ success: false as const, error: error instanceof Error ? error.message : 'Evaluation operation failed.' }));
@@ -7,7 +7,7 @@ function respond<T>(task: () => Promise<T>) {
 
 export function registerEvaluationIpc(win: BrowserWindow | null) {
   ipcMain.handle('evaluations:list', (_event, rawLimit: unknown) => respond(() => agentEvaluationRegression.list(readLimit(rawLimit))));
-  ipcMain.handle('evaluations:run-golden', () => respond(() => agentEvaluationRegression.execute(goldenAgentSuite)));
+  ipcMain.handle('evaluations:run-golden', () => respond(() => runGoldenAgentRuntimeEvaluation()));
   ipcMain.handle('evaluations:export', (_event, rawRunId: unknown) => respond(async () => {
     const runId = readRunId(rawRunId);
     const result = win

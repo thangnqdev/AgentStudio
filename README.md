@@ -144,8 +144,9 @@ Check assumptions, identify concrete failure modes, and clearly label uncertaint
 
 ## Agent-wide Evaluation
 
-- `npm run eval:agent -- [report.json]` runs the versioned golden suite and exits non-zero when aggregate or dimension thresholds regress.
-- The suite grades task outcome, tool selection, code-change scope/tests, policy violations, trajectory efficiency and knowledge retrieval in one report.
+- `npm run eval:agent -- [report.json]` runs a versioned deterministic runtime suite and exits non-zero when aggregate or dimension thresholds regress.
+- The suite uses a scripted local model without network/API cost, but runs the production session loop, permission/approval path, filesystem tools, checkpoints, tracing and lexical retrieval against isolated temporary workspaces. Observations are collected from runtime state and disk, not embedded as passing fixture results.
+- It grades task outcome, tool selection, code-change scope/assertions, policy violations, trajectory efficiency and knowledge retrieval in one report. This is a runtime contract regression, not a benchmark of live-model reasoning quality.
 - Retrieval evaluation reuses the existing Recall@k, reciprocal-rank and nDCG implementation rather than defining a second metric path.
 - Evaluators receive a deep-cloned, frozen fixture and have no task repository, tool executor or policy mutation capability. Every score includes fixture/evaluator provenance and semantic versions.
 - Reports persist as owner-only JSONL under Electron `userData/evaluations`; the **Đánh giá agent** view can run the golden suite and export a selected report.

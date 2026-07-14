@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AgentSpanInput } from '../../domain/entities/agentTrace.js';
-import { GOLDEN_AGENT_SUITE } from '../../evaluation/goldenAgentSuite.js';
+import { AGENT_EVALUATOR_FIXTURE_SUITE } from '../../evaluation/goldenAgentSuite.js';
 import { createDefaultAgentEvaluators } from '../../application/services/agentEvaluators.js';
 import { RunAgentEvaluationRegression } from '../../application/usecases/RunAgentEvaluationRegression.js';
 import { JsonlAgentEvaluationReportRepository } from './JsonlAgentEvaluationReportRepository.js';
@@ -18,7 +18,7 @@ describe('agent evaluation regression integration', () => {
     const spans: AgentSpanInput[] = [];
     const tracer = { newSpanId: () => crypto.randomUUID(), startTrace: async () => undefined, updateTrace: async () => undefined, recordSpan: async (span: AgentSpanInput) => { spans.push(span); return crypto.randomUUID(); } };
     const runner = new RunAgentEvaluationRegression(createDefaultAgentEvaluators(), repository, tracer);
-    const report = await runner.execute(GOLDEN_AGENT_SUITE);
+    const report = await runner.execute(AGENT_EVALUATOR_FIXTURE_SUITE);
     const target = path.join(directory, 'report.json'); await runner.exportJson(report.runId, target);
     expect((await repository.list())[0].runId).toBe(report.runId);
     expect(JSON.parse(await fs.readFile(target, 'utf8')).passed).toBe(true);

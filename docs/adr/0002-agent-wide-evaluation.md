@@ -12,9 +12,9 @@ Knowledge retrieval has a standalone benchmark, while task outcomes, tool choice
 
 An `IAgentEvaluator` consumes a deeply cloned and frozen golden fixture and returns exactly one typed evaluation. Evaluators are pure graders: they receive no task repository, tool executor, policy mutator or write capability. The regression use-case hashes the frozen input before and after every evaluator and fails if it changes.
 
-Every score is normalized to `[0,1]` and carries provenance: fixture/version, evaluator/version, run ID and timestamp. Reports are versioned, append-only JSONL. Golden fixtures are version-controlled TypeScript data so packaged Electron builds and the CLI execute the identical suite. Retrieval recall/MRR/nDCG reuse the existing retrieval metric implementation and appear as a `RetrievalEvaluation` in the same report.
+Every score is normalized to `[0,1]` and carries provenance: fixture/version, evaluator/version, run ID and timestamp. Reports are versioned, append-only JSONL. Golden scenario definitions are version-controlled TypeScript data so packaged Electron builds and the CLI execute the identical suite. Runtime observations are generated fresh by an infrastructure runner on isolated temporary workspaces; only evaluator unit tests retain recorded observation fixtures. Retrieval recall/MRR/nDCG reuse the existing retrieval and metric implementations and appear as a `RetrievalEvaluation` in the same report.
 
-The initial regression command evaluates recorded golden outcomes; it does not invoke a live model, modify a task, change tool policy, promote candidates or tune runtime configuration.
+The regression uses a deterministic scripted provider, then runs the production agent session, permission/approval path, local filesystem tools, checkpointing, tracing and lexical retrieval. It does not invoke a live model, access the network, modify a user workspace, change tool policy, promote candidates or tune runtime configuration.
 
 ## Invariants
 
@@ -26,4 +26,4 @@ The initial regression command evaluates recorded golden outcomes; it does not i
 
 ## Consequences
 
-The deterministic suite is CI-friendly and safe to run locally. It validates graders and regressions against curated trajectories, not live-model quality; live trials can be added later behind the same fixture/result contracts. Optimizer promotion remains out of scope until its own milestone and ADR.
+The deterministic suite is CI-friendly and safe to run locally. It validates graders plus runtime contracts against curated scripted trajectories, not live-model reasoning quality; live trials can be added later behind the same fixture/result contracts. Optimizer promotion remains out of scope until its own milestone and ADR.

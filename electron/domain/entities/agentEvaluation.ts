@@ -1,3 +1,6 @@
+import type { PermissionMode } from './agent.js';
+import type { KnowledgeStore } from './knowledge.js';
+
 export const AGENT_EVALUATION_REPORT_VERSION = 1;
 export type EvaluationKind = 'task' | 'tool_selection' | 'code_change' | 'policy' | 'trajectory' | 'retrieval';
 
@@ -30,6 +33,26 @@ export type GoldenTaskFixture = {
 
 export type GoldenTaskSuite = {
   id: string; version: string; minimumAggregateScore: number; minimumScores: Partial<Record<EvaluationKind, number>>; fixtures: GoldenTaskFixture[];
+};
+
+export type RuntimeEvaluationFile = { path: string; content: string };
+export type RuntimeEvaluationResponse = {
+  content?: string;
+  toolCalls?: Array<{ name: string; args: Record<string, unknown> }>;
+};
+export type GoldenRuntimeTaskDefinition = Omit<GoldenTaskFixture, 'observed'> & {
+  runtime: {
+    prompt: string;
+    permissionMode: PermissionMode;
+    initialFiles: RuntimeEvaluationFile[];
+    assertedFiles: RuntimeEvaluationFile[];
+    responses: RuntimeEvaluationResponse[];
+    knowledge?: { store: KnowledgeStore; query: string; limit: number };
+    knowledgeContext?: string;
+  };
+};
+export type GoldenRuntimeSuiteDefinition = Omit<GoldenTaskSuite, 'fixtures'> & {
+  fixtures: GoldenRuntimeTaskDefinition[];
 };
 
 export type AgentEvaluationReport = {

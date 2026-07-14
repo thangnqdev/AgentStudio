@@ -1,0 +1,168 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { RunAgentSession } from '../../application/usecases/RunAgentSession.js';
+import { retrieveKnowledge } from '../../application/services/knowledgeRetrieval.js';
+import type { AgentSpanInput, ToolCallTrace } from '../../domain/entities/agentTrace.js';
+import type { GoldenRuntimeTaskDefinition, GoldenTaskFixture, RuntimeEvaluationFile } from '../../domain/entities/agentEvaluation.js';
+import type { IAgentEvaluationScenarioRunner } from '../../domain/ports/IAgentEvaluationScenarioRunner.js';
+import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
+import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
+import { AttachmentMessageFormatter } from '../ai/AttachmentMessageFormatter.js';
+import { resolveSafeWorkspacePath } from '../security/resolveSafePath.js';
+import { AgentToolExecutor } from '../tools/AgentToolExecutor.js';
+import { ScriptedEvaluationProvider } from './ScriptedEvaluationProvider.js';
+
+type Observation = GoldenTaskFixture['observed'];
+
+export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenarioRunner {
+  async run(definition: Readonly<GoldenRuntimeTaskDefinition>): Promise<Observation> {
+    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-'));
+    const taskId = `runtime-eval-${randomUUID()}`;
+    const traceId = randomUUID();
+    const tracer = new MemoryEvaluationTracer();
+    let taskStatus: Observation['taskStatus'] = 'failed';
+    let completedSteps = 0;
+    let runtimeFailed = false;
+    let retrievedChunkIds: string[] = [];
+
+    try {
+      await writeInitialFiles(workspaceRoot, definition.runtime.initialFiles);
+      const before = await snapshotWorkspace(workspaceRoot);
+      const retrieval = definition.runtime.knowledge
+        ? retrieveKnowledge(
+          definition.runtime.knowledge.store.chunks,
+          definition.runtime.knowledge.store.documents,
+          definition.runtime.knowledge.query,
+          null,
+          undefined,
+          definition.runtime.knowledge.limit,
+        )
+        : undefined;
+      retrievedChunkIds = retrieval?.results.map((result) => result.chunkId) ?? [];
+      const knowledgeContext = retrieval?.results.map((result) => `${result.citation}\n${result.content}`).join('\n\n')
+        || definition.runtime.knowledgeContext;
+      const provider = new ScriptedEvaluationProvider(definition.runtime.responses);
+      const platform = new AgentToolExecutor({ provider: 'disabled' });
+      const session = new RunAgentSession(
+        provider,
+        platform,
+        platform,
+        new AttachmentMessageFormatter(),
+        { requestApproval: async () => true },
+        { record: async () => undefined },
+        tracer,
+      );
+
+      try {
+        const result = await session.execute(
+          { requestId: taskId, messages: [{ id: 'evaluation-prompt', sender: 'user', content: definition.runtime.prompt }] },
+          NOOP_EVENT_SINK,
+          {
+            baseUrl: 'scripted://runtime-evaluation', apiKey: '', model: 'scripted-runtime',
+            permissionMode: definition.runtime.permissionMode, retryCount: 0, requestTimeoutMs: 5_000, contextWindow: 16_384,
+          },
+          workspaceRoot,
+          knowledgeContext,
+          undefined,
+          undefined,
+          {
+            id: taskId, traceId, workspaceRoot, completedSteps: 0, messages: [], conversation: [],
+            knowledgeContext,
+            onCheckpoint: async (checkpoint) => {
+              taskStatus = checkpoint.status === 'running' ? taskStatus : checkpoint.status;
+              completedSteps = checkpoint.completedSteps;
+            },
+          },
+        );
+        taskStatus = result?.status ?? 'failed';
+        completedSteps = result?.completedSteps ?? completedSteps;
+        provider.assertComplete();
+      } catch {
+        runtimeFailed = true;
+        taskStatus = 'failed';
+      }
+
+      const after = await snapshotWorkspace(workspaceRoot);
+      const toolCalls = tracer.toolCalls();
+      const forbidden = new Set(definition.expected.forbiddenTools);
+      const policyViolationCodes = toolCalls
+        .filter((call) => call.outcome === 'succeeded' && forbidden.has(call.toolName))
+        .map((call) => `forbidden-tool-succeeded:${call.toolName}`);
+      if (runtimeFailed) policyViolationCodes.push('runtime-error');
+
+      return {
+        taskId,
+        traceId,
+        taskStatus,
+        completedSteps,
+        toolCalls: toolCalls.map(({ toolName, outcome }) => ({ toolName, outcome })),
+        changedFiles: changedFiles(before, after),
+        testsPassed: definition.runtime.assertedFiles.length > 0
+          && await assertedFilesMatch(workspaceRoot, definition.runtime.assertedFiles),
+        policyViolationCodes,
+        retrievedChunkIds,
+      };
+    } finally {
+      await fs.rm(workspaceRoot, { recursive: true, force: true });
+    }
+  }
+}
+
+class MemoryEvaluationTracer implements IAgentTracer {
+  private readonly spans: AgentSpanInput[] = [];
+  newSpanId() { return randomUUID(); }
+  async startTrace() {}
+  async updateTrace() {}
+  async recordSpan(input: AgentSpanInput) { this.spans.push(structuredClone(input)); return input.spanId ?? randomUUID(); }
+  toolCalls(): Array<Pick<ToolCallTrace, 'toolName' | 'outcome'>> {
+    return this.spans.filter((span): span is Extract<AgentSpanInput, { kind: 'tool_call' }> => span.kind === 'tool_call');
+  }
+}
+
+const NOOP_EVENT_SINK: IAgentEventSink = {
+  emitChunk: () => undefined,
+  emitAction: () => undefined,
+  emitDone: () => undefined,
+  emitError: () => undefined,
+};
+
+async function writeInitialFiles(workspaceRoot: string, files: readonly RuntimeEvaluationFile[]) {
+  for (const file of files) {
+    const target = await resolveSafeWorkspacePath(file.path, workspaceRoot, { allowMissingFinalPath: true });
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, file.content, 'utf8');
+  }
+}
+
+async function assertedFilesMatch(workspaceRoot: string, files: readonly RuntimeEvaluationFile[]) {
+  const matches = await Promise.all(files.map(async (file) => {
+    const target = await resolveSafeWorkspacePath(file.path, workspaceRoot);
+    return await fs.readFile(target, 'utf8') === file.content;
+  }));
+  return matches.every(Boolean);
+}
+
+async function snapshotWorkspace(workspaceRoot: string) {
+  const snapshot = new Map<string, string>();
+  await visit(workspaceRoot, '');
+  return snapshot;
+
+  async function visit(directory: string, relativeDirectory: string): Promise<void> {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    for (const entry of entries) {
+      const relative = path.posix.join(relativeDirectory, entry.name);
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) await visit(absolute, relative);
+      else if (entry.isFile()) snapshot.set(relative, (await fs.readFile(absolute)).toString('base64'));
+      else snapshot.set(relative, `[${entry.isSymbolicLink() ? 'symlink' : 'other'}]`);
+    }
+  }
+}
+
+function changedFiles(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>) {
+  return [...new Set([...before.keys(), ...after.keys()])]
+    .filter((file) => before.get(file) !== after.get(file))
+    .sort();
+}
