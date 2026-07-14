@@ -22,6 +22,9 @@ export function registerSettingsIpc(settings: ManageProviderSettings) {
   ipcMain.handle('settings:set-active-model', (_event, rawModelId: unknown) => (
     settings.setActiveModel(getString(rawModelId))
   ));
+  ipcMain.handle('settings:set-fallback-model', (_event, rawModelId: unknown) => (
+    settings.setFallbackModel(getString(rawModelId))
+  ));
   ipcMain.handle('settings:set-permission-mode', (_event, rawMode: unknown) => (
     settings.setPermissionMode(readPermissionMode(rawMode))
   ));
@@ -46,6 +49,7 @@ function readLegacySettings(value: unknown): LegacySettingsInput | null {
     })),
     activeProviderId: nullableString(value.activeProviderId),
     activeModelId: nullableString(value.activeModelId),
+    fallbackModelId: nullableString(value.fallbackModelId),
     permissionMode: optionalPermissionMode(value.permissionMode),
   };
 }

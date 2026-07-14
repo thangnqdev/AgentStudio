@@ -29,6 +29,7 @@ export type LegacySettingsPayload = {
   }>;
   activeProviderId?: string | null;
   activeModelId?: string | null;
+  fallbackModelId?: string | null;
   permissionMode?: PermissionMode;
 };
 
@@ -174,6 +175,7 @@ declare global {
       deleteProvider: (providerId: string) => Promise<AppSettings>;
       setActiveProvider: (providerId: string) => Promise<AppSettings>;
       setActiveModel: (modelId: string) => Promise<AppSettings>;
+      setFallbackModel: (modelId: string) => Promise<AppSettings>;
       setPermissionMode: (mode: PermissionMode) => Promise<AppSettings>;
       loadWebSearchSettings: () => Promise<WebSearchSettingsResult>;
       saveWebSearchSettings: (payload: { provider: WebSearchProvider; baseUrl?: string; apiKey?: string; model?: string }) => Promise<WebSearchSettingsResult>;

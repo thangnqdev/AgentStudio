@@ -55,12 +55,14 @@ export class ManageProviderSettings {
       : providers[0]?.id ?? null;
     const activeProvider = providers.find((provider) => provider.id === activeProviderId);
     const requestedModelId = input.activeModelId || '';
+    const activeModelId = hasModel(activeProvider, requestedModelId)
+      ? requestedModelId
+      : firstModelId(activeProvider);
     const settings: StoredSettings = {
       providers,
       activeProviderId,
-      activeModelId: hasModel(activeProvider, requestedModelId)
-        ? requestedModelId
-        : firstModelId(activeProvider),
+      activeModelId,
+      fallbackModelId: validFallbackModel(activeProvider, activeModelId, input.fallbackModelId),
       permissionMode: input.permissionMode ?? 'workspace-write',
       workspacePath: this.dependencies.defaultWorkspacePath(),
     };
@@ -94,6 +96,9 @@ export class ManageProviderSettings {
     if (settings.activeProviderId === provider.id && !hasModel(provider, settings.activeModelId)) {
       settings.activeModelId = firstModelId(provider);
     }
+    if (settings.activeProviderId === provider.id) {
+      settings.fallbackModelId = validFallbackModel(provider, settings.activeModelId, settings.fallbackModelId);
+    }
     return this.saveAndProject(settings);
   }
 
@@ -104,6 +109,7 @@ export class ManageProviderSettings {
       const nextProvider = settings.providers[0];
       settings.activeProviderId = nextProvider?.id ?? null;
       settings.activeModelId = firstModelId(nextProvider);
+      settings.fallbackModelId = null;
     }
     return this.saveAndProject(settings);
   }
@@ -114,12 +120,26 @@ export class ManageProviderSettings {
     if (!provider) throw new Error('Provider không tồn tại.');
     settings.activeProviderId = provider.id;
     if (!hasModel(provider, settings.activeModelId)) settings.activeModelId = firstModelId(provider);
+    settings.fallbackModelId = validFallbackModel(provider, settings.activeModelId, settings.fallbackModelId);
     return this.saveAndProject(settings);
   }
 
   async setActiveModel(modelId: string) {
     const settings = await this.settings.loadStoredSettings();
-    settings.activeModelId = modelId || null;
+    const provider = settings.providers.find((item) => item.id === settings.activeProviderId);
+    if (!hasModel(provider, modelId)) throw new Error('Model không thuộc provider đang hoạt động.');
+    settings.activeModelId = modelId;
+    if (settings.fallbackModelId === modelId) settings.fallbackModelId = null;
+    return this.saveAndProject(settings);
+  }
+
+  async setFallbackModel(modelId: string) {
+    const settings = await this.settings.loadStoredSettings();
+    const provider = settings.providers.find((item) => item.id === settings.activeProviderId);
+    if (!modelId) settings.fallbackModelId = null;
+    else if (modelId === settings.activeModelId) throw new Error('Fallback model phải khác model chính.');
+    else if (!hasModel(provider, modelId)) throw new Error('Fallback model không thuộc provider đang hoạt động.');
+    else settings.fallbackModelId = modelId;
     return this.saveAndProject(settings);
   }
 
@@ -140,4 +160,8 @@ function existingSecret(provider: StoredProvider | undefined) {
     encryptedApiKey: provider?.encryptedApiKey,
     plainApiKey: provider?.plainApiKey,
   };
+}
+
+function validFallbackModel(provider: StoredProvider | undefined, activeModelId: string | null, fallbackModelId: string | null | undefined) {
+  return fallbackModelId !== activeModelId && hasModel(provider, fallbackModelId) ? fallbackModelId! : null;
 }

@@ -5,6 +5,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   providers: [],
   activeProviderId: null,
   activeModelId: null,
+  fallbackModelId: null,
   permissionMode: 'workspace-write',
   workspacePath: 'chưa có dự án',
 };

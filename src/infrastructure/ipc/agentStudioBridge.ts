@@ -100,6 +100,11 @@ export const AgentBridge = {
     return window.agentStudio.setActiveModel(modelId);
   },
 
+  async setFallbackModel(modelId: string) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.setFallbackModel(modelId);
+  },
+
   async setPermissionMode(mode: PermissionMode) {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     return window.agentStudio.setPermissionMode(mode);

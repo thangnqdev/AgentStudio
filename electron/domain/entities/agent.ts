@@ -48,6 +48,10 @@ export type AgentProviderSettings = {
   baseUrl: string;
   apiKey: string;
   model: string;
+  fallbackModels?: string[];
+  modelContextWindows?: Record<string, number>;
+  retryCount?: number;
+  requestTimeoutMs?: number;
   contextWindow?: number;
   contextBudgetTokens?: number;
   permissionMode: PermissionMode;

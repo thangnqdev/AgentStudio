@@ -66,6 +66,12 @@ export function registerAgentIpc() {
       const workspaceRoot = await workspaceManager.getWorkspaceRoot();
       const tuning = (await safeOptimizer.getState()).active;
       const selectedModel = tuning.modelChoice && activeProvider.models.some((model) => model.id === tuning.modelChoice) ? tuning.modelChoice : settings.activeModelId;
+      const fallbackModel = settings.fallbackModelId && activeProvider.models.some((model) => model.id === settings.fallbackModelId) && settings.fallbackModelId !== selectedModel
+        ? settings.fallbackModelId
+        : null;
+      const modelContextWindows = Object.fromEntries(activeProvider.models.flatMap((model) => (
+        model.contextWindow ? [[model.id, model.contextWindow] as const] : []
+      )));
       const { task, skillContext } = await prepareAgentSession.execute({ payload, taskId, requestId, workspaceRoot });
       activeAgentTaskIds.set(requestId, task.id);
 
@@ -73,6 +79,9 @@ export function registerAgentIpc() {
         baseUrl: activeProvider.baseUrl,
         apiKey: settingsRepo.decryptApiKey(activeProvider),
         model: selectedModel || '',
+        fallbackModels: fallbackModel ? [fallbackModel] : [],
+        modelContextWindows,
+        retryCount: tuning.retryCount,
         contextWindow: activeProvider.models.find(m => m.id === selectedModel)?.contextWindow,
         contextBudgetTokens: tuning.contextBudgetTokens,
         permissionMode: settings.permissionMode,

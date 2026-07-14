@@ -20,6 +20,17 @@ export function useProviderSettings() {
     }
   };
 
+  const setFallbackModel = async (modelId: string): Promise<void> => {
+    setSettings({ fallbackModelId: modelId || null });
+    try {
+      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await AgentBridge.setFallbackModel(modelId);
+      setSettings(nextSettings);
+    } catch (error) {
+      console.error('Failed to save fallback model', error);
+    }
+  };
+
   const setPermissionMode = async (permissionMode: PermissionMode): Promise<void> => {
     setSettings({ permissionMode });
     try {
@@ -67,5 +78,5 @@ export function useProviderSettings() {
     }
   };
 
-  return { setActiveModel, setPermissionMode, setActiveProvider, deleteProvider, saveProviderAndScan };
+  return { setActiveModel, setFallbackModel, setPermissionMode, setActiveProvider, deleteProvider, saveProviderAndScan };
 }

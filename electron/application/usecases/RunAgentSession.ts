@@ -7,7 +7,7 @@ import type { IToolApprovalGateway } from '../../domain/ports/IToolApprovalGatew
 import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 import type { AgentTaskCheckpoint } from '../../domain/entities/agentTask.js';
-import { buildSummarySystemMessage, compactContext } from '../../contextCompaction.js';
+import { createAgentRunState, transitionAgentRun } from '../../domain/entities/agentRunState.js';
 import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
 import type {
   AgentStartPayload,
@@ -17,13 +17,17 @@ import type {
 } from '../../domain/entities/agent.js';
 
 import { MAX_AGENT_STEPS_PER_RUN, MAX_AGENT_TASK_STEPS } from '../../domain/entities/limits.js';
-import { buildAgentSystemPrompt } from '../services/agentSystemPrompt.js';
 import { AgentToolCallRunner } from '../services/AgentToolCallRunner.js';
+import { AgentToolBatchRunner } from '../services/AgentToolBatchRunner.js';
+import { ResilientModelRequester } from '../services/ResilientModelRequester.js';
+import { contextProjectionPolicy, projectConversationForModel } from '../services/conversationProjection.js';
+import { AgentConversationBuilder } from '../services/AgentConversationBuilder.js';
+import { OUTPUT_CONTINUATION_PROMPT, shouldContinueModelOutput } from '../services/outputContinuation.js';
 
 export class RunAgentSession {
-  private readonly provider: IAiProvider;
-  private readonly attachmentFormatter: IAttachmentMessageFormatter;
-  private readonly toolCallRunner: AgentToolCallRunner;
+  private readonly modelRequester: ResilientModelRequester;
+  private readonly conversationBuilder: AgentConversationBuilder;
+  private readonly toolBatchRunner: AgentToolBatchRunner;
   private readonly toolCatalog: IToolCatalog;
   private readonly tracer: IAgentTracer;
 
@@ -36,11 +40,11 @@ export class RunAgentSession {
     auditLogger: IToolAuditLogger,
     tracer: IAgentTracer,
   ) {
-    this.provider = provider;
+    this.modelRequester = new ResilientModelRequester(provider);
     this.toolCatalog = toolCatalog;
-    this.attachmentFormatter = attachmentFormatter;
+    this.conversationBuilder = new AgentConversationBuilder(attachmentFormatter);
     this.tracer = tracer;
-    this.toolCallRunner = new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger, tracer);
+    this.toolBatchRunner = new AgentToolBatchRunner(new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger, tracer));
   }
 
   async execute(
@@ -70,49 +74,36 @@ export class RunAgentSession {
 
     let currentMessages = task?.messages.length ? [...task.messages] : [...messages];
     let conversation: ChatMessage[] = task?.conversation.length ? [...task.conversation] : [];
-    let completedSteps = task?.completedSteps ?? 0;
+    let runState = createAgentRunState(task?.completedSteps ?? 0);
+    let outputContinuations = 0;
 
     const rebuildConversation = async () => {
-      const compactedContext = compactContext(
-        currentMessages.filter((m) => m.sender !== 'system'),
-        inputContextTokens
-      );
-      conversation = [
-        {
-          role: 'system',
-          content: buildAgentSystemPrompt(workspaceRoot, settings.permissionMode, knowledgeContext, skillContext),
-        },
-        ...(compactedContext.summary ? [{
-          role: 'system' as const,
-          content: buildSummarySystemMessage(compactedContext.summary),
-        }] : []),
-        ...await this.attachmentFormatter.format(compactedContext.recentMessages),
-      ];
-
-      if (compactedContext.didCompact) {
-        const lastMsg = currentMessages[currentMessages.length - 1];
-        if (!lastMsg || lastMsg.sender !== 'system' || !lastMsg.content.includes('đã được nén')) {
-          currentMessages.push({
-            id: `compaction-${Date.now()}`,
-            sender: 'system',
-            content: `Ngữ cảnh cũ đã được nén (còn lại ~${compactedContext.compactedApproxTokens} tokens) để tối ưu bộ nhớ.`,
-          });
-        }
-      }
+      const rebuilt = await this.conversationBuilder.build({
+        messages: currentMessages, inputContextTokens, workspaceRoot, settings, knowledgeContext, skillContext,
+      });
+      conversation = rebuilt.conversation;
+      if (rebuilt.compactionNotice) currentMessages.push(rebuilt.compactionNotice);
     };
 
     if (conversation.length === 0) await rebuildConversation();
-    await this.checkpoint(task, 'running', completedSteps, currentMessages, conversation);
+    await this.checkpoint(task, 'running', runState.completedSteps, currentMessages, conversation);
 
-    const runStepLimit = Math.min(completedSteps + MAX_AGENT_STEPS_PER_RUN, MAX_AGENT_TASK_STEPS);
-    for (let step = completedSteps; step < runStepLimit; step += 1) {
-      if (signal?.aborted) throw new Error('Agent session stopped.');
+    const runStepLimit = Math.min(runState.completedSteps + MAX_AGENT_STEPS_PER_RUN, MAX_AGENT_TASK_STEPS);
+    while (runState.phase === 'ready' && runState.completedSteps < runStepLimit) {
+      if (signal?.aborted) {
+        runState = transitionAgentRun(runState, { type: 'stop' });
+        throw new Error('Agent session stopped.');
+      }
 
+      const step = runState.completedSteps;
+      runState = transitionAgentRun(runState, { type: 'request_model' });
       const modelStartedAt = new Date().toISOString();
       let assistantMessage: Awaited<ReturnType<IAiProvider['requestAssistantMessage']>>;
       try {
-        assistantMessage = await this.provider.requestAssistantMessage(settings, conversation, toolDefinitions, eventSink, requestId, signal);
-        await this.recordModelSpan(task, requestId, step, modelStartedAt, settings.model, 'succeeded', assistantMessage.finishReason);
+        const projectedConversation = projectConversationForModel(conversation, contextProjectionPolicy(inputContextTokens));
+        const outcome = await this.modelRequester.execute({ settings, messages: projectedConversation.messages, tools: toolDefinitions, eventSink, requestId, signal });
+        assistantMessage = outcome.response;
+        await this.recordModelSpan(task, requestId, step, modelStartedAt, outcome.model, 'succeeded', assistantMessage.finishReason);
       } catch (error) {
         await this.recordModelSpan(task, requestId, step, modelStartedAt, settings.model, 'failed');
         throw error;
@@ -120,6 +111,11 @@ export class RunAgentSession {
 
       const content = this.readAssistantContent(assistantMessage);
       const toolCalls = Array.isArray(assistantMessage.tool_calls) ? assistantMessage.tool_calls : [];
+      const requiresContinuation = toolCalls.length === 0
+        && shouldContinueModelOutput(assistantMessage.finishReason, outputContinuations);
+      runState = transitionAgentRun(runState, {
+        type: 'model_response', hasToolCalls: toolCalls.length > 0, requiresContinuation,
+      });
 
       conversation.push({
         role: 'assistant',
@@ -128,31 +124,38 @@ export class RunAgentSession {
       });
 
       if (toolCalls.length === 0) {
+        if (requiresContinuation) {
+          outputContinuations += 1;
+          currentMessages.push({ id: `continuation-${Date.now()}-${outputContinuations}`, sender: 'agent', content });
+          conversation.push({ role: 'user', content: OUTPUT_CONTINUATION_PROMPT });
+          await this.checkpoint(task, 'running', runState.completedSteps, currentMessages, conversation);
+          eventSink.emitChunk(requestId, '\n\n');
+          continue;
+        }
         if (assistantMessage.finishReason === 'length') {
           eventSink.emitChunk(requestId, '\n\n[Phản hồi bị cắt vì chạm giới hạn output token. Hãy gửi "tiếp tục" nếu muốn AI viết tiếp phần còn lại.]');
         } else if (assistantMessage.finishReason === 'stream_closed') {
           eventSink.emitChunk(requestId, '\n\n[Stream từ server đóng trước khi gửi tín hiệu kết thúc. Nội dung phía trên có thể chưa hoàn chỉnh.]');
         }
-        await this.checkpoint(task, 'completed', completedSteps, currentMessages, conversation);
+        await this.checkpoint(task, 'completed', runState.completedSteps, currentMessages, conversation);
         eventSink.emitDone(requestId);
-        return { status: 'completed' as const, completedSteps };
+        return { status: 'completed' as const, completedSteps: runState.completedSteps };
       }
 
       let stepContent = content;
 
-      for (const toolCall of toolCalls) {
-        if (signal?.aborted) throw new Error('Agent session stopped.');
-        const toolName = toolCall.function?.name || '';
-        const result = await this.toolCallRunner.run({
-          eventSink,
-          permissionMode: settings.permissionMode,
-          requestId,
-          step,
-          toolCall,
-          workspaceRoot,
-          toolDefinition: toolsByName.get(toolName),
-          traceContext: task ? { traceId: task.traceId, taskId: task.id } : undefined,
-        });
+      const toolResults = await this.toolBatchRunner.run({
+        eventSink,
+        permissionMode: settings.permissionMode,
+        requestId,
+        step,
+        toolCalls,
+        toolsByName,
+        workspaceRoot,
+        traceContext: task ? { traceId: task.traceId, taskId: task.id } : undefined,
+        signal,
+      });
+      for (const result of toolResults) {
         conversation.push(result.toolMessage);
         stepContent += result.stepContent;
       }
@@ -163,23 +166,26 @@ export class RunAgentSession {
         sender: 'agent',
         content: stepContent,
       });
-      completedSteps = step + 1;
+      runState = transitionAgentRun(runState, { type: 'tools_completed' });
 
       // Mid-session compaction check: nếu conversation quá dài, build lại
       const roughConversationTokens = conversation.reduce((acc, msg) => acc + Math.ceil(JSON.stringify(msg).length / 4), 0);
       if (roughConversationTokens > inputContextTokens) {
         await rebuildConversation();
       }
-      await this.checkpoint(task, 'running', completedSteps, currentMessages, conversation);
+      await this.checkpoint(task, 'running', runState.completedSteps, currentMessages, conversation);
+      runState = transitionAgentRun(runState, { type: 'checkpoint_saved' });
     }
 
-    const budgetMessage = completedSteps >= MAX_AGENT_TASK_STEPS
+    const pauseReason = runState.completedSteps >= MAX_AGENT_TASK_STEPS ? 'task_step_limit' : 'run_step_limit';
+    runState = transitionAgentRun(runState, { type: 'pause', reason: pauseReason });
+    const budgetMessage = runState.completedSteps >= MAX_AGENT_TASK_STEPS
       ? `\n\nAgent dừng vì đã dùng hết ngân sách ${MAX_AGENT_TASK_STEPS} bước của tác vụ.`
-      : `\n\nAgent đã checkpoint sau ${completedSteps} bước. Bạn có thể tiếp tục tác vụ.`;
-    await this.checkpoint(task, 'paused', completedSteps, currentMessages, conversation);
+      : `\n\nAgent đã checkpoint sau ${runState.completedSteps} bước. Bạn có thể tiếp tục tác vụ.`;
+    await this.checkpoint(task, 'paused', runState.completedSteps, currentMessages, conversation);
     eventSink.emitChunk(requestId, budgetMessage);
     eventSink.emitDone(requestId);
-    return { status: 'paused' as const, completedSteps };
+    return { status: 'paused' as const, completedSteps: runState.completedSteps };
   }
 
   private async checkpoint(

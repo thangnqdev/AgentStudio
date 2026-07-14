@@ -7,7 +7,7 @@ import { AgentToolExecutor } from './infrastructure/tools/AgentToolExecutor.js';
 import { AttachmentMessageFormatter } from './infrastructure/ai/AttachmentMessageFormatter.js';
 import { ElectronToolApprovalManager } from './infrastructure/tools/ElectronToolApprovalManager.js';
 import { JsonlToolAuditLogger } from './infrastructure/tools/JsonlToolAuditLogger.js';
-import { JsonAgentTaskRepository } from './infrastructure/tasks/JsonAgentTaskRepository.js';
+import { JsonlAgentTaskRepository } from './infrastructure/tasks/JsonlAgentTaskRepository.js';
 import { AgentTaskService } from './application/usecases/AgentTaskService.js';
 import type { AgentTaskRecord } from './domain/entities/agentTask.js';
 import { webSearchSettingsRepository } from './infrastructure/WebSearchSettingsRepository.js';
@@ -21,7 +21,7 @@ export * from './domain/entities/agent.js';
 
 export const agentToolApprovalManager = new ElectronToolApprovalManager();
 const toolAuditLogger = new JsonlToolAuditLogger();
-const taskRepository = new JsonAgentTaskRepository();
+const taskRepository = new JsonlAgentTaskRepository();
 export const agentTraceService = new AgentTraceService(new JsonlAgentTraceRepository());
 export const agentTaskService = new AgentTaskService(taskRepository, agentTraceService);
 

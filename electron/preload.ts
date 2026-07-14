@@ -92,6 +92,7 @@ contextBridge.exposeInMainWorld('agentStudio', {
   deleteProvider: (providerId: string) => ipcRenderer.invoke('settings:delete-provider', providerId),
   setActiveProvider: (providerId: string) => ipcRenderer.invoke('settings:set-active-provider', providerId),
   setActiveModel: (modelId: string) => ipcRenderer.invoke('settings:set-active-model', modelId),
+  setFallbackModel: (modelId: string) => ipcRenderer.invoke('settings:set-fallback-model', modelId),
   setPermissionMode: (mode: string) => ipcRenderer.invoke('settings:set-permission-mode', mode),
   loadWebSearchSettings: () => ipcRenderer.invoke('web-search:load-settings'),
   saveWebSearchSettings: (payload: unknown) => ipcRenderer.invoke('web-search:save-settings', payload),

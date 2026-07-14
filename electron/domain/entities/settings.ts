@@ -21,6 +21,7 @@ export interface StoredSettings {
   providers: StoredProvider[];
   activeProviderId: string | null;
   activeModelId: string | null;
+  fallbackModelId: string | null;
   permissionMode: PermissionMode;
   workspacePath: string;
 }
@@ -40,5 +41,6 @@ export interface LegacySettingsInput {
   providers: LegacyProviderInput[];
   activeProviderId?: string | null;
   activeModelId?: string | null;
+  fallbackModelId?: string | null;
   permissionMode?: PermissionMode;
 }

@@ -8,7 +8,7 @@ import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 import { summarizeToolArguments } from './toolActionPresentation.js';
 import { parseAndValidateToolArguments } from './toolArgumentValidation.js';
 
-type ToolCallRunInput = {
+export type ToolCallRunInput = {
   eventSink: IAgentEventSink;
   permissionMode: PermissionMode;
   requestId: string;

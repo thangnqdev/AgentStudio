@@ -37,6 +37,7 @@ function settings(provider?: StoredProvider): StoredSettings {
     providers: provider ? [provider] : [],
     activeProviderId: provider?.id ?? null,
     activeModelId: provider?.models[0]?.id ?? null,
+    fallbackModelId: null,
     permissionMode: 'workspace-write',
     workspacePath: '/workspace',
   };
@@ -88,5 +89,18 @@ describe('ManageProviderSettings', () => {
       workspacePath: '/workspace',
       providers: [{ id: 'generated-provider', encryptedApiKey: 'encrypted:secret' }],
     });
+  });
+
+  it('accepts only a distinct fallback model from the active provider', async () => {
+    const provider: StoredProvider = {
+      id: 'provider-1', name: 'Provider', baseUrl: 'https://example.test/v1',
+      models: [{ id: 'primary' }, { id: 'fallback' }],
+    };
+    const harness = createHarness(settings(provider));
+    await harness.useCase.setFallbackModel('fallback');
+    expect(harness.stored().fallbackModelId).toBe('fallback');
+    await harness.useCase.setActiveModel('fallback');
+    expect(harness.stored()).toMatchObject({ activeModelId: 'fallback', fallbackModelId: null });
+    await expect(harness.useCase.setFallbackModel('missing')).rejects.toThrow('không thuộc provider');
   });
 });

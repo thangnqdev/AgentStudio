@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS: StoredSettings = {
   providers: [],
   activeProviderId: null,
   activeModelId: null,
+  fallbackModelId: null,
   permissionMode: 'workspace-write',
   workspacePath: process.cwd(),
 };
@@ -33,6 +34,7 @@ export class JsonSettingsRepository implements ISettingsRepository {
       })),
       activeProviderId: DEFAULT_SETTINGS.activeProviderId,
       activeModelId: DEFAULT_SETTINGS.activeModelId,
+      fallbackModelId: DEFAULT_SETTINGS.fallbackModelId,
       permissionMode: DEFAULT_SETTINGS.permissionMode,
       workspacePath: DEFAULT_SETTINGS.workspacePath,
     };
@@ -48,6 +50,7 @@ export class JsonSettingsRepository implements ISettingsRepository {
         providers: Array.isArray(parsed.providers) ? parsed.providers.map(this.normalizeStoredProvider.bind(this)) : [],
         activeProviderId: typeof parsed.activeProviderId === 'string' ? parsed.activeProviderId : null,
         activeModelId: typeof parsed.activeModelId === 'string' ? parsed.activeModelId : null,
+        fallbackModelId: typeof parsed.fallbackModelId === 'string' ? parsed.fallbackModelId : null,
         permissionMode: normalizePermissionMode(parsed.permissionMode),
         workspacePath: typeof parsed.workspacePath === 'string' && parsed.workspacePath ? parsed.workspacePath : process.cwd(),
       };
@@ -60,6 +63,7 @@ export class JsonSettingsRepository implements ISettingsRepository {
     if (this.settingsCache.providers.length === 0) {
       this.settingsCache.activeProviderId = null;
       this.settingsCache.activeModelId = null;
+      this.settingsCache.fallbackModelId = null;
     }
 
     return structuredClone(this.settingsCache);

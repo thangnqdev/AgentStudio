@@ -12,6 +12,7 @@ export type AgentToolDefinition = {
   name: string;
   description: string;
   risk: ToolRisk;
+  concurrencySafe?: boolean;
   parameters: JsonSchema;
   source?: ToolSource;
 };

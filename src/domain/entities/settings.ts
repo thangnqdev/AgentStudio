@@ -17,6 +17,7 @@ export interface AppSettings {
   providers: AIProvider[];
   activeProviderId: string | null;
   activeModelId: string | null;
+  fallbackModelId: string | null;
   permissionMode: PermissionMode;
   workspacePath: string;
 }

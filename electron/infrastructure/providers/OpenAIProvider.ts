@@ -3,6 +3,7 @@ import type { AgentProviderSettings, AssistantResponse, ChatMessage, ToolCall } 
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import { getResponseTokenLimit } from '../../domain/entities/tokenBudget.js';
 import type { AgentToolDefinition } from '../../domain/entities/tool.js';
+import { createProviderHttpError, createProviderTransportError } from './OpenAIProviderErrors.js';
 
 type StreamingToolCall = {
   index: number;
@@ -43,23 +44,29 @@ export class OpenAIProvider implements IAiProvider {
       headers.Authorization = `Bearer ${settings.apiKey}`;
     }
 
-    const response = await fetch(this.buildEndpoint(settings.baseUrl, 'chat/completions'), {
-      method: 'POST',
-      headers,
-      signal,
-      body: JSON.stringify({
-        model: settings.model,
-        messages,
-        tools: toProviderToolDefinitions(tools),
-        tool_choice: 'auto',
-        stream: true,
-        max_tokens: getResponseTokenLimit(settings.contextWindow),
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(this.buildEndpoint(settings.baseUrl, 'chat/completions'), {
+        method: 'POST',
+        headers,
+        signal,
+        body: JSON.stringify({
+          model: settings.model,
+          messages,
+          tools: toProviderToolDefinitions(tools),
+          tool_choice: 'auto',
+          stream: true,
+          max_tokens: getResponseTokenLimit(settings.contextWindow),
+        }),
+      });
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      throw createProviderTransportError(error);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`API Error (${response.status}): ${errorText}`);
+      throw createProviderHttpError(response.status, errorText, response.headers.get('retry-after'));
     }
 
     if (!response.body) {
@@ -76,7 +83,10 @@ export class OpenAIProvider implements IAiProvider {
     while (true) {
       if (signal?.aborted) throw new Error('Agent session stopped.');
 
-      const { done, value } = await reader.read();
+      const { done, value } = await reader.read().catch((error) => {
+        if (signal?.aborted) throw error;
+        throw createProviderTransportError(error);
+      });
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
@@ -115,10 +125,14 @@ export class OpenAIProvider implements IAiProvider {
       }
     }
 
+    const normalizedToolCalls = this.normalizeStreamingToolCalls(toolCalls);
+    if (!content && normalizedToolCalls.length === 0) {
+      throw createProviderTransportError(new Error('Provider stream closed before returning any content.'));
+    }
     return {
       role: 'assistant' as const,
       content,
-      tool_calls: this.normalizeStreamingToolCalls(toolCalls),
+      tool_calls: normalizedToolCalls,
       finishReason: finishReason || 'stream_closed',
     };
   }

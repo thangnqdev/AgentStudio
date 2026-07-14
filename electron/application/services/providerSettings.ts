@@ -16,6 +16,7 @@ export function toPublicSettings(settings: StoredSettings) {
     })),
     activeProviderId: settings.activeProviderId,
     activeModelId: settings.activeModelId,
+    fallbackModelId: settings.fallbackModelId,
     permissionMode: settings.permissionMode,
     workspacePath: settings.workspacePath,
   };

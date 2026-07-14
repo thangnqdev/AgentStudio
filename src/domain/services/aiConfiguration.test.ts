@@ -6,6 +6,7 @@ const emptySettings: AppSettings = {
   providers: [],
   activeProviderId: null,
   activeModelId: null,
+  fallbackModelId: null,
   permissionMode: 'workspace-write',
   workspacePath: 'C:\\workspace',
 };

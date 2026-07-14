@@ -21,7 +21,7 @@ export function PromptComposer() {
   const hasAiConfiguration = hasUsableAiConfiguration(settings);
   
   const { startAgentResponse, stopAgentResponse } = useAgentChat();
-  const { setActiveModel: saveActiveModel, setPermissionMode: savePermissionMode } = useProviderSettings();
+  const { setActiveModel: saveActiveModel, setFallbackModel: saveFallbackModel, setPermissionMode: savePermissionMode } = useProviderSettings();
 
   // Auto-resize textarea as content grows
   useEffect(() => {
@@ -102,6 +102,10 @@ export function PromptComposer() {
 
   const handlePermissionModeChange = async (permissionMode: PermissionMode) => {
     await savePermissionMode(permissionMode);
+  };
+
+  const handleFallbackModelChange = async (modelId: string) => {
+    await saveFallbackModel(modelId);
   };
 
   return (
@@ -217,18 +221,31 @@ export function PromptComposer() {
             )}
 
             {models.length > 0 ? (
-              <select
-                value={settings.activeModelId || ''}
-                onChange={(e) => handleModelChange(e.target.value)}
-                className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[150px] truncate"
-                title={`Chọn Model (${activeProvider?.name})${activeContextWindow ? ` · context ${formatContextWindow(activeContextWindow)}` : ''}`}
-              >
-                {models.map(model => (
-                  <option key={model.id} value={model.id} className="bg-surface text-on-surface">
-                    {model.id}{model.contextWindow ? ` · ${formatContextWindow(model.contextWindow)}` : ''}
-                  </option>
-                ))}
-              </select>
+              <>
+                <select
+                  value={settings.activeModelId || ''}
+                  onChange={(e) => handleModelChange(e.target.value)}
+                  className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[150px] truncate"
+                  title={`Chọn Model (${activeProvider?.name})${activeContextWindow ? ` · context ${formatContextWindow(activeContextWindow)}` : ''}`}
+                >
+                  {models.map(model => (
+                    <option key={model.id} value={model.id} className="bg-surface text-on-surface">
+                      {model.id}{model.contextWindow ? ` · ${formatContextWindow(model.contextWindow)}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={settings.fallbackModelId || ''}
+                  onChange={(e) => handleFallbackModelChange(e.target.value)}
+                  className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[130px] truncate"
+                  title="Model dự phòng khi model chính quá tải hoặc lỗi tạm thời"
+                >
+                  <option value="">Không fallback</option>
+                  {models.filter((model) => model.id !== settings.activeModelId).map((model) => (
+                    <option key={model.id} value={model.id} className="bg-surface text-on-surface">Fallback: {model.id}</option>
+                  ))}
+                </select>
+              </>
             ) : null}
           </div>
         </div>

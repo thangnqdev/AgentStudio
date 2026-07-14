@@ -18,7 +18,7 @@ export type OptimizerState = { version: typeof OPTIMIZER_STATE_VERSION; revision
 
 export const DEFAULT_OPTIMIZATION_CONFIG: RuntimeOptimizationConfig = {
   retrievalTopK: 5, lexicalWeight: 0.5, semanticWeight: 0.5, modelChoice: null,
-  contextBudgetTokens: 24_000, retryCount: 0, timeoutMs: 15_000, skillRankingWeight: 0.5,
+  contextBudgetTokens: 24_000, retryCount: 2, timeoutMs: 15_000, skillRankingWeight: 0.5,
 };
 
 export function assertOptimizationConfig(config: RuntimeOptimizationConfig, allowedModels?: string[]) {
