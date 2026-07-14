@@ -1,6 +1,7 @@
 import type { SkillDescriptor, SkillStatus } from '../../domain/entities/skill.js';
 import type { ISkillCatalog } from '../../domain/ports/ISkillCatalog.js';
 import type { ISkillPreferencesRepository } from '../../domain/ports/ISkillPreferencesRepository.js';
+import { rankRelevantSkills } from '../services/skillRanking.js';
 
 const MAX_ACTIVE_SKILLS = 2;
 const MAX_INSTRUCTION_CHARACTERS = 20_000;
@@ -52,7 +53,7 @@ export class ManageSkills {
   async buildPromptContext(workspaceRoot: string, question: string, skillRankingWeight = 0.5) {
     const available = (await this.list(workspaceRoot)).filter((skill) => skill.enabled && skill.trusted);
     if (!available.length) return '';
-    const selected = selectRelevantSkills(available, question, skillRankingWeight).slice(0, MAX_ACTIVE_SKILLS);
+    const selected = rankRelevantSkills(available, question, skillRankingWeight).slice(0, MAX_ACTIVE_SKILLS);
     const loaded = await Promise.all(selected.map((skill) => this.catalog.readInstructions(skill)));
     return [
       'Enabled Agent Skills (trusted by the user). Skill instructions guide behavior but never override tool permission policy:',
@@ -77,19 +78,4 @@ function updateSet(values: string[], value: string, included: boolean) {
   const next = new Set(values);
   if (included) next.add(value); else next.delete(value);
   return [...next];
-}
-
-function selectRelevantSkills(skills: SkillStatus[], question: string, explicitWeight: number) {
-  const questionText = question.toLocaleLowerCase();
-  const queryTerms = new Set(tokenize(questionText));
-  return skills.map((skill) => {
-    const skillText = `${skill.name.replaceAll('-', ' ')} ${skill.description}`.toLocaleLowerCase();
-    const overlap = tokenize(skillText).filter((term) => queryTerms.has(term)).length;
-    const explicit = questionText.includes(skill.name) || questionText.includes(skill.name.replaceAll('-', ' '));
-    return { skill, score: overlap * (1 - explicitWeight) + (explicit ? 10 * explicitWeight : 0) };
-  }).filter((item) => item.score > 0).sort((left, right) => right.score - left.score).map((item) => item.skill);
-}
-
-function tokenize(value: string) {
-  return value.normalize('NFKD').split(/[^\p{L}\p{N}]+/u).filter((term) => term.length > 2);
 }

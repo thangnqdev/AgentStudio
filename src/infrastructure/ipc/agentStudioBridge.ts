@@ -85,6 +85,11 @@ export const AgentBridge = {
     return window.agentStudio.saveProviderAndScan(provider);
   },
 
+  async saveProvider(provider: Parameters<NonNullable<Window['agentStudio']>['saveProvider']>[0]) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.saveProvider(provider);
+  },
+
   async deleteProvider(providerId: string) {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     return window.agentStudio.deleteProvider(providerId);

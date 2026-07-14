@@ -35,7 +35,12 @@ export class SafeOptimizer {
     return this.exclusive(async () => {
       const state = await this.repository.load(); const candidate = findCandidate(state, candidateId);
       if (candidate.status === 'promoted') throw new Error('Promoted candidate cannot be evaluated again.');
-      const evaluation = await this.evaluator.evaluate(structuredClone(candidate.config), baselineRunId, candidateRunId);
+      const evaluation = await this.evaluator.evaluate(
+        structuredClone(state.active),
+        structuredClone(candidate.config),
+        baselineRunId,
+        candidateRunId,
+      );
       candidate.evaluation = evaluation;
       candidate.status = evaluation.passed ? 'evaluated' : 'rejected';
       await this.save(state);

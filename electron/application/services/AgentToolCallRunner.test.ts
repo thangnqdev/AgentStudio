@@ -146,4 +146,17 @@ describe('AgentToolCallRunner', () => {
     expect(result.toolMessage.content).toContain('permission rules could not be loaded');
     expect(result.toolMessage.content).not.toContain('/Users/private');
   });
+
+  it('forwards cancellation to the selected tool executor', async () => {
+    const execute = vi.fn(async () => ({ ok: false, output: 'cancelled' }));
+    const controller = new AbortController();
+    const runner = new AgentToolCallRunner({ execute }, { requestApproval: async () => true }, { record: async () => undefined });
+    await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'danger-full-access', requestId: 'request-cancel', step: 0, workspaceRoot: '/workspace', signal: controller.signal,
+      toolCall: { id: 'action-cancel', function: { name: 'run_command', arguments: '{"command":"npm test"}' } },
+      toolDefinition: getLocalToolDefinition('run_command'),
+    });
+    expect(execute).toHaveBeenCalledWith('run_command', { command: 'npm test' }, '/workspace', 'danger-full-access', controller.signal);
+  });
 });

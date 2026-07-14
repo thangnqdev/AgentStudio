@@ -21,7 +21,12 @@ export function PromptComposer() {
   const hasAiConfiguration = hasUsableAiConfiguration(settings);
   
   const { startAgentResponse, stopAgentResponse } = useAgentChat();
-  const { setActiveModel: saveActiveModel, setFallbackModel: saveFallbackModel, setPermissionMode: savePermissionMode } = useProviderSettings();
+  const {
+    setActiveModel: saveActiveModel,
+    setFallbackModel: saveFallbackModel,
+    setPermissionMode: savePermissionMode,
+    settingsNotice,
+  } = useProviderSettings();
 
   // Auto-resize textarea as content grows
   useEffect(() => {
@@ -195,6 +200,8 @@ export function PromptComposer() {
             </button>
           </div>
         </div>
+
+        {settingsNotice && <p className="px-2 text-[11px] text-error">{settingsNotice}</p>}
 
         {/* Footer info: Hint + Model Select */}
         <div className="flex justify-between items-center px-2 pb-1">

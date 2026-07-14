@@ -1,6 +1,8 @@
 import type { PermissionMode } from './agent.js';
 import { evaluateToolPolicy, type AgentToolDefinition, type ToolPolicyDecision, type ToolRisk } from './tool.js';
-
+import { matchCommandPrefix, normalizePermissionPath } from './permissionArgumentMatching.js';
+import { isWorkspaceSearch, matchesPermissionGlob, searchMayReachPathGlob } from './permissionGlobMatching.js';
+export { matchesPermissionGlob } from './permissionGlobMatching.js';
 export type PermissionRuleEffect = 'allow' | 'ask' | 'deny';
 export type PermissionRuleSource = 'policy' | 'workspace' | 'user' | 'session';
 
@@ -63,37 +65,21 @@ export function evaluateToolPermission(
   return { allowed: true, requiresApproval: false, matchedRule };
 }
 
-export function matchesPermissionGlob(pattern: string, candidate: string): boolean {
-  let patternIndex = 0;
-  let candidateIndex = 0;
-  let starIndex = -1;
-  let retryIndex = 0;
-
-  while (candidateIndex < candidate.length) {
-    if (patternIndex < pattern.length && (pattern[patternIndex] === '?' || pattern[patternIndex] === candidate[candidateIndex])) {
-      patternIndex += 1;
-      candidateIndex += 1;
-    } else if (patternIndex < pattern.length && pattern[patternIndex] === '*') {
-      starIndex = patternIndex;
-      retryIndex = candidateIndex;
-      patternIndex += 1;
-    } else if (starIndex >= 0) {
-      patternIndex = starIndex + 1;
-      retryIndex += 1;
-      candidateIndex = retryIndex;
-    } else {
-      return false;
-    }
-  }
-  while (patternIndex < pattern.length && pattern[patternIndex] === '*') patternIndex += 1;
-  return patternIndex === pattern.length;
-}
-
 function matchesRule(rule: PermissionRule, tool: AgentToolDefinition, args: Record<string, unknown>) {
-  if (!matchesPermissionGlob(rule.toolGlob, tool.name)) return false;
+  const toolMatches = matchesPermissionGlob(rule.toolGlob, tool.name)
+    || (isWorkspaceSearch(tool.name) && matchesPermissionGlob(rule.toolGlob, 'read_file'));
+  if (!toolMatches) return false;
   if (rule.risk && rule.risk !== tool.risk) return false;
-  if (rule.pathGlob && !readPaths(args).some((value) => matchesPermissionGlob(rule.pathGlob!.replaceAll('\\', '/'), value))) return false;
-  if (rule.commandPrefix && !readCommand(args).startsWith(rule.commandPrefix)) return false;
+  if (rule.pathGlob) {
+    const pathMatches = isWorkspaceSearch(tool.name)
+      ? searchMayReachPathGlob(tool.name, args, rule.pathGlob)
+      : readPaths(args).some((value) => matchesPermissionGlob(rule.pathGlob!.replaceAll('\\', '/'), value));
+    if (!pathMatches) return false;
+  }
+  if (rule.commandPrefix) {
+    const commandMatch = matchCommandPrefix(readCommand(args), rule.commandPrefix);
+    if (commandMatch === 'unmatched' || (commandMatch === 'ambiguous' && rule.effect === 'allow')) return false;
+  }
   return true;
 }
 
@@ -107,12 +93,11 @@ function compareRules(left: PermissionRule, right: PermissionRule) {
 function ruleSpecificity(rule: PermissionRule) {
   return Number(Boolean(rule.risk)) + Number(Boolean(rule.pathGlob)) + Number(Boolean(rule.commandPrefix));
 }
-
 function readPaths(args: Record<string, unknown>) {
   return ['path', 'dir', 'filePath']
     .map((key) => args[key])
     .filter((value): value is string => typeof value === 'string')
-    .map((value) => value.replaceAll('\\', '/').replace(/^\.\//, ''));
+    .map(normalizePermissionPath);
 }
 
 function readCommand(args: Record<string, unknown>) {

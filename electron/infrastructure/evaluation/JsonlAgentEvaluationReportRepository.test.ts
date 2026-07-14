@@ -7,6 +7,7 @@ import { AGENT_EVALUATOR_FIXTURE_SUITE } from '../../evaluation/goldenAgentSuite
 import { createDefaultAgentEvaluators } from '../../application/services/agentEvaluators.js';
 import { RunAgentEvaluationRegression } from '../../application/usecases/RunAgentEvaluationRegression.js';
 import { JsonlAgentEvaluationReportRepository } from './JsonlAgentEvaluationReportRepository.js';
+import { DEFAULT_OPTIMIZATION_CONFIG } from '../../domain/entities/optimizer.js';
 
 const directories: string[] = [];
 afterEach(async () => Promise.all(directories.splice(0).map((directory) => fs.rm(directory, { recursive: true, force: true }))));
@@ -18,7 +19,7 @@ describe('agent evaluation regression integration', () => {
     const spans: AgentSpanInput[] = [];
     const tracer = { newSpanId: () => crypto.randomUUID(), startTrace: async () => undefined, updateTrace: async () => undefined, recordSpan: async (span: AgentSpanInput) => { spans.push(span); return crypto.randomUUID(); } };
     const runner = new RunAgentEvaluationRegression(createDefaultAgentEvaluators(), repository, tracer);
-    const report = await runner.execute(AGENT_EVALUATOR_FIXTURE_SUITE);
+    const report = await runner.execute(AGENT_EVALUATOR_FIXTURE_SUITE, DEFAULT_OPTIMIZATION_CONFIG);
     const target = path.join(directory, 'report.json'); await runner.exportJson(report.runId, target);
     expect((await repository.list())[0].runId).toBe(report.runId);
     expect(JSON.parse(await fs.readFile(target, 'utf8')).passed).toBe(true);

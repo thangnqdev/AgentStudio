@@ -11,7 +11,7 @@ import { isInsidePath } from '../security/resolveSafePath.js';
 
 const MAX_PROFILE_FILE_BYTES = 128_000;
 const MAX_PROFILES_PER_ROOT = 100;
-const ALLOWED_PROFILE_TOOLS = new Set(['list_files', 'read_file', 'load_skill']);
+const ALLOWED_PROFILE_TOOLS = new Set(['list_files', 'read_file', 'glob', 'grep', 'load_skill']);
 
 export class FileSystemAgentProfileCatalog implements IAgentProfileCatalog {
   private readonly configuredRoots?: Array<{ root: string; origin: AgentProfileOrigin }>;

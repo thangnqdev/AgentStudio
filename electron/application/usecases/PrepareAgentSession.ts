@@ -4,6 +4,8 @@ import type { ManageSkills } from './ManageSkills.js';
 import type { KnowledgeBaseUseCase } from './KnowledgeBaseUseCase.js';
 import type { AgentTaskService } from './AgentTaskService.js';
 import type { IOptimizerRepository } from '../../domain/ports/IOptimizerRepository.js';
+import type { IProjectInstructionLoader } from '../../domain/ports/IProjectInstructionLoader.js';
+import { formatProjectInstructionContext } from '../services/projectInstructionContext.js';
 
 type TaskPreparation = Pick<AgentTaskService, 'create' | 'resume' | 'checkpoint'>;
 type KnowledgePreparation = Pick<KnowledgeBaseUseCase, 'buildContextDetails'>;
@@ -16,6 +18,7 @@ export class PrepareAgentSession {
   private readonly skills: SkillPreparation;
   private readonly tracer: IAgentTracer;
   private readonly tuning?: TuningProvider;
+  private readonly instructions?: IProjectInstructionLoader;
 
   constructor(
     tasks: TaskPreparation,
@@ -23,16 +26,21 @@ export class PrepareAgentSession {
     skills: SkillPreparation,
     tracer: IAgentTracer,
     tuning?: TuningProvider,
+    instructions?: IProjectInstructionLoader,
   ) {
     this.tasks = tasks;
     this.knowledge = knowledge;
     this.skills = skills;
     this.tracer = tracer;
     this.tuning = tuning;
+    this.instructions = instructions;
   }
 
   async execute(input: { payload: AgentStartPayload; taskId: string; requestId: string; workspaceRoot: string }) {
     const tuning = (await this.tuning?.load())?.active;
+    const projectInstructionContext = formatProjectInstructionContext(
+      await this.instructions?.load(input.workspaceRoot) ?? [],
+    );
     let task;
     if (input.taskId) {
       task = await this.tasks.resume(input.taskId, input.workspaceRoot);
@@ -56,6 +64,6 @@ export class PrepareAgentSession {
     const userMessages = task.messages.filter((message) => message.sender === 'user' && typeof message.content === 'string');
     const question = userMessages.at(-1)?.content || '';
     const skillContext = question ? await this.skills.buildPromptContext(input.workspaceRoot, question, tuning?.skillRankingWeight) : '';
-    return { task, skillContext };
+    return { task, skillContext, projectInstructionContext };
   }
 }

@@ -54,7 +54,16 @@ export async function runAgentSession(
     mcpGateway,
     tuning?.timeoutMs,
   );
-  const subagent = new RunReadOnlySubagent(provider, baseToolPlatform, baseToolPlatform, settings, toolPermissionPolicy, signal, agentProfileManager);
+  const subagent = new RunReadOnlySubagent(
+    provider,
+    baseToolPlatform,
+    baseToolPlatform,
+    settings,
+    toolPermissionPolicy,
+    signal,
+    agentProfileManager,
+    skillContext,
+  );
   const toolPlatform = new DelegatingToolPlatform(baseToolPlatform, baseToolPlatform, subagent);
   const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, toolPermissionPolicy);
   const combinedSkillContext = [skillContext, agentProfileContext].filter(Boolean).join('\n\n');

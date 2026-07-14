@@ -13,6 +13,13 @@ export function registerSettingsIpc(settings: ManageProviderSettings) {
   ipcMain.handle('settings:save-provider-and-scan', (_event, rawPayload: unknown) => (
     settings.saveProviderAndScan(readProvider(rawPayload))
   ));
+  ipcMain.handle('settings:save-provider', async (_event, rawPayload: unknown) => {
+    try {
+      return { success: true as const, data: await settings.saveProvider(readProvider(rawPayload)) };
+    } catch (error) {
+      return { success: false as const, error: errorMessage(error) };
+    }
+  });
   ipcMain.handle('settings:delete-provider', (_event, rawProviderId: unknown) => (
     settings.deleteProvider(getString(rawProviderId))
   ));
@@ -37,6 +44,7 @@ function readProvider(value: unknown): SaveProviderInput {
     name: optionalString(provider.name),
     baseUrl: optionalString(provider.baseUrl),
     apiKey: optionalString(provider.apiKey),
+    models: provider.models,
   };
 }
 
@@ -81,4 +89,8 @@ function nullableString(value: unknown): string | null | undefined {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Không thể lưu provider.';
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_OPTIMIZATION_CONFIG, OPTIMIZER_EVALUATION_VERSION, assertOptimizationConfig, assertOptimizationEvaluation, configurationDigest, type OptimizationEvaluation } from './optimizer.js';
+import { DEFAULT_OPTIMIZATION_CONFIG, OPTIMIZER_EVALUATION_VERSION, assertOptimizationConfig, assertOptimizationEvaluation, configurationDigest, sameOptimizationConfig, type OptimizationEvaluation } from './optimizer.js';
 
 describe('optimizer invariants', () => {
   it('accepts only bounded, normalized reversible configuration', () => {
@@ -14,5 +14,20 @@ describe('optimizer invariants', () => {
     expect(() => assertOptimizationEvaluation(evaluation, DEFAULT_OPTIMIZATION_CONFIG)).not.toThrow();
     expect(() => assertOptimizationEvaluation({ ...evaluation, passed: false }, DEFAULT_OPTIMIZATION_CONFIG)).toThrow('decision');
     expect(() => assertOptimizationEvaluation({ ...evaluation, configurationDigest: 'wrong' }, DEFAULT_OPTIMIZATION_CONFIG)).toThrow('decision');
+  });
+
+  it('uses canonical key ordering for configuration evidence', () => {
+    const reordered = {
+      timeoutMs: DEFAULT_OPTIMIZATION_CONFIG.timeoutMs,
+      retrievalTopK: DEFAULT_OPTIMIZATION_CONFIG.retrievalTopK,
+      skillRankingWeight: DEFAULT_OPTIMIZATION_CONFIG.skillRankingWeight,
+      retryCount: DEFAULT_OPTIMIZATION_CONFIG.retryCount,
+      contextBudgetTokens: DEFAULT_OPTIMIZATION_CONFIG.contextBudgetTokens,
+      modelChoice: DEFAULT_OPTIMIZATION_CONFIG.modelChoice,
+      semanticWeight: DEFAULT_OPTIMIZATION_CONFIG.semanticWeight,
+      lexicalWeight: DEFAULT_OPTIMIZATION_CONFIG.lexicalWeight,
+    };
+    expect(configurationDigest(reordered)).toBe(configurationDigest(DEFAULT_OPTIMIZATION_CONFIG));
+    expect(sameOptimizationConfig(reordered, DEFAULT_OPTIMIZATION_CONFIG)).toBe(true);
   });
 });

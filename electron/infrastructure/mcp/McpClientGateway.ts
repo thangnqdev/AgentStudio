@@ -103,7 +103,7 @@ export class McpClientGateway implements IMcpConnectionGateway {
     return [...this.connections.values()].flatMap((connection) => [...connection.tools.values()].map((tool) => tool.definition));
   }
 
-  async execute(toolName: string, args: Record<string, unknown>, _workspaceRoot: string, _permissionMode: PermissionMode): Promise<ToolResult> {
+  async execute(toolName: string, args: Record<string, unknown>, _workspaceRoot: string, _permissionMode: PermissionMode, signal?: AbortSignal): Promise<ToolResult> {
     const match = [...this.connections.values()].flatMap((connection) => {
       const tool = connection.tools.get(toolName);
       return tool ? [{ connection, tool }] : [];
@@ -113,7 +113,7 @@ export class McpClientGateway implements IMcpConnectionGateway {
       const result = await match.connection.client.callTool(
         { name: match.tool.remoteName, arguments: args },
         undefined,
-        { timeout: 30_000, maxTotalTimeout: 60_000 },
+        { timeout: 30_000, maxTotalTimeout: 60_000, signal },
       );
       return { ok: result.isError !== true, output: `[Untrusted MCP output from ${match.connection.config.name}]\n${formatToolResult(result)}` };
     } catch (error) {

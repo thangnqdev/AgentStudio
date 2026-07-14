@@ -1,7 +1,12 @@
 import type { PermissionMode } from './agent.js';
 import type { KnowledgeStore } from './knowledge.js';
+import {
+  assertOptimizationConfig,
+  configurationDigest,
+  type RuntimeOptimizationConfig,
+} from './optimizer.js';
 
-export const AGENT_EVALUATION_REPORT_VERSION = 1;
+export const AGENT_EVALUATION_REPORT_VERSION = 2;
 export type EvaluationKind = 'task' | 'tool_selection' | 'code_change' | 'policy' | 'trajectory' | 'retrieval';
 
 export type EvaluationProvenance = {
@@ -55,10 +60,20 @@ export type GoldenRuntimeSuiteDefinition = Omit<GoldenTaskSuite, 'fixtures'> & {
   fixtures: GoldenRuntimeTaskDefinition[];
 };
 
-export type AgentEvaluationReport = {
-  reportVersion: typeof AGENT_EVALUATION_REPORT_VERSION; runId: string; suiteId: string; suiteVersion: string; createdAt: string;
+type AgentEvaluationReportBase = {
+  runId: string; suiteId: string; suiteVersion: string; createdAt: string;
   aggregateScore: number; passed: boolean; evaluations: AgentEvaluation[];
 };
+export type RuntimeConfigurationEvidence = {
+  configurationDigest: string;
+  config: RuntimeOptimizationConfig;
+};
+export type AgentEvaluationReport =
+  | (AgentEvaluationReportBase & { reportVersion: 1 })
+  | (AgentEvaluationReportBase & {
+    reportVersion: typeof AGENT_EVALUATION_REPORT_VERSION;
+    runtimeConfiguration: RuntimeConfigurationEvidence;
+  });
 
 export function assertEvaluationInvariant(evaluation: AgentEvaluation) {
   const kindKeys: Record<EvaluationKind, string[]> = {
@@ -74,9 +89,19 @@ export function assertEvaluationInvariant(evaluation: AgentEvaluation) {
 }
 
 export function assertEvaluationReportInvariant(report: AgentEvaluationReport) {
-  assertOnlyKeys(report, ['reportVersion', 'runId', 'suiteId', 'suiteVersion', 'createdAt', 'aggregateScore', 'passed', 'evaluations']);
-  if (report.reportVersion !== AGENT_EVALUATION_REPORT_VERSION || !report.runId || !report.suiteId || !report.suiteVersion) throw new Error('Evaluation report identity is invalid.');
+  const reportKeys = ['reportVersion', 'runId', 'suiteId', 'suiteVersion', 'createdAt', 'aggregateScore', 'passed', 'evaluations'];
+  assertOnlyKeys(report, report.reportVersion === AGENT_EVALUATION_REPORT_VERSION
+    ? [...reportKeys, 'runtimeConfiguration']
+    : reportKeys);
+  if (![1, AGENT_EVALUATION_REPORT_VERSION].includes(report.reportVersion) || !report.runId || !report.suiteId || !report.suiteVersion) throw new Error('Evaluation report identity is invalid.');
   if (!Number.isFinite(report.aggregateScore) || report.aggregateScore < 0 || report.aggregateScore > 1 || !Number.isFinite(Date.parse(report.createdAt)) || report.evaluations.length === 0) throw new Error('Evaluation report invariant failed.');
+  if (report.reportVersion === AGENT_EVALUATION_REPORT_VERSION) {
+    assertOnlyKeys(report.runtimeConfiguration, ['configurationDigest', 'config']);
+    assertOptimizationConfig(report.runtimeConfiguration.config);
+    if (report.runtimeConfiguration.configurationDigest !== configurationDigest(report.runtimeConfiguration.config)) {
+      throw new Error('Evaluation runtime configuration digest is invalid.');
+    }
+  }
   report.evaluations.forEach(assertEvaluationInvariant);
 }
 

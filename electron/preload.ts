@@ -88,6 +88,7 @@ contextBridge.exposeInMainWorld('agentStudio', {
 
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   importLegacySettings: (settings: unknown) => ipcRenderer.invoke('settings:import-legacy', settings),
+  saveProvider: (provider: unknown) => ipcRenderer.invoke('settings:save-provider', provider),
   saveProviderAndScan: (provider: unknown) => ipcRenderer.invoke('settings:save-provider-and-scan', provider),
   deleteProvider: (providerId: string) => ipcRenderer.invoke('settings:delete-provider', providerId),
   setActiveProvider: (providerId: string) => ipcRenderer.invoke('settings:set-active-provider', providerId),
@@ -134,7 +135,7 @@ contextBridge.exposeInMainWorld('agentStudio', {
   getAgentTrace: (traceId: string) => ipcRenderer.invoke('traces:get', traceId),
   exportAgentTrace: (traceId: string) => ipcRenderer.invoke('traces:export', traceId),
   listAgentEvaluations: (limit?: number) => ipcRenderer.invoke('evaluations:list', limit),
-  runGoldenAgentEvaluation: () => ipcRenderer.invoke('evaluations:run-golden'),
+  runGoldenAgentEvaluation: (candidateId?: string) => ipcRenderer.invoke('evaluations:run-golden', candidateId),
   exportAgentEvaluation: (runId: string) => ipcRenderer.invoke('evaluations:export', runId),
   listWorkflowDefinitions: () => ipcRenderer.invoke('workflows:list-definitions'),
   listWorkflowRuns: (limit?: number) => ipcRenderer.invoke('workflows:list-runs', limit),

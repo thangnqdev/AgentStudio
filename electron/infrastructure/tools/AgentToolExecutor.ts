@@ -6,6 +6,7 @@ import type { WebSearchSettings } from '../../domain/entities/webSearch.js';
 import { WebSearchExecutor } from './WebSearchExecutor.js';
 import type { IToolCatalog } from '../../domain/ports/IToolCatalog.js';
 import { LOCAL_TOOL_DEFINITIONS } from './localToolDefinitions.js';
+import { WorkspaceSearchToolExecutor } from './WorkspaceSearchToolExecutor.js';
 
 /**
  * Facade implement IToolExecutor — dispatch đến FileSystemToolExecutor hoặc
@@ -13,6 +14,7 @@ import { LOCAL_TOOL_DEFINITIONS } from './localToolDefinitions.js';
  */
 export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
   private readonly fs = new FileSystemToolExecutor();
+  private readonly searchTools = new WorkspaceSearchToolExecutor();
   private readonly webSearch: WebSearchExecutor;
   private readonly skillLoader?: (skillId: string, workspaceRoot: string) => Promise<string>;
   private readonly externalCatalog?: IToolCatalog;
@@ -46,6 +48,7 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
     args: Record<string, unknown>,
     workspaceRoot: string,
     permissionMode: PermissionMode,
+    signal?: AbortSignal,
   ): Promise<ToolResult> {
     try {
       if (toolName === 'list_files') {
@@ -54,6 +57,12 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
       if (toolName === 'read_file') {
         return await this.fs.readFile(args, workspaceRoot, permissionMode);
       }
+      if (toolName === 'glob') {
+        return await this.searchTools.glob(args, workspaceRoot, permissionMode, signal);
+      }
+      if (toolName === 'grep') {
+        return await this.searchTools.grep(args, workspaceRoot, permissionMode, signal);
+      }
       if (toolName === 'write_file') {
         return await this.fs.writeFile(args, workspaceRoot, permissionMode);
       }
@@ -61,10 +70,10 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
         return await this.fs.applyPatch(args, workspaceRoot, permissionMode);
       }
       if (toolName === 'run_command') {
-        return await this.runCommand(args, workspaceRoot, permissionMode);
+        return await this.runCommand(args, workspaceRoot, permissionMode, signal);
       }
       if (toolName === 'web_search') {
-        return await this.webSearch.search(args);
+        return await this.webSearch.search(args, signal);
       }
       if (toolName === 'load_skill') {
         if (!this.skillLoader) return { ok: false, output: 'Skill infrastructure is unavailable.' };
@@ -73,7 +82,7 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
         return { ok: true, output: await this.skillLoader(skillId, workspaceRoot) };
       }
 
-      if (this.externalExecutor) return await this.externalExecutor.execute(toolName, args, workspaceRoot, permissionMode);
+      if (this.externalExecutor) return await this.externalExecutor.execute(toolName, args, workspaceRoot, permissionMode, signal);
       return { ok: false, output: `Unknown tool: ${toolName}` };
     } catch (error) {
       return { ok: false, output: error instanceof Error ? error.message : 'Unknown tool error' };
@@ -84,6 +93,7 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
     args: Record<string, unknown>,
     workspaceRoot: string,
     permissionMode: PermissionMode,
+    signal?: AbortSignal,
   ): Promise<ToolResult> {
     if (permissionMode === 'read-only') {
       return { ok: false, output: 'run_command is blocked in read-only mode.' };
@@ -95,6 +105,6 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
     }
 
     const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || this.defaultTimeoutMs, 1_000), 30_000);
-    return runSandboxedCommand(command, workspaceRoot, permissionMode, timeoutMs);
+    return runSandboxedCommand(command, workspaceRoot, permissionMode, timeoutMs, signal);
   }
 }

@@ -24,4 +24,26 @@ describe('SandboxedCommandExecutor', () => {
     await new Promise((resolve) => setTimeout(resolve, 80));
     expect(() => process.kill(pid, 0)).toThrow();
   });
+
+  it('terminates an active process when the agent session is cancelled', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-command-cancel-')); directories.push(directory);
+    const pidFile = path.join(directory, 'child.pid');
+    const script = "require('node:fs').writeFileSync(process.argv[1], String(process.pid)); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);";
+    const controller = new AbortController();
+    const execution = spawnAndCollect(process.execPath, ['-e', script, pidFile], directory, 10_000, 30, controller.signal);
+    await waitForFile(pidFile);
+    controller.abort();
+
+    await expect(execution).resolves.toMatchObject({ ok: false, output: expect.stringContaining('cancelled') });
+    const pid = Number(await fs.readFile(pidFile, 'utf8'));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(() => process.kill(pid, 0)).toThrow();
+  });
 });
+
+async function waitForFile(filePath: string) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try { await fs.access(filePath); return; } catch { await new Promise((resolve) => setTimeout(resolve, 5)); }
+  }
+  throw new Error('Timed out waiting for child process to start.');
+}

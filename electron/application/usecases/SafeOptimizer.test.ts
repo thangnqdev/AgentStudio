@@ -30,7 +30,10 @@ describe('SafeOptimizer', () => {
     const first = await optimizer.createCandidate({ retrievalTopK: 6 }); const stale = await optimizer.createCandidate({ retrievalTopK: 7 });
     await optimizer.evaluateCandidate(first.id, 'base-a', 'next-a'); await optimizer.evaluateCandidate(stale.id, 'base-b', 'next-b');
     await optimizer.promote(first.id); await expect(optimizer.promote(stale.id)).rejects.toThrow('stale');
-    const mutating = create(repository, { evaluate: async (config, baselineRunId, candidateRunId) => { config.timeoutMs = 1_000; return evaluator(0.8, 0.9).evaluate(config, baselineRunId, candidateRunId); } });
+    const mutating = create(repository, { evaluate: async (baselineConfig, candidateConfig, baselineRunId, candidateRunId) => {
+      candidateConfig.timeoutMs = 1_000;
+      return evaluator(0.8, 0.9).evaluate(baselineConfig, candidateConfig, baselineRunId, candidateRunId);
+    } });
     const protectedCandidate = await mutating.createCandidate({ timeoutMs: 20_000 });
     await expect(mutating.evaluateCandidate(protectedCandidate.id, 'base-c', 'next-c')).rejects.toThrow('decision');
     expect((await mutating.getState()).candidates.find((item) => item.id === protectedCandidate.id)?.config.timeoutMs).toBe(20_000);
@@ -42,5 +45,5 @@ class MemoryRepository implements IOptimizerRepository {
   async load() { return structuredClone(this.state); }
   async save(state: OptimizerState) { this.state = structuredClone(state); }
 }
-function evaluator(baselineScore: number, candidateScore: number): IOptimizationEvaluator { return { evaluate: async (config: RuntimeOptimizationConfig, baselineRunId: string, candidateRunId: string) => ({ version: OPTIMIZER_EVALUATION_VERSION, evaluatorId: 'fake', evaluatorVersion: '1.0.0', baselineRunId, candidateRunId, baselineScore, candidateScore, improvement: candidateScore - baselineScore, minimumImprovement: 0.001, passed: candidateScore - baselineScore >= 0.001, configurationDigest: configurationDigest(config), evaluatedAt: new Date().toISOString() }) }; }
+function evaluator(baselineScore: number, candidateScore: number): IOptimizationEvaluator { return { evaluate: async (_baselineConfig: RuntimeOptimizationConfig, candidateConfig: RuntimeOptimizationConfig, baselineRunId: string, candidateRunId: string) => ({ version: OPTIMIZER_EVALUATION_VERSION, evaluatorId: 'fake', evaluatorVersion: '1.0.0', baselineRunId, candidateRunId, baselineScore, candidateScore, improvement: candidateScore - baselineScore, minimumImprovement: 0.001, passed: candidateScore - baselineScore >= 0.001, configurationDigest: configurationDigest(candidateConfig), evaluatedAt: new Date().toISOString() }) }; }
 function create(repository: IOptimizerRepository, optimizationEvaluator: IOptimizationEvaluator) { return new SafeOptimizer(repository, optimizationEvaluator, { listAllowedModelIds: async () => ['allowed'] }); }

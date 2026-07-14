@@ -13,6 +13,7 @@ import { CapabilityView } from './components/CapabilityView';
 import { OptimizerView } from './components/OptimizerView';
 import { SkillLearningView } from './components/SkillLearningView';
 import { AgentProfilesView } from './components/AgentProfilesView';
+import { BridgeUnavailableView } from './components/BridgeUnavailableView';
 import { AgentBridge } from './infrastructure/ipc/agentStudioBridge';
 import { useAppStore, type ViewId } from './store/useAppStore';
 import type { Message, Attachment } from './domain/entities/message';
@@ -217,6 +218,8 @@ function App() {
       window.clearTimeout(timeoutId);
     };
   }, [activeThreadId, isHistoryLoaded, threads, workspacePath]);
+
+  if (!AgentBridge.isAvailable) return <BridgeUnavailableView />;
 
   return (
     <div className="w-screen h-screen flex flex-col text-on-surface font-ui-body bg-background overflow-hidden">

@@ -9,6 +9,9 @@ import type { GoldenRuntimeTaskDefinition, GoldenTaskFixture, RuntimeEvaluationF
 import type { IAgentEvaluationScenarioRunner } from '../../domain/ports/IAgentEvaluationScenarioRunner.js';
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
+import { assertOptimizationConfig, type RuntimeOptimizationConfig } from '../../domain/entities/optimizer.js';
+import type { SkillStatus } from '../../domain/entities/skill.js';
+import { rankRelevantSkills } from '../../application/services/skillRanking.js';
 import { AttachmentMessageFormatter } from '../ai/AttachmentMessageFormatter.js';
 import { resolveSafeWorkspacePath } from '../security/resolveSafePath.js';
 import { AgentToolExecutor } from '../tools/AgentToolExecutor.js';
@@ -17,7 +20,11 @@ import { ScriptedEvaluationProvider } from './ScriptedEvaluationProvider.js';
 type Observation = GoldenTaskFixture['observed'];
 
 export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenarioRunner {
-  async run(definition: Readonly<GoldenRuntimeTaskDefinition>): Promise<Observation> {
+  async run(
+    definition: Readonly<GoldenRuntimeTaskDefinition>,
+    config: Readonly<RuntimeOptimizationConfig>,
+  ): Promise<Observation> {
+    assertOptimizationConfig(config as RuntimeOptimizationConfig);
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-'));
     const taskId = `runtime-eval-${randomUUID()}`;
     const traceId = randomUUID();
@@ -37,14 +44,15 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
           definition.runtime.knowledge.query,
           null,
           undefined,
-          definition.runtime.knowledge.limit,
+          Math.min(definition.runtime.knowledge.limit, config.retrievalTopK),
+          { lexicalWeight: config.lexicalWeight, semanticWeight: config.semanticWeight },
         )
         : undefined;
       retrievedChunkIds = retrieval?.results.map((result) => result.chunkId) ?? [];
       const knowledgeContext = retrieval?.results.map((result) => `${result.citation}\n${result.content}`).join('\n\n')
         || definition.runtime.knowledgeContext;
       const provider = new ScriptedEvaluationProvider(definition.runtime.responses);
-      const platform = new AgentToolExecutor({ provider: 'disabled' });
+      const platform = new AgentToolExecutor({ provider: 'disabled' }, undefined, undefined, undefined, config.timeoutMs);
       const session = new RunAgentSession(
         provider,
         platform,
@@ -60,12 +68,14 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
           { requestId: taskId, messages: [{ id: 'evaluation-prompt', sender: 'user', content: definition.runtime.prompt }] },
           NOOP_EVENT_SINK,
           {
-            baseUrl: 'scripted://runtime-evaluation', apiKey: '', model: 'scripted-runtime',
-            permissionMode: definition.runtime.permissionMode, retryCount: 0, requestTimeoutMs: 5_000, contextWindow: 16_384,
+            baseUrl: 'scripted://runtime-evaluation', apiKey: '', model: config.modelChoice ?? 'scripted-runtime',
+            permissionMode: definition.runtime.permissionMode, retryCount: config.retryCount,
+            requestTimeoutMs: config.timeoutMs, contextWindow: 16_384,
+            contextBudgetTokens: config.contextBudgetTokens,
           },
           workspaceRoot,
           knowledgeContext,
-          undefined,
+          buildEvaluationSkillContext(definition.runtime.prompt, config.skillRankingWeight),
           undefined,
           {
             id: taskId, traceId, workspaceRoot, completedSteps: 0, messages: [], conversation: [],
@@ -108,6 +118,17 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
       await fs.rm(workspaceRoot, { recursive: true, force: true });
     }
   }
+}
+
+const EVALUATION_SKILLS: SkillStatus[] = [
+  { id: 'architecture', name: 'architecture', description: 'domain layer infrastructure dependency boundaries', origin: 'user', rootPath: '', enabled: true, trusted: true },
+  { id: 'patching', name: 'patching', description: 'read files and apply exact code patches', origin: 'user', rootPath: '', enabled: true, trusted: true },
+];
+
+function buildEvaluationSkillContext(prompt: string, weight: number) {
+  return rankRelevantSkills(EVALUATION_SKILLS, prompt, weight)
+    .map((skill) => `<skill id="${skill.id}">${skill.description}</skill>`)
+    .join('\n');
 }
 
 class MemoryEvaluationTracer implements IAgentTracer {

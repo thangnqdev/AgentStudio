@@ -7,6 +7,7 @@ import type { AgentEvaluationReport } from '../electron/domain/entities/agentEva
 import type { IAgentEvaluationReportRepository } from '../electron/domain/ports/IAgentEvaluationReportRepository.js';
 import { GOLDEN_AGENT_RUNTIME_SUITE } from '../electron/evaluation/goldenAgentSuite.js';
 import { DeterministicAgentScenarioRunner } from '../electron/infrastructure/evaluation/DeterministicAgentScenarioRunner.js';
+import { DEFAULT_OPTIMIZATION_CONFIG } from '../electron/domain/entities/optimizer.js';
 
 class CliReportRepository implements IAgentEvaluationReportRepository {
   reports: AgentEvaluationReport[] = [];
@@ -17,8 +18,8 @@ class CliReportRepository implements IAgentEvaluationReportRepository {
 
 async function main() {
   const outputPath = process.argv[2];
-  const suite = await new BuildGoldenAgentRuntimeSuite(new DeterministicAgentScenarioRunner()).execute(GOLDEN_AGENT_RUNTIME_SUITE);
-  const report = await new RunAgentEvaluationRegression(createDefaultAgentEvaluators(), new CliReportRepository()).execute(suite);
+  const suite = await new BuildGoldenAgentRuntimeSuite(new DeterministicAgentScenarioRunner()).execute(GOLDEN_AGENT_RUNTIME_SUITE, DEFAULT_OPTIMIZATION_CONFIG);
+  const report = await new RunAgentEvaluationRegression(createDefaultAgentEvaluators(), new CliReportRepository()).execute(suite, DEFAULT_OPTIMIZATION_CONFIG);
   const serialized = `${JSON.stringify(report, null, 2)}\n`;
   if (outputPath) await fs.writeFile(path.resolve(outputPath), serialized, 'utf8');
   else process.stdout.write(serialized);

@@ -4,14 +4,20 @@ import type { IAgentEvaluator } from '../../domain/ports/IAgentEvaluator.js';
 import { AGENT_EVALUATOR_FIXTURE_SUITE } from '../../evaluation/goldenAgentSuite.js';
 import { createDefaultAgentEvaluators } from '../services/agentEvaluators.js';
 import { RunAgentEvaluationRegression } from './RunAgentEvaluationRegression.js';
+import { DEFAULT_OPTIMIZATION_CONFIG, configurationDigest } from '../../domain/entities/optimizer.js';
 
 describe('RunAgentEvaluationRegression', () => {
   it('passes the golden suite and persists a versioned report', async () => {
     const reports: AgentEvaluationReport[] = [];
     const runner = new RunAgentEvaluationRegression(createDefaultAgentEvaluators(), { append: async (report) => { reports.push(report); }, list: async () => reports, exportJson: async () => undefined });
-    const report = await runner.execute(AGENT_EVALUATOR_FIXTURE_SUITE);
+    const report = await runner.execute(AGENT_EVALUATOR_FIXTURE_SUITE, DEFAULT_OPTIMIZATION_CONFIG);
     expect(report.passed).toBe(true);
-    expect(report.reportVersion).toBe(1);
+    expect(report.reportVersion).toBe(2);
+    if (report.reportVersion !== 2) throw new Error('Expected a version 2 report.');
+    expect(report.runtimeConfiguration).toEqual({
+      configurationDigest: configurationDigest(DEFAULT_OPTIMIZATION_CONFIG),
+      config: DEFAULT_OPTIMIZATION_CONFIG,
+    });
     expect(report.evaluations).toHaveLength(AGENT_EVALUATOR_FIXTURE_SUITE.fixtures.length * 6);
     expect(reports).toEqual([report]);
   });
@@ -26,7 +32,7 @@ describe('RunAgentEvaluationRegression', () => {
       },
     };
     const runner = new RunAgentEvaluationRegression([mutatingEvaluator], { append: async () => undefined, list: async () => [], exportJson: async () => undefined });
-    await expect(runner.execute(AGENT_EVALUATOR_FIXTURE_SUITE)).rejects.toThrow();
+    await expect(runner.execute(AGENT_EVALUATOR_FIXTURE_SUITE, DEFAULT_OPTIMIZATION_CONFIG)).rejects.toThrow();
     expect(AGENT_EVALUATOR_FIXTURE_SUITE).toEqual(original);
   });
 });

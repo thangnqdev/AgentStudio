@@ -38,8 +38,13 @@ export function spawnAndCollect(
   cwd: string,
   timeoutMs: number,
   gracePeriodMs = SIGKILL_GRACE_PERIOD_MS,
+  signal?: AbortSignal,
 ): Promise<ToolResult> {
   return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve({ ok: false, output: 'Command cancelled.' });
+      return;
+    }
     const child = spawn(command, args, {
       cwd,
       env: buildSafeEnv(),
@@ -51,18 +56,25 @@ export function spawnAndCollect(
     let closed = false;
     let forceKillTimer: NodeJS.Timeout | undefined;
 
-    const timeoutTimer = setTimeout(() => {
+    const terminate = (message: string) => {
       if (closed || resolved) return;
       terminateProcessTree(child.pid, 'SIGTERM');
       forceKillTimer = setTimeout(() => {
         if (!closed) terminateProcessTree(child.pid, 'SIGKILL');
       }, gracePeriodMs);
-      settle({ ok: false, output: trimOutput(`${output}\nCommand timed out after ${timeoutMs}ms.`) });
+      settle({ ok: false, output: trimOutput(`${output}\n${message}`) });
+    };
+
+    const timeoutTimer = setTimeout(() => {
+      terminate(`Command timed out after ${timeoutMs}ms.`);
     }, timeoutMs);
+    const abort = () => terminate('Command cancelled.');
+    signal?.addEventListener('abort', abort, { once: true });
 
     const cleanup = () => {
       clearTimeout(timeoutTimer);
       if (forceKillTimer) clearTimeout(forceKillTimer);
+      signal?.removeEventListener('abort', abort);
     };
 
     const settle = (result: ToolResult) => {
@@ -139,12 +151,13 @@ export async function runSandboxedCommand(
   workspaceRoot: string,
   permissionMode: PermissionMode,
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<ToolResult> {
   if (permissionMode === 'danger-full-access') {
     if (process.platform === 'win32') {
-      return spawnAndCollect('cmd.exe', ['/c', command], workspaceRoot, timeoutMs);
+      return spawnAndCollect('cmd.exe', ['/c', command], workspaceRoot, timeoutMs, SIGKILL_GRACE_PERIOD_MS, signal);
     }
-    return spawnAndCollect('/bin/sh', ['-lc', command], workspaceRoot, timeoutMs);
+    return spawnAndCollect('/bin/sh', ['-lc', command], workspaceRoot, timeoutMs, SIGKILL_GRACE_PERIOD_MS, signal);
   }
 
   // workspace-write mode — sandbox theo platform
@@ -161,7 +174,7 @@ export async function runSandboxedCommand(
       return { ok: false, output: 'sandbox-exec not found; refusing to run command in workspace-write mode.' };
     }
     const profile = buildSeatbeltProfile(workspaceRoot);
-    return spawnAndCollect(sandboxExec, ['-p', profile, '/bin/sh', '-lc', command], workspaceRoot, timeoutMs);
+    return spawnAndCollect(sandboxExec, ['-p', profile, '/bin/sh', '-lc', command], workspaceRoot, timeoutMs, SIGKILL_GRACE_PERIOD_MS, signal);
   }
 
   if (process.platform === 'linux') {
@@ -179,7 +192,7 @@ export async function runSandboxedCommand(
     if (!bwrapFound) {
       return { ok: false, output: 'bubblewrap (bwrap) not found; refusing to run command in workspace-write mode.' };
     }
-    return spawnAndCollect('bwrap', await buildLinuxSandboxArgs(workspaceRoot, command), workspaceRoot, timeoutMs);
+    return spawnAndCollect('bwrap', await buildLinuxSandboxArgs(workspaceRoot, command), workspaceRoot, timeoutMs, SIGKILL_GRACE_PERIOD_MS, signal);
   }
 
   if (process.platform === 'win32') {

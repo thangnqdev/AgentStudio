@@ -16,6 +16,8 @@ export function summarizeToolArguments(toolName: string, args: Record<string, un
   }
   if (toolName === 'read_file') return `path=${typeof args.path === 'string' ? args.path : ''}`;
   if (toolName === 'list_files') return `dir=${typeof args.dir === 'string' ? args.dir : '.'}`;
+  if (toolName === 'glob') return `pattern=${typeof args.pattern === 'string' ? args.pattern : ''}`;
+  if (toolName === 'grep') return `pattern=${typeof args.pattern === 'string' ? args.pattern : ''}`;
   if (toolName === 'web_search') {
     const query = typeof args.query === 'string' ? args.query.trim() : '';
     const domains = typeof args.domains === 'string' ? args.domains.trim() : '';

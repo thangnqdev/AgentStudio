@@ -72,19 +72,41 @@ export class ManageProviderSettings {
 
   async saveProviderAndScan(input: SaveProviderInput) {
     const settings = await this.settings.loadStoredSettings();
-    const providerId = input.id || this.dependencies.createId();
-    const existingIndex = settings.providers.findIndex((provider) => provider.id === providerId);
-    const existingProvider = settings.providers[existingIndex];
+    const existingProvider = input.id
+      ? settings.providers.find((provider) => provider.id === input.id)
+      : undefined;
     const baseUrl = normalizeBaseUrl(input.baseUrl || '');
     const apiKey = input.apiKey || (existingProvider ? this.settings.decryptApiKey(existingProvider) : '');
     const models = await this.models.listModels(baseUrl, apiKey);
+    return this.upsertProvider(settings, input, models);
+  }
+
+  async saveProvider(input: SaveProviderInput) {
+    const settings = await this.settings.loadStoredSettings();
+    const existingProvider = input.id
+      ? settings.providers.find((provider) => provider.id === input.id)
+      : undefined;
+    const models = input.models === undefined
+      ? existingProvider?.models.map((model) => ({ ...model })) ?? []
+      : normalizeModelList(input.models);
+    return this.upsertProvider(settings, input, models);
+  }
+
+  private async upsertProvider(
+    settings: StoredSettings,
+    input: SaveProviderInput,
+    models: StoredProvider['models'],
+  ) {
+    const providerId = input.id || this.dependencies.createId();
+    const existingIndex = settings.providers.findIndex((provider) => provider.id === providerId);
+    const existingProvider = settings.providers[existingIndex];
     const secret = input.apiKey
       ? this.settings.encryptApiKey(input.apiKey)
       : existingSecret(existingProvider);
     const provider: StoredProvider = {
       id: providerId,
       name: input.name?.trim() || 'Unnamed',
-      baseUrl,
+      baseUrl: normalizeBaseUrl(input.baseUrl || ''),
       models,
       ...secret,
     };

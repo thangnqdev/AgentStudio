@@ -74,9 +74,16 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 ## Tool Platform
 
 - Local tools are registered from one typed catalog, shared by the model schema and execution policy.
+- `glob` finds files recursively and `grep` returns bounded `path:line` evidence. Both skip dependency/build trees, do not follow symlinks, support cancellation, and remain subject to path-scoped permission rules.
 - Read-only tools run automatically. In `workspace-write`, file writes and shell commands require explicit per-action approval and remain workspace-scoped/sandboxed. In `danger-full-access`, tools run automatically by default, commands are unsandboxed, and absolute file paths are allowed; explicit central `ask`/`deny` rules still take precedence.
 - Tool audit records persist locally as JSONL with a hashed workspace identifier. File contents and tool arguments are not written to that audit log.
 - `apply_patch` performs one exact, unambiguous replacement so edits do not need to resend a complete file.
+
+### Provider & Model Configuration
+
+- **Lưu provider** persists the connection and a newline/comma-separated manual model list without requiring a network request.
+- **Lưu & quét model** explicitly queries the provider catalog. A scan failure no longer prevents users from saving a manual provider configuration.
+- When the renderer is opened outside Electron or preload fails, the app shows a dedicated bridge diagnostic instead of reporting the issue as a provider/model error.
 
 ### Permission Rules
 
@@ -100,6 +107,12 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - A skill must have valid YAML-frontmatter `SKILL.md`, and must be explicitly trusted and enabled in Settings before its instructions can enter the agent prompt.
 - Skill `allowed-tools` metadata never bypasses the central tool policy. Skill scripts are not executed automatically.
 
+### Project Instructions
+
+- Every fresh or resumed session loads bounded workspace-root guidance from `AGENTS.md`, `CLAUDE.md`, `.claude/CLAUDE.md`, and `.claude/CLAUDE.local.md`.
+- Instruction files are read without following symlinks and enter both root-agent and read-only-subagent prompts with their source labels.
+- Project text is workspace-authored guidance: it cannot grant permissions, authorize data egress, reveal credentials, or override the central tool policy.
+
 ### Durable Agent Tasks
 
 - Running tasks checkpoint to an append-only JSONL journal. Restart recovery pauses interrupted tasks, a torn final record is repaired before the next append, and oversized journals compact atomically.
@@ -109,7 +122,7 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 ### Read-only Subagents
 
 - The root model can use `delegate_task` for bounded `explore`, `review`, or `plan` work. Delegation is classified as network risk and therefore follows the same central approval rules as every other tool.
-- Each subagent gets at most eight model steps, a 12,000-character task prompt, a 40,000-character final result, and only the local `list_files`, `read_file`, and `load_skill` tools.
+- Each subagent gets at most eight model steps, a 12,000-character task prompt, a 40,000-character final result, and only the local `list_files`, `read_file`, `glob`, `grep`, and `load_skill` tools.
 - Subagents always run in `read-only`, cannot delegate recursively, and cannot open an interactive approval prompt. A matching `ask` or `deny` rule blocks the child tool call rather than weakening policy.
 - Custom profiles are discovered from `userData/agents`, `~/.agents/agents`, `.agents/agents`, `.agent/agents`, and `.claude/agents`. Both user and workspace profiles require explicit trust and enablement in **Agent Profiles**.
 - Profile identity is bound to a content hash. Editing metadata or instructions creates a new untrusted identity, and a second hash check at load time closes the discover/load race.
@@ -150,6 +163,7 @@ Check assumptions, identify concrete failure modes, and clearly label uncertaint
 - Retrieval evaluation reuses the existing Recall@k, reciprocal-rank and nDCG implementation rather than defining a second metric path.
 - Evaluators receive a deep-cloned, frozen fixture and have no task repository, tool executor or policy mutation capability. Every score includes fixture/evaluator provenance and semantic versions.
 - Reports persist as owner-only JSONL under Electron `userData/evaluations`; the **Đánh giá agent** view can run the golden suite and export a selected report.
+- New reports use schema v2 and persist the exact runtime optimizer snapshot plus a canonical digest. Legacy v1 reports remain readable but cannot authorize optimizer promotion.
 - Architecture decision and invariants: [`docs/adr/0002-agent-wide-evaluation.md`](docs/adr/0002-agent-wide-evaluation.md).
 
 ## Workflow Runtime
@@ -172,7 +186,8 @@ Check assumptions, identify concrete failure modes, and clearly label uncertaint
 ## Safe Optimizer
 
 - The active tuning snapshot is limited to retrieval top-K/weights, an allow-listed model, context budget, bounded workflow retry count, command timeout and skill-ranking weight.
-- Candidates are immutable snapshots tied to an active revision. Evaluation compares two passing reports from the same versioned agent suite and records their IDs, scores, evaluator version and configuration digest.
+- Candidates are immutable snapshots tied to an active revision. **Evaluate** automatically runs the same versioned suite once with the active snapshot and once with the candidate snapshot.
+- The evaluator requires each report's exact config snapshot and canonical digest to match the expected baseline/candidate. Manually paired, legacy, stale, or mismatched reports cannot authorize promotion.
 - Promotion requires a strict measured improvement; ties, failed reports and stale candidates are rejected. Every promotion retains the previous full snapshot for rollback.
 - Runtime consumers read the active snapshot for retrieval, context compaction, model selection, workflow retry, command timeout and skill ranking. Optimizer state contains no permission, approval, credential, command or path fields.
 - Architecture decision and invariants: [`docs/adr/0005-safe-optimizer.md`](docs/adr/0005-safe-optimizer.md).
@@ -191,18 +206,25 @@ Check assumptions, identify concrete failure modes, and clearly label uncertaint
 ```
 AgentStudio/
 ├── electron/
-│   ├── main.ts        # Electron main process
-│   └── preload.ts     # Context bridge (IPC)
+│   ├── domain/         # Entities and ports
+│   ├── application/    # Use-cases and orchestration
+│   ├── infrastructure/ # Filesystem, providers, tools, persistence
+│   ├── ipc/            # Thin validated controllers
+│   ├── main.ts         # Composition/bootstrap
+│   └── preload.ts      # Narrow context bridge
 ├── src/
-│   ├── components/    # React UI components
-│   ├── store/         # Zustand global state
+│   ├── domain/         # Renderer-side entities and pure rules
+│   ├── application/    # Hooks and UI orchestration
+│   ├── infrastructure/ # Typed IPC adapters
+│   ├── components/     # React UI components
+│   ├── store/          # Zustand UI state slices
 │   ├── App.tsx
-│   └── index.css      # TailwindCSS v4 design tokens
+│   └── index.css       # TailwindCSS v4 design tokens
 └── public/
 ```
 
 ## Architecture
 
-- **State**: Zustand store in `src/store/useAppStore.ts` manages messages, active task, project path, and active view.
+- **State**: Composed Zustand slices manage renderer UI state; durable tasks, settings, traces and policies remain in main-process repositories/use-cases.
 - **Routing**: Simple state-based view switching via `activeView` in the store (no external router needed).
-- **IPC**: Electron IPC channels exposed via `contextBridge` in `preload.ts`. Main process handles `ping` and `fs:read` channels.
+- **IPC**: Narrow APIs are exposed through `contextBridge`; renderer components call application hooks/adapters, and validated main-process controllers delegate to use-cases.

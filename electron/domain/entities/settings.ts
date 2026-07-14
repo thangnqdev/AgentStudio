@@ -31,11 +31,10 @@ export interface SaveProviderInput {
   name?: string;
   baseUrl?: string;
   apiKey?: string;
-}
-
-export interface LegacyProviderInput extends SaveProviderInput {
   models?: unknown;
 }
+
+export type LegacyProviderInput = SaveProviderInput;
 
 export interface LegacySettingsInput {
   providers: LegacyProviderInput[];

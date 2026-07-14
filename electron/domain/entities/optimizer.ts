@@ -55,8 +55,12 @@ export function assertOptimizerState(state: OptimizerState) {
 export function configurationDigest(config: RuntimeOptimizationConfig) {
   assertOptimizationConfig(config);
   let hash = 2_166_136_261;
-  for (const character of JSON.stringify(config)) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16_777_619); }
+  for (const character of JSON.stringify(canonicalOptimizationConfig(config))) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16_777_619); }
   return `fnv1a-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+export function sameOptimizationConfig(left: RuntimeOptimizationConfig, right: RuntimeOptimizationConfig) {
+  return JSON.stringify(canonicalOptimizationConfig(left)) === JSON.stringify(canonicalOptimizationConfig(right));
 }
 
 export function assertOptimizationEvaluation(evaluation: OptimizationEvaluation, config: RuntimeOptimizationConfig) {
@@ -68,5 +72,17 @@ export function assertOptimizationEvaluation(evaluation: OptimizationEvaluation,
 }
 
 function assertOnlyKeys(value: object, keys: string[]) { const allowed = new Set(keys); if (Object.keys(value).some((key) => !allowed.has(key))) throw new Error('Optimizer object contains non-allow-listed fields.'); }
+function canonicalOptimizationConfig(config: RuntimeOptimizationConfig): RuntimeOptimizationConfig {
+  return {
+    retrievalTopK: config.retrievalTopK,
+    lexicalWeight: config.lexicalWeight,
+    semanticWeight: config.semanticWeight,
+    modelChoice: config.modelChoice,
+    contextBudgetTokens: config.contextBudgetTokens,
+    retryCount: config.retryCount,
+    timeoutMs: config.timeoutMs,
+    skillRankingWeight: config.skillRankingWeight,
+  };
+}
 function integerBetween(value: number, minimum: number, maximum: number) { return Number.isInteger(value) && value >= minimum && value <= maximum; }
 function numberBetween(value: number, minimum: number, maximum: number) { return Number.isFinite(value) && value >= minimum && value <= maximum; }

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { GoldenTaskFixture } from '../../domain/entities/agentEvaluation.js';
 import { GOLDEN_AGENT_RUNTIME_SUITE } from '../../evaluation/goldenAgentSuite.js';
 import { BuildGoldenAgentRuntimeSuite } from './BuildGoldenAgentRuntimeSuite.js';
+import { DEFAULT_OPTIMIZATION_CONFIG } from '../../domain/entities/optimizer.js';
 
 describe('BuildGoldenAgentRuntimeSuite', () => {
   it('replaces declared scenarios with freshly observed runtime evidence', async () => {
@@ -12,10 +13,10 @@ describe('BuildGoldenAgentRuntimeSuite', () => {
     };
     const run = vi.fn(async () => observed);
     const definition = { ...GOLDEN_AGENT_RUNTIME_SUITE, fixtures: [GOLDEN_AGENT_RUNTIME_SUITE.fixtures[1]] };
-    const suite = await new BuildGoldenAgentRuntimeSuite({ run }).execute(definition);
+    const suite = await new BuildGoldenAgentRuntimeSuite({ run }).execute(definition, DEFAULT_OPTIMIZATION_CONFIG);
 
     expect(run).toHaveBeenCalledOnce();
-    expect(run).toHaveBeenCalledWith(definition.fixtures[0]);
+    expect(run).toHaveBeenCalledWith(definition.fixtures[0], DEFAULT_OPTIMIZATION_CONFIG);
     expect(suite.fixtures[0].observed).toEqual(observed);
     expect('runtime' in suite.fixtures[0]).toBe(false);
   });

@@ -22,7 +22,7 @@ describe('RunReadOnlySubagent', () => {
     );
     await expect(runner.run({ prompt: 'Inspect docs', role: 'explore', workspaceRoot: '/workspace' })).resolves.toMatchObject({ content: 'Evidence found.', status: 'completed', steps: 2 });
     expect(seenTools).toEqual([['read_file'], ['read_file']]);
-    expect(execute).toHaveBeenCalledWith('read_file', { path: 'README.md' }, '/workspace', 'read-only');
+    expect(execute).toHaveBeenCalledWith('read_file', { path: 'README.md' }, '/workspace', 'read-only', undefined);
   });
 
   it('blocks hallucinated writes and reads that require interactive approval', async () => {

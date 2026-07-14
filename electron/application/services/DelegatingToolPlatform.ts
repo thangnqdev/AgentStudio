@@ -20,8 +20,8 @@ export class DelegatingToolPlatform implements IToolCatalog, IToolExecutor {
     return [...tools.filter((tool) => tool.name !== SUBAGENT_TOOL_NAME), SUBAGENT_TOOL_DEFINITION];
   }
 
-  async execute(toolName: string, args: Record<string, unknown>, workspaceRoot: string, permissionMode: PermissionMode) {
-    if (toolName !== SUBAGENT_TOOL_NAME) return this.baseExecutor.execute(toolName, args, workspaceRoot, permissionMode);
+  async execute(toolName: string, args: Record<string, unknown>, workspaceRoot: string, permissionMode: PermissionMode, signal?: AbortSignal) {
+    if (toolName !== SUBAGENT_TOOL_NAME) return this.baseExecutor.execute(toolName, args, workspaceRoot, permissionMode, signal);
     let request;
     try {
       request = parseSubagentRequest(args);

@@ -18,10 +18,12 @@ describe('PrepareAgentSession', () => {
       { buildPromptContext: async () => 'skill context' },
       { newSpanId: () => 'span', startTrace: async () => undefined, updateTrace: async () => undefined, recordSpan: async (span) => { spans.push(span); return 'span'; } },
       { load: async () => ({ active: { retrievalTopK: 9, lexicalWeight: 0.7, semanticWeight: 0.3, skillRankingWeight: 0.6 } }) as never },
+      { load: async () => [{ source: 'AGENTS.md', content: 'Run focused tests.' }] },
     );
     const result = await useCase.execute({ payload: { messages: task.messages }, taskId: '', requestId: 'request-1', workspaceRoot: '/workspace' });
     expect(result.task.knowledgeContext).toBe('private retrieved content');
     expect(observedTuning).toMatchObject({ retrievalTopK: 9, lexicalWeight: 0.7, semanticWeight: 0.3 });
+    expect(result.projectInstructionContext).toContain('Run focused tests.');
     expect(spans[0]).toMatchObject({ kind: 'retrieval', traceId: 'trace-1', taskId: 'task-1', mode: 'hybrid', resultCount: 4 });
     expect(JSON.stringify(spans)).not.toContain('private database question');
     expect(JSON.stringify(spans)).not.toContain('private retrieved content');

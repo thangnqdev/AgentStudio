@@ -2,6 +2,7 @@ import { AGENT_EVALUATION_REPORT_VERSION, assertEvaluationInvariant, assertEvalu
 import type { IAgentEvaluationReportRepository } from '../../domain/ports/IAgentEvaluationReportRepository.js';
 import type { IAgentEvaluator } from '../../domain/ports/IAgentEvaluator.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
+import { assertOptimizationConfig, configurationDigest, type RuntimeOptimizationConfig } from '../../domain/entities/optimizer.js';
 
 export class RunAgentEvaluationRegression {
   private readonly evaluators: IAgentEvaluator[];
@@ -12,8 +13,12 @@ export class RunAgentEvaluationRegression {
     evaluators: IAgentEvaluator[], reports: IAgentEvaluationReportRepository, tracer?: IAgentTracer,
   ) { this.evaluators = evaluators; this.reports = reports; this.tracer = tracer; }
 
-  async execute(suite: GoldenTaskSuite): Promise<AgentEvaluationReport> {
+  async execute(
+    suite: GoldenTaskSuite,
+    runtimeConfig: RuntimeOptimizationConfig,
+  ): Promise<AgentEvaluationReport> {
     if (!suite.fixtures.length || !this.evaluators.length) throw new Error('Evaluation suite and evaluators are required.');
+    assertOptimizationConfig(runtimeConfig);
     const runId = crypto.randomUUID();
     const evaluationTaskId = `evaluation-${runId}`;
     await this.tracer?.startTrace(runId, evaluationTaskId).catch(() => undefined);
@@ -37,6 +42,10 @@ export class RunAgentEvaluationRegression {
     const report: AgentEvaluationReport = {
       reportVersion: AGENT_EVALUATION_REPORT_VERSION, runId, suiteId: suite.id, suiteVersion: suite.version,
       createdAt: new Date().toISOString(), aggregateScore, passed: aggregateScore >= suite.minimumAggregateScore && evaluations.every((evaluation) => evaluation.passed), evaluations,
+      runtimeConfiguration: {
+        configurationDigest: configurationDigest(runtimeConfig),
+        config: structuredClone(runtimeConfig),
+      },
     };
     assertEvaluationReportInvariant(report);
     await this.reports.append(report);

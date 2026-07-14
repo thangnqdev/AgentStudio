@@ -50,6 +50,7 @@ export class AgentToolBatchRunner {
       step: input.step,
       workspaceRoot: input.workspaceRoot,
       traceContext: input.traceContext,
+      signal: input.signal,
       toolCall: item.call,
       toolDefinition: item.definition,
     });

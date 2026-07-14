@@ -73,6 +73,44 @@ describe('ManageProviderSettings', () => {
     expect(harness.stored().activeModelId).toBe('model-new');
   });
 
+  it('saves manual models without calling the remote catalog', async () => {
+    const harness = createHarness(settings());
+
+    const result = await harness.useCase.saveProvider({
+      name: 'Local gateway',
+      baseUrl: 'localhost:20128/v1',
+      models: ['model-a', { id: 'model-b', contextWindow: 128_000 }, 'model-a'],
+    });
+
+    expect(harness.catalogCalls).toEqual([]);
+    expect(result.providers[0]).toMatchObject({
+      id: 'generated-provider',
+      baseUrl: 'http://localhost:20128/v1',
+      models: [{ id: 'model-a' }, { id: 'model-b', contextWindow: 128_000 }],
+    });
+    expect(result.activeModelId).toBe('model-a');
+  });
+
+  it('preserves models when an existing provider is saved without a model list', async () => {
+    const existing: StoredProvider = {
+      id: 'provider-1', name: 'Existing', baseUrl: 'https://example.test/v1',
+      models: [{ id: 'model-a', contextWindow: 32_000 }],
+    };
+    const harness = createHarness(settings(existing));
+
+    await harness.useCase.saveProvider({
+      id: existing.id,
+      name: 'Renamed',
+      baseUrl: existing.baseUrl,
+    });
+
+    expect(harness.catalogCalls).toEqual([]);
+    expect(harness.stored().providers[0]).toMatchObject({
+      name: 'Renamed',
+      models: [{ id: 'model-a', contextWindow: 32_000 }],
+    });
+  });
+
   it('imports legacy settings through injected persistence and ID generation', async () => {
     const harness = createHarness(settings());
 

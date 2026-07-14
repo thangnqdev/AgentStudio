@@ -37,6 +37,35 @@ describe('permission rules', () => {
     expect(matchesPermissionGlob('mcp_*_read?', 'mcp_docs_write1')).toBe(false);
   });
 
+  it('canonicalizes equivalent workspace paths before matching rules', () => {
+    const decision = evaluateToolPermission(tool('read_file', 'read'), 'danger-full-access', { path: 'src/../config/secret.json' }, [
+      { ...rule('deny-config', 'deny', 'user', 'read_file'), pathGlob: 'config/*' },
+    ]);
+    expect(decision).toMatchObject({ allowed: false, matchedRule: { id: 'deny-config' } });
+  });
+
+  it('matches command prefixes across shell segments and executable paths', () => {
+    for (const command of ['cd . && rm -rf important', '/bin/rm -rf important', 'env MODE=test rm -rf important']) {
+      const decision = evaluateToolPermission(tool('run_command', 'execute'), 'danger-full-access', { command }, [
+        { ...rule('deny-delete', 'deny', 'user', 'run_command'), commandPrefix: 'rm' },
+      ]);
+      expect(decision, command).toMatchObject({ allowed: false, matchedRule: { id: 'deny-delete' } });
+    }
+  });
+
+  it('fails closed for deny and ask rules when shell execution is ambiguous', () => {
+    const rules: PermissionRule[] = [{ ...rule('deny-delete', 'deny', 'user', 'run_command'), commandPrefix: 'rm' }];
+    expect(evaluateToolPermission(tool('run_command', 'execute'), 'danger-full-access', { command: 'sh -c "rm -rf important"' }, rules).allowed).toBe(false);
+    expect(evaluateToolPermission(tool('run_command', 'execute'), 'danger-full-access', { command: 'echo $(rm -rf important)' }, rules).allowed).toBe(false);
+  });
+
+  it('applies read_file path restrictions to broad glob and grep searches', () => {
+    const rules: PermissionRule[] = [{ ...rule('deny-config', 'deny', 'user', 'read_file'), pathGlob: 'config/*' }];
+    expect(evaluateToolPermission(tool('glob', 'read'), 'workspace-write', { pattern: '**/*' }, rules).allowed).toBe(false);
+    expect(evaluateToolPermission(tool('grep', 'read'), 'workspace-write', { pattern: 'secret' }, rules).allowed).toBe(false);
+    expect(evaluateToolPermission(tool('glob', 'read'), 'workspace-write', { pattern: 'src/**/*.ts' }, rules).allowed).toBe(true);
+  });
+
   it('rejects workspace allow rules and malformed input', () => {
     expect(() => normalizePermissionRules([{ effect: 'allow', toolGlob: '*' }], 'workspace', ['deny', 'ask'])).toThrow('invalid effect');
     expect(() => normalizePermissionRules({ rules: [{ effect: 'deny' }] }, 'workspace', ['deny', 'ask'])).toThrow('requires toolGlob');

@@ -18,6 +18,7 @@ export type SaveProviderPayload = {
   name?: string;
   baseUrl?: string;
   apiKey?: string;
+  models?: Array<string | AIModel>;
 };
 
 export type LegacySettingsPayload = {
@@ -174,6 +175,7 @@ declare global {
       onAppUpdateStatus: (listener: (payload: AppUpdateSnapshot) => void) => () => void;
       loadSettings: () => Promise<AppSettings>;
       importLegacySettings: (settings: LegacySettingsPayload) => Promise<AppSettings>;
+      saveProvider: (provider: SaveProviderPayload) => Promise<IpcResult<AppSettings>>;
       saveProviderAndScan: (provider: SaveProviderPayload) => Promise<AppSettings>;
       deleteProvider: (providerId: string) => Promise<AppSettings>;
       setActiveProvider: (providerId: string) => Promise<AppSettings>;
@@ -219,7 +221,7 @@ declare global {
       getAgentTrace: (traceId: string) => Promise<IpcResult<AgentTraceDetails>>;
       exportAgentTrace: (traceId: string) => Promise<IpcResult<{ canceled: boolean; recordCount: number }>>;
       listAgentEvaluations: (limit?: number) => Promise<IpcResult<AgentEvaluationReport[]>>;
-      runGoldenAgentEvaluation: () => Promise<IpcResult<AgentEvaluationReport>>;
+      runGoldenAgentEvaluation: (candidateId?: string) => Promise<IpcResult<AgentEvaluationReport>>;
       exportAgentEvaluation: (runId: string) => Promise<IpcResult<{ canceled: boolean }>>;
       listWorkflowDefinitions: () => Promise<IpcResult<WorkflowDefinition[]>>;
       listWorkflowRuns: (limit?: number) => Promise<IpcResult<NodeCheckpoint[]>>;

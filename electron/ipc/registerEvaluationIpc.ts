@@ -7,7 +7,9 @@ function respond<T>(task: () => Promise<T>) {
 
 export function registerEvaluationIpc(win: BrowserWindow | null) {
   ipcMain.handle('evaluations:list', (_event, rawLimit: unknown) => respond(() => agentEvaluationRegression.list(readLimit(rawLimit))));
-  ipcMain.handle('evaluations:run-golden', () => respond(() => runGoldenAgentRuntimeEvaluation()));
+  ipcMain.handle('evaluations:run-golden', (_event, rawCandidateId: unknown) => (
+    respond(() => runGoldenAgentRuntimeEvaluation(readCandidateId(rawCandidateId)))
+  ));
   ipcMain.handle('evaluations:export', (_event, rawRunId: unknown) => respond(async () => {
     const runId = readRunId(rawRunId);
     const result = win
@@ -21,3 +23,8 @@ export function registerEvaluationIpc(win: BrowserWindow | null) {
 
 function readLimit(value: unknown) { return typeof value === 'number' && Number.isInteger(value) ? Math.min(Math.max(value, 1), 200) : 50; }
 function readRunId(value: unknown) { if (typeof value !== 'string' || !/^[a-f0-9-]{16,64}$/i.test(value)) throw new Error('A valid runId is required.'); return value; }
+function readCandidateId(value: unknown) {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string' || !/^[a-f0-9-]{16,64}$/i.test(value)) throw new Error('A valid candidateId is required.');
+  return value;
+}

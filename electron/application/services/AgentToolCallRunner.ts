@@ -19,6 +19,7 @@ export type ToolCallRunInput = {
   toolDefinition?: AgentToolDefinition;
   workspaceRoot: string;
   traceContext?: { traceId: string; taskId: string };
+  signal?: AbortSignal;
 };
 
 export class AgentToolCallRunner {
@@ -102,7 +103,7 @@ export class AgentToolCallRunner {
 
     input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: 'running' });
     await this.recordAudit(actionId, 'started', input, risk, toolName);
-    const toolResult = await this.toolExecutor.execute(toolName, args, input.workspaceRoot, input.permissionMode);
+    const toolResult = await this.toolExecutor.execute(toolName, args, input.workspaceRoot, input.permissionMode, input.signal);
     input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: toolResult.ok ? 'ok' : 'error', output: toolResult.output });
     await this.recordAudit(actionId, toolResult.ok ? 'succeeded' : 'error', input, risk, toolName);
     await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, toolResult.ok ? 'succeeded' : 'failed', toolResult.ok ? 'succeeded' : 'failed');

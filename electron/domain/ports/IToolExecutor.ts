@@ -10,5 +10,6 @@ export interface IToolExecutor {
     args: Record<string, unknown>,
     workspaceRoot: string,
     permissionMode: PermissionMode,
+    signal?: AbortSignal,
   ): Promise<ToolResult>;
 }

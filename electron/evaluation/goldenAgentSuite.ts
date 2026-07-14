@@ -49,7 +49,7 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
         initialFiles: [],
         assertedFiles: [],
         knowledge: {
-          query: 'layer independent infrastructure dependencies', limit: 1,
+          query: 'layer independent infrastructure dependencies', limit: 20,
           store: {
             version: 2,
             documents: [

@@ -16,21 +16,22 @@ export class WebSearchExecutor {
     return this.settings.provider !== 'disabled';
   }
 
-  async search(args: Record<string, unknown>): Promise<ToolResult> {
+  async search(args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult> {
     const query = readQuery(args.query);
     if (!query) return { ok: false, output: 'Web search query is empty.' };
 
-    if (this.settings.provider === 'tavily') return this.searchTavily(query, readDomains(args.domains));
-    if (this.settings.provider === 'searxng') return this.searchSearXNG(query);
-    if (this.settings.provider === 'openai') return this.searchOpenAI(query, readDomains(args.domains));
+    if (this.settings.provider === 'tavily') return this.searchTavily(query, readDomains(args.domains), signal);
+    if (this.settings.provider === 'searxng') return this.searchSearXNG(query, signal);
+    if (this.settings.provider === 'openai') return this.searchOpenAI(query, readDomains(args.domains), signal);
     return { ok: false, output: 'Web search is not configured. Open Settings and choose a web search connector.' };
   }
 
-  private async searchTavily(query: string, domains: string[]): Promise<ToolResult> {
+  private async searchTavily(query: string, domains: string[], signal?: AbortSignal): Promise<ToolResult> {
     if (!this.settings.apiKey) return { ok: false, output: 'Tavily requires an API key.' };
     const response = await fetch(this.settings.baseUrl || 'https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.settings.apiKey}` },
+      signal,
       body: JSON.stringify({
         query,
         search_depth: 'basic',
@@ -45,23 +46,24 @@ export class WebSearchExecutor {
     return formatSearchPayload(payload, 'answer', 'results');
   }
 
-  private async searchSearXNG(query: string): Promise<ToolResult> {
+  private async searchSearXNG(query: string, signal?: AbortSignal): Promise<ToolResult> {
     if (!this.settings.baseUrl) return { ok: false, output: 'SearXNG requires the URL of your instance.' };
     const url = new URL('search', `${this.settings.baseUrl.replace(/\/$/, '')}/`);
     url.searchParams.set('q', query);
     url.searchParams.set('format', 'json');
     url.searchParams.set('categories', 'general');
-    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    const response = await fetch(url, { headers: { Accept: 'application/json' }, signal });
     if (!response.ok) return errorResult('SearXNG web search', response);
     return formatSearchPayload(await response.json() as unknown, '', 'results');
   }
 
-  private async searchOpenAI(query: string, domains: string[]): Promise<ToolResult> {
+  private async searchOpenAI(query: string, domains: string[], signal?: AbortSignal): Promise<ToolResult> {
     if (!this.settings.apiKey) return { ok: false, output: 'OpenAI web search requires an API key.' };
     const baseUrl = this.settings.baseUrl || 'https://api.openai.com/v1';
     const response = await fetch(new URL('responses', `${baseUrl.replace(/\/$/, '')}/`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.settings.apiKey}` },
+      signal,
       body: JSON.stringify({
         model: this.settings.model || 'gpt-5.5',
         input: query,
