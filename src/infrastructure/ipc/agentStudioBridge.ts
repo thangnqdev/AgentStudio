@@ -225,6 +225,11 @@ export const AgentBridge = {
     return window.agentStudio.listResumableAgentTasks();
   },
 
+  async forkAgentTask(taskId: string) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.forkAgentTask(taskId);
+  },
+
   async listCommandShells() {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     return window.agentStudio.listCommandShells();

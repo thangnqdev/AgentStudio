@@ -126,6 +126,7 @@ contextBridge.exposeInMainWorld('agentStudio', {
   onChatError: (listener: ChatEventListener) => subscribe('ai:chat:error', listener),
   onChatTaskStatus: (listener: ChatEventListener) => subscribe('ai:chat:task-status', listener),
   listResumableAgentTasks: () => ipcRenderer.invoke('agent:tasks:list-resumable'),
+  forkAgentTask: (taskId: string) => ipcRenderer.invoke('agent:tasks:fork', { taskId }),
   listAgentTraces: (limit?: number) => ipcRenderer.invoke('traces:list', limit),
   getAgentTrace: (traceId: string) => ipcRenderer.invoke('traces:get', traceId),
   exportAgentTrace: (traceId: string) => ipcRenderer.invoke('traces:export', traceId),

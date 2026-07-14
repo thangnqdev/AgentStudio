@@ -1,6 +1,7 @@
 import type { AgentStartPayload, Message } from '../../domain/entities/agent.js';
 import type { AgentTaskCheckpoint, AgentTaskRecord } from '../../domain/entities/agentTask.js';
-import { MAX_AGENT_TASK_STEPS } from '../../domain/entities/limits.js';
+import { MAX_AGENT_TASK_BRANCH_DEPTH, MAX_AGENT_TASK_STEPS } from '../../domain/entities/limits.js';
+import { summarizeAgentTask } from '../../domain/entities/agentTask.js';
 import type { IAgentTaskRepository } from '../../domain/ports/IAgentTaskRepository.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 
@@ -27,6 +28,7 @@ export class AgentTaskService {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       completedSteps: 0,
+      branchDepth: 0,
       messages,
       conversation: [],
       knowledgeContext,
@@ -51,6 +53,33 @@ export class AgentTaskService {
     const resumed: AgentTaskRecord = { ...task, traceId, status: 'running', updatedAt: new Date().toISOString(), lastError: undefined };
     await this.repository.saveCheckpoint(resumed);
     return resumed;
+  }
+
+  async fork(taskId: string, workspaceRoot: string) {
+    const source = await this.repository.get(taskId);
+    if (!source || source.workspaceRoot !== workspaceRoot) throw new Error('Không tìm thấy tác vụ để tạo nhánh trong workspace hiện tại.');
+    if (source.status === 'running') throw new Error('Không thể tạo nhánh khi tác vụ đang chạy.');
+    const branchDepth = (source.branchDepth ?? 0) + 1;
+    if (branchDepth > MAX_AGENT_TASK_BRANCH_DEPTH) throw new Error(`Tác vụ đã đạt giới hạn ${MAX_AGENT_TASK_BRANCH_DEPTH} cấp nhánh.`);
+
+    const now = new Date().toISOString();
+    const branch: AgentTaskRecord = {
+      ...structuredClone(source),
+      id: crypto.randomUUID(),
+      traceId: crypto.randomUUID(),
+      title: branchTitle(source.title, branchDepth),
+      status: 'paused',
+      createdAt: now,
+      updatedAt: now,
+      completedSteps: 0,
+      parentTaskId: source.id,
+      branchDepth,
+      lastError: undefined,
+    };
+    await this.tracer.startTrace(branch.traceId, branch.id);
+    await this.repository.create(branch);
+    await this.tracer.updateTrace(branch.traceId, branch.id, 'paused');
+    return summarizeAgentTask(branch);
   }
 
   async checkpoint(checkpoint: AgentTaskCheckpoint) {
@@ -98,4 +127,9 @@ function sanitizeMessages(messages: Message[] | undefined) {
 function toTitle(content: string | undefined) {
   const normalized = (content || 'Tác vụ agent').replace(/\s+/g, ' ').trim();
   return normalized.slice(0, 96) || 'Tác vụ agent';
+}
+
+function branchTitle(title: string, depth: number) {
+  const suffix = ` · nhánh ${depth}`;
+  return `${title.slice(0, Math.max(1, 96 - suffix.length))}${suffix}`;
 }

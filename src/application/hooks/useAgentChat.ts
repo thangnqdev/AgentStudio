@@ -109,10 +109,17 @@ export function useAgentChat() {
 
   const resumeAgentTask = (taskId: string) => startAgentResponse([], taskId);
 
+  const forkAgentTask = async (taskId: string) => {
+    const result = await AgentBridge.forkAgentTask(taskId);
+    if (!result.success) throw new Error(result.error);
+    await startAgentResponse([], result.data.id);
+  };
+
   return {
     startAgentResponse,
     stopAgentResponse,
     handleRegenerate,
     resumeAgentTask,
+    forkAgentTask,
   };
 }

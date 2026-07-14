@@ -29,6 +29,36 @@ describe('AgentTaskService', () => {
 
     await expect(service.resume('task-1', '/workspace')).rejects.toThrow('180 bước');
   });
+
+  it('forks an independent paused branch with fresh budgets and lineage', async () => {
+    const source = task({ completedSteps: 42, messages: [{ id: 'user', sender: 'user', content: 'source' }] });
+    const repository = new MemoryTaskRepository([source]);
+    const tracer = new MemoryTracer();
+    const service = new AgentTaskService(repository, tracer);
+
+    const summary = await service.fork(source.id, source.workspaceRoot);
+    const branch = await repository.get(summary.id);
+    expect(branch).toMatchObject({ parentTaskId: source.id, branchDepth: 1, status: 'paused', completedSteps: 0 });
+    expect(branch?.id).not.toBe(source.id);
+    expect(branch?.traceId).not.toBe(source.traceId);
+    expect(branch?.messages).toEqual(source.messages);
+    expect(tracer.statuses).toContain('paused');
+    branch?.messages.push({ id: 'branch-only', sender: 'user', content: 'branch' });
+    expect(source.messages).toHaveLength(1);
+  });
+
+  it('rejects forks from running tasks and across workspaces', async () => {
+    const repository = new MemoryTaskRepository([task({ status: 'running' })]);
+    const service = new AgentTaskService(repository, new MemoryTracer());
+    await expect(service.fork('task-1', '/workspace')).rejects.toThrow('đang chạy');
+    await expect(service.fork('task-1', '/other')).rejects.toThrow('workspace hiện tại');
+  });
+
+  it('bounds branch lineage depth', async () => {
+    const repository = new MemoryTaskRepository([task({ branchDepth: 20 })]);
+    const service = new AgentTaskService(repository, new MemoryTracer());
+    await expect(service.fork('task-1', '/workspace')).rejects.toThrow('20 cấp nhánh');
+  });
 });
 
 class MemoryTaskRepository implements IAgentTaskRepository {
@@ -50,9 +80,10 @@ class MemoryTaskRepository implements IAgentTaskRepository {
 }
 
 class MemoryTracer implements IAgentTracer {
+  statuses: string[] = [];
   newSpanId() { return crypto.randomUUID(); }
   async startTrace() {}
-  async updateTrace() {}
+  async updateTrace(_traceId: string, _taskId: string, status: Parameters<IAgentTracer['updateTrace']>[2]) { this.statuses.push(status); }
   async recordSpan() { return this.newSpanId(); }
 }
 

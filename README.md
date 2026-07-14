@@ -100,6 +100,12 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - A skill must have valid YAML-frontmatter `SKILL.md`, and must be explicitly trusted and enabled in Settings before its instructions can enter the agent prompt.
 - Skill `allowed-tools` metadata never bypasses the central tool policy. Skill scripts are not executed automatically.
 
+### Durable Agent Tasks
+
+- Running tasks checkpoint to an append-only JSONL journal. Restart recovery pauses interrupted tasks, a torn final record is repaired before the next append, and oversized journals compact atomically.
+- A paused or failed task can resume in place, or continue on an independent branch. A branch preserves the source context and conversation, records `parentTaskId` lineage, receives a fresh trace and step budget, and never mutates the source task.
+- Running tasks cannot be forked because their latest in-memory tool/model state may not yet be durable. Branch depth is bounded at 20.
+
 ### MCP Servers
 
 - MCP servers are added only through Settings; models, repository files, and skills cannot register or launch servers.

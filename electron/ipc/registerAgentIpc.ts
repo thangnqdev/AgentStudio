@@ -112,4 +112,16 @@ export function registerAgentIpc() {
     const workspaceRoot = await workspaceManager.getWorkspaceRoot();
     return { success: true as const, tasks: await agentTaskService.listResumable(workspaceRoot) };
   });
+
+  ipcMain.handle('agent:tasks:fork', async (_event, rawPayload: unknown) => {
+    await interruptedTaskRecovery;
+    const taskId = getString(isObject(rawPayload) ? rawPayload.taskId : undefined);
+    if (!taskId) return { success: false as const, error: 'Thiếu taskId để tạo nhánh.' };
+    try {
+      const workspaceRoot = await workspaceManager.getWorkspaceRoot();
+      return { success: true as const, data: await agentTaskService.fork(taskId, workspaceRoot) };
+    } catch (error) {
+      return { success: false as const, error: error instanceof Error ? error.message : 'Không thể tạo nhánh tác vụ.' };
+    }
+  });
 }

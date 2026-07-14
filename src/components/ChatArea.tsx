@@ -15,9 +15,11 @@ export function ChatArea() {
   const agentThoughts = useAppStore((s) => s.agentThoughts);
   const isAgentTyping = useAppStore((s) => s.isAgentTyping);
   const resumableTask = useAppStore((s) => s.resumableTask);
-  const { handleRegenerate, resumeAgentTask } = useAgentChat();
+  const { forkAgentTask, handleRegenerate, resumeAgentTask } = useAgentChat();
 
   const [isDragging, setIsDragging] = useState(false);
+  const [isForking, setIsForking] = useState(false);
+  const [forkError, setForkError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +33,14 @@ export function ChatArea() {
     if (files.length > 0) {
       window.dispatchEvent(new CustomEvent('agentstudio:add-files', { detail: files }));
     }
+  };
+
+  const handleFork = async (taskId: string) => {
+    setIsForking(true);
+    setForkError('');
+    try { await forkAgentTask(taskId); }
+    catch (error) { setForkError(error instanceof Error ? error.message : 'Không thể tạo nhánh tác vụ.'); }
+    finally { setIsForking(false); }
   };
 
   return (
@@ -77,16 +87,20 @@ export function ChatArea() {
               <span className="font-ui-label-bold text-primary">Tác vụ đã checkpoint</span>
               <span className="ml-2">{resumableTask.completedSteps}/180 bước</span>
             </div>
-            <button
-              type="button"
-              onClick={() => resumeAgentTask(resumableTask.id)}
-              className="shrink-0 flex items-center gap-1.5 rounded bg-secondary px-3 py-1.5 text-[12px] font-ui-label-bold text-on-secondary"
-            >
-              <span className="material-symbols-outlined text-[16px]">play_arrow</span>
-              Tiếp tục
-            </button>
+            <div className="shrink-0 flex items-center gap-2">
+              <button type="button" disabled={isForking} onClick={() => void handleFork(resumableTask.id)} className="settings-action flex items-center gap-1.5 disabled:opacity-50">
+                <span className="material-symbols-outlined text-[16px]">fork_right</span>
+                {isForking ? 'Đang tạo…' : 'Tiếp tục ở nhánh'}
+              </button>
+              <button type="button" disabled={isForking} onClick={() => resumeAgentTask(resumableTask.id)} className="flex items-center gap-1.5 rounded bg-secondary px-3 py-1.5 text-[12px] font-ui-label-bold text-on-secondary disabled:opacity-50">
+                <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                Tiếp tục
+              </button>
+            </div>
           </div>
         )}
+
+        {forkError && <p className="text-[12px] text-error">{forkError}</p>}
 
         {messages.length === 0 && !isAgentTyping ? (
           <ChatEmptyState />

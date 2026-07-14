@@ -111,6 +111,8 @@ export type AgentTaskSummary = {
   createdAt: string;
   updatedAt: string;
   completedSteps: number;
+  parentTaskId?: string;
+  branchDepth?: number;
   lastError?: string;
 };
 
@@ -208,6 +210,7 @@ declare global {
       onChatError: (listener: ChatEventListener) => () => void;
       onChatTaskStatus: (listener: ChatEventListener) => () => void;
       listResumableAgentTasks: () => Promise<AgentTaskListResult>;
+      forkAgentTask: (taskId: string) => Promise<IpcResult<AgentTaskSummary>>;
       listAgentTraces: (limit?: number) => Promise<IpcResult<AgentTraceSummary[]>>;
       getAgentTrace: (traceId: string) => Promise<IpcResult<AgentTraceDetails>>;
       exportAgentTrace: (traceId: string) => Promise<IpcResult<{ canceled: boolean; recordCount: number }>>;
