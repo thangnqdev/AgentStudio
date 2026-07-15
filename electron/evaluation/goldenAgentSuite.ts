@@ -8,7 +8,7 @@ const BASE_EXPECTATIONS = {
 };
 
 export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
-  id: 'agent-studio-runtime-golden', version: '2.2.0', minimumAggregateScore: 0.95,
+  id: 'agent-studio-runtime-golden', version: '2.3.0', minimumAggregateScore: 0.95,
   minimumScores: { task: 1, tool_selection: 1, code_change: 1, policy: 1, trajectory: 1, retrieval: 1 },
   fixtures: [
     {
@@ -146,6 +146,31 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
           }] } }] },
           { toolCalls: [{ name: 'ExitPlanMode', args: { plan: '# Plan\n\n1. Define a port.\n2. Implement the infrastructure adapter.\n3. Add tests.' } }] },
           { content: 'The plan was approved; implementation can now begin.' },
+        ],
+      },
+    },
+    {
+      id: 'isolated-worktree-lifecycle', version: '1.0.0',
+      expected: {
+        ...BASE_EXPECTATIONS,
+        tools: ['EnterWorktree', 'write_file', 'ExitWorktree'],
+        forbiddenTools: ['apply_patch', 'run_command'],
+        changedFiles: [],
+        testsMustPass: true,
+        maxSteps: 3,
+      },
+      runtime: {
+        prompt: 'Explicitly enter an isolated worktree, create proof.txt there, then keep and exit the worktree. Do not change the original workspace.',
+        permissionMode: 'danger-full-access',
+        initialFiles: [{ path: 'original.txt', content: 'original workspace remains unchanged\n' }],
+        assertedFiles: [{ path: 'original.txt', content: 'original workspace remains unchanged\n' }],
+        responses: [
+          { toolCalls: [
+            { name: 'EnterWorktree', args: { name: 'evaluation/isolation' } },
+            { name: 'write_file', args: { path: 'proof.txt', content: 'isolated change\n' } },
+          ] },
+          { toolCalls: [{ name: 'ExitWorktree', args: { action: 'keep' } }] },
+          { content: 'The isolated change was preserved in its worktree and the original workspace stayed unchanged.' },
         ],
       },
     },

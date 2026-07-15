@@ -37,5 +37,12 @@ export function summarizeToolArguments(toolName: string, args: Record<string, un
   if (toolName === 'ExitPlanMode') {
     return `plan=${typeof args.plan === 'string' ? args.plan.length : 0} characters`;
   }
+  if (toolName === 'EnterWorktree') {
+    return `name=${typeof args.name === 'string' ? args.name : 'auto-generated'}`;
+  }
+  if (toolName === 'ExitWorktree') {
+    const action = args.action === 'remove' || args.action === 'keep' ? args.action : 'invalid';
+    return `action=${action} discard_changes=${args.discard_changes === true}`;
+  }
   return Object.keys(args).sort().join(', ');
 }

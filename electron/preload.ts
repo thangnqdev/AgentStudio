@@ -8,6 +8,7 @@ type ChatEventPayload = {
   task?: ChatTaskStatusPayload;
   interaction?: ChatInteractionPayload;
   planMode?: { active: boolean };
+  worktree?: { active: boolean; path?: string; branch?: string };
 };
 
 type ChatActionPayload = {
@@ -56,7 +57,7 @@ type AppUpdateSnapshot = {
 };
 type AppUpdateEventListener = (payload: AppUpdateSnapshot) => void;
 
-type EventChannel = 'ai:chat:chunk' | 'ai:chat:done' | 'ai:chat:error' | 'ai:chat:action' | 'ai:chat:task-status' | 'ai:chat:interaction' | 'ai:chat:plan-mode';
+type EventChannel = 'ai:chat:chunk' | 'ai:chat:done' | 'ai:chat:error' | 'ai:chat:action' | 'ai:chat:task-status' | 'ai:chat:interaction' | 'ai:chat:plan-mode' | 'ai:chat:worktree';
 
 function subscribe(channel: EventChannel, listener: ChatEventListener) {
   const handler = (_event: Electron.IpcRendererEvent, payload: ChatEventPayload) => {
@@ -150,6 +151,8 @@ contextBridge.exposeInMainWorld('agentStudio', {
   onChatTaskStatus: (listener: ChatEventListener) => subscribe('ai:chat:task-status', listener),
   onChatInteraction: (listener: ChatEventListener) => subscribe('ai:chat:interaction', listener),
   onChatPlanMode: (listener: ChatEventListener) => subscribe('ai:chat:plan-mode', listener),
+  onChatWorktree: (listener: ChatEventListener) => subscribe('ai:chat:worktree', listener),
+  getAgentWorktreeState: (scopeId: string) => ipcRenderer.invoke('agent:worktree:get-state', scopeId),
   listResumableAgentTasks: () => ipcRenderer.invoke('agent:tasks:list-resumable'),
   forkAgentTask: (taskId: string) => ipcRenderer.invoke('agent:tasks:fork', { taskId }),
   listAgentTraces: (limit?: number) => ipcRenderer.invoke('traces:list', limit),

@@ -72,4 +72,18 @@ describe('DeterministicAgentScenarioRunner', () => {
     expect(suite.fixtures[0].observed.changedFiles).toEqual([]);
     expect((await regression.execute(suite, DEFAULT_OPTIMIZATION_CONFIG)).passed).toBe(false);
   });
+
+  it('keeps same-turn writes isolated after entering a managed worktree', async () => {
+    const observed = await new DeterministicAgentScenarioRunner().run(GOLDEN_AGENT_RUNTIME_SUITE.fixtures[6], DEFAULT_OPTIMIZATION_CONFIG);
+
+    expect(observed.taskStatus).toBe('completed');
+    expect(observed.toolCalls).toEqual([
+      { toolName: 'EnterWorktree', outcome: 'succeeded' },
+      { toolName: 'write_file', outcome: 'succeeded' },
+      { toolName: 'ExitWorktree', outcome: 'succeeded' },
+    ]);
+    expect(observed.changedFiles).toEqual([]);
+    expect(observed.testsPassed).toBe(true);
+    expect(observed.policyViolationCodes).toEqual([]);
+  });
 });

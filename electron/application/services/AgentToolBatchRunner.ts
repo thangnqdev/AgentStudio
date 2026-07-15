@@ -5,6 +5,7 @@ import type { AgentToolCallRunner, ToolCallRunInput } from './AgentToolCallRunne
 type BatchInput = Omit<ToolCallRunInput, 'toolCall' | 'toolDefinition'> & {
   toolCalls: ToolCall[];
   toolsByName: ReadonlyMap<string, AgentToolDefinition>;
+  workspaceRootProvider?: () => string;
   signal?: AbortSignal;
 };
 
@@ -48,7 +49,7 @@ export class AgentToolBatchRunner {
       permissionMode: input.permissionMode,
       requestId: input.requestId,
       step: input.step,
-      workspaceRoot: input.workspaceRoot,
+      workspaceRoot: input.workspaceRootProvider?.() ?? input.workspaceRoot,
       traceContext: input.traceContext,
       signal: input.signal,
       toolCall: item.call,

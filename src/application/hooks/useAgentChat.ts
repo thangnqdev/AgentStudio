@@ -18,6 +18,7 @@ export function useAgentChat() {
   const setResumableTask = useAppStore((s) => s.setResumableTask);
   const setPendingInteraction = useAppStore((s) => s.setPendingInteraction);
   const setPlanModeActive = useAppStore((s) => s.setPlanModeActive);
+  const setWorktreeState = useAppStore((s) => s.setWorktreeState);
   const workspacePath = useAppStore((s) => s.settings.workspacePath);
   const activeThreadId = useAppStore((s) => s.activeThreadId);
 
@@ -91,6 +92,7 @@ export function useAgentChat() {
           setPendingInteraction({ ...interaction, requestId });
         },
         (active) => setPlanModeActive(active),
+        (worktree) => setWorktreeState(worktree),
         taskId,
         activeThreadId ?? undefined,
       );

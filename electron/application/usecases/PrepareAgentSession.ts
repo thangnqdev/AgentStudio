@@ -41,10 +41,11 @@ export class PrepareAgentSession {
     this.hooks = hooks;
   }
 
-  async execute(input: { payload: AgentStartPayload; taskId: string; requestId: string; workspaceRoot: string }) {
+  async execute(input: { payload: AgentStartPayload; taskId: string; requestId: string; workspaceRoot: string; runtimeWorkspaceRoot?: string }) {
     const tuning = (await this.tuning?.load())?.active;
+    const runtimeWorkspaceRoot = input.runtimeWorkspaceRoot ?? input.workspaceRoot;
     const projectInstructionContext = formatProjectInstructionContext(
-      await this.instructions?.load(input.workspaceRoot) ?? [],
+      await this.instructions?.load(runtimeWorkspaceRoot) ?? [],
     );
     let task;
     if (input.taskId) {
@@ -56,7 +57,7 @@ export class PrepareAgentSession {
       if (latest?.content) {
         const startedAt = new Date().toISOString();
         try {
-          const retrieval = await this.knowledge.buildContextDetails(input.workspaceRoot, latest.content, userMessages.slice(-3, -1).map((message) => message.content).join('\n'), tuning);
+          const retrieval = await this.knowledge.buildContextDetails(runtimeWorkspaceRoot, latest.content, userMessages.slice(-3, -1).map((message) => message.content).join('\n'), tuning);
           await this.tracer.recordSpan({ kind: 'retrieval', traceId: task.traceId, taskId: task.id, requestId: input.requestId, step: 0, startedAt, endedAt: new Date().toISOString(), status: 'succeeded', mode: retrieval.mode, resultCount: retrieval.resultCount }).catch(() => undefined);
           task = { ...task, knowledgeContext: retrieval.context };
           await this.tasks.checkpoint(task);
@@ -68,12 +69,12 @@ export class PrepareAgentSession {
     }
     const userMessages = task.messages.filter((message) => message.sender === 'user' && typeof message.content === 'string');
     const question = userMessages.at(-1)?.content || '';
-    const skillContext = question ? await this.skills.buildPromptContext(input.workspaceRoot, question, tuning?.skillRankingWeight) : '';
+    const skillContext = question ? await this.skills.buildPromptContext(runtimeWorkspaceRoot, question, tuning?.skillRankingWeight) : '';
     const sessionHooks = await this.hooks?.dispatch({
-      event: 'SessionStart', workspaceRoot: input.workspaceRoot, requestId: input.requestId,
+      event: 'SessionStart', workspaceRoot: runtimeWorkspaceRoot, requestId: input.requestId,
     });
     const promptHooks = question ? await this.hooks?.dispatch({
-      event: 'UserPromptSubmit', workspaceRoot: input.workspaceRoot, requestId: input.requestId,
+      event: 'UserPromptSubmit', workspaceRoot: runtimeWorkspaceRoot, requestId: input.requestId,
     }) : undefined;
     const lifecycleHookContext = [
       formatLifecycleHookContext('SessionStart', sessionHooks?.contexts ?? []),

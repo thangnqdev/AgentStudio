@@ -33,6 +33,10 @@ import { PrivateAgentPlanRepository } from './infrastructure/plans/PrivateAgentP
 import { ManageAgentPlanMode } from './application/usecases/ManageAgentPlanMode.js';
 import { InteractiveToolPlatform } from './application/services/InteractiveToolPlatform.js';
 import { PlanAwareToolPermissionPolicy } from './application/services/PlanAwareToolPermissionPolicy.js';
+import { GitAgentWorktreeGateway } from './infrastructure/worktrees/GitAgentWorktreeGateway.js';
+import { PrivateAgentWorktreeSessionRepository } from './infrastructure/worktrees/PrivateAgentWorktreeSessionRepository.js';
+import { ManageAgentWorktrees } from './application/usecases/ManageAgentWorktrees.js';
+import { WorktreeToolPlatform } from './application/services/WorktreeToolPlatform.js';
 
 export * from './domain/entities/agent.js';
 
@@ -52,7 +56,15 @@ const backgroundCommandManager = new ManageBackgroundCommands(backgroundCommandS
 const agentPlanManager = new ManageAgentPlanMode(new PrivateAgentPlanRepository(
   () => path.join(app.getPath('userData'), 'agent-plans'),
 ));
+export const agentWorktreeManager = new ManageAgentWorktrees(
+  new GitAgentWorktreeGateway(() => path.join(app.getPath('userData'), 'managed-worktrees')),
+  new PrivateAgentWorktreeSessionRepository(() => path.join(app.getPath('userData'), 'agent-worktree-sessions')),
+);
 app.once('before-quit', () => { void backgroundCommandSupervisor.stopAll(); });
+
+export function resolveAgentSessionScope(payload: AgentStartPayload, requestId: string) {
+  return payload.taskListId || payload.taskId || requestId;
+}
 
 export async function runAgentSession(
   payload: AgentStartPayload,
@@ -68,7 +80,11 @@ export async function runAgentSession(
   const webSearchSettings = await webSearchSettingsRepository.load();
   const provider = new OpenAIProvider();
   const eventSink = new ElectronAgentEventSink(sender);
-  const agentProfileContext = await agentProfileManager.buildPromptContext(workspaceRoot);
+  const requestId = payload.requestId || task?.id || crypto.randomUUID();
+  const taskScopeId = resolveAgentSessionScope(payload, requestId);
+  await agentWorktreeManager.restore(taskScopeId, workspaceRoot);
+  const runtimeWorkspaceRoot = agentWorktreeManager.currentRoot(taskScopeId, workspaceRoot);
+  const agentProfileContext = await agentProfileManager.buildPromptContext(runtimeWorkspaceRoot);
   const baseToolPlatform = new AgentToolExecutor(
     webSearchSettings,
     async (skillId, root) => {
@@ -90,9 +106,8 @@ export async function runAgentSession(
     skillContext,
   );
   const delegatingToolPlatform = new DelegatingToolPlatform(baseToolPlatform, baseToolPlatform, subagent);
-  const requestId = payload.requestId || task?.id || crypto.randomUUID();
-  const taskScopeId = payload.taskListId || task?.id || payload.taskId || requestId;
   eventSink.emitPlanMode(requestId, { active: agentPlanManager.isActive(taskScopeId) });
+  eventSink.emitWorktree(requestId, agentWorktreeManager.state(taskScopeId));
   const taskToolPlatform = new TaskToolPlatform(
     delegatingToolPlatform,
     delegatingToolPlatform,
@@ -105,13 +120,20 @@ export async function runAgentSession(
     backgroundCommandManager,
     taskScopeId,
   );
-  const toolPlatform = new InteractiveToolPlatform(
+  const interactiveToolPlatform = new InteractiveToolPlatform(
     backgroundToolPlatform,
     backgroundToolPlatform,
     agentPlanManager,
     agentUserInteractionManager,
     eventSink,
     { scopeId: taskScopeId, requestId },
+  );
+  const toolPlatform = new WorktreeToolPlatform(
+    interactiveToolPlatform,
+    interactiveToolPlatform,
+    agentWorktreeManager,
+    eventSink,
+    { scopeId: taskScopeId, requestId, originalWorkspaceRoot: workspaceRoot },
   );
   const sessionPolicy = new PlanAwareToolPermissionPolicy(toolPermissionPolicy, agentPlanManager, taskScopeId);
   const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, sessionPolicy, lifecycleHookDispatcher);
@@ -127,7 +149,7 @@ export async function runAgentSession(
       knowledgeContext: task.knowledgeContext,
       onCheckpoint: (checkpoint) => agentTaskService.checkpoint(checkpoint),
     }
-    : undefined);
+    : undefined, toolPlatform);
   if (task && result?.status) {
     eventSink.emitTaskStatus(payload.requestId || '', { taskId: task.id, status: result.status, completedSteps: result.completedSteps });
   }

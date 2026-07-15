@@ -4,6 +4,7 @@ import type { ChatThread } from '../domain/entities/chatThread';
 import type { AgentAction, AgentThought, Message } from '../domain/entities/message';
 import type { AppSettings } from '../domain/entities/settings';
 import type { PendingAgentInteraction } from '../domain/entities/agentInteraction';
+import type { AgentWorktreeState } from '../domain/entities/agentWorktree';
 
 export type ViewId = 'tasks' | 'knowledge' | 'observability' | 'evaluations' | 'workflows' | 'capabilities' | 'optimizer' | 'skill-learning' | 'agents' | 'settings';
 
@@ -46,6 +47,7 @@ export interface AgentSlice {
   resumableTask: ResumableTask | null;
   pendingInteraction: PendingAgentInteraction | null;
   planModeActive: boolean;
+  worktreeState: AgentWorktreeState;
   setActiveRequestId: (requestId: string | null) => void;
   upsertAgentAction: (action: AgentAction) => void;
   clearAgentActions: () => void;
@@ -55,6 +57,7 @@ export interface AgentSlice {
   setResumableTask: (task: ResumableTask | null) => void;
   setPendingInteraction: (interaction: PendingAgentInteraction | null) => void;
   setPlanModeActive: (active: boolean) => void;
+  setWorktreeState: (worktree: AgentWorktreeState) => void;
 }
 
 export interface SettingsSlice {

@@ -5,7 +5,7 @@ import type { AgentSlice, AppSlice, ChatSlice } from './appStoreTypes';
 
 const idleAgentState = (): Pick<
   AgentSlice,
-  'activeRequestId' | 'agentActions' | 'agentThoughts' | 'agentThoughtStartsNewLine' | 'isAgentTyping' | 'pendingInteraction' | 'planModeActive'
+  'activeRequestId' | 'agentActions' | 'agentThoughts' | 'agentThoughtStartsNewLine' | 'isAgentTyping' | 'pendingInteraction' | 'planModeActive' | 'worktreeState'
 > => ({
   activeRequestId: null,
   agentActions: [],
@@ -14,6 +14,7 @@ const idleAgentState = (): Pick<
   isAgentTyping: false,
   pendingInteraction: null,
   planModeActive: false,
+  worktreeState: { active: false },
 });
 
 const syncMessages = (

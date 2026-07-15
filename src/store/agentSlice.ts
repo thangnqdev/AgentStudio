@@ -11,6 +11,7 @@ export const createAgentSlice: AppSlice<AgentSlice> = (set) => ({
   resumableTask: null,
   pendingInteraction: null,
   planModeActive: false,
+  worktreeState: { active: false },
   setActiveRequestId: (activeRequestId) => set({ activeRequestId }),
   upsertAgentAction: (action) => set((state) => {
     const { agentActions, messages } = reduceAgentAction(
@@ -46,4 +47,5 @@ export const createAgentSlice: AppSlice<AgentSlice> = (set) => ({
   setResumableTask: (resumableTask) => set({ resumableTask }),
   setPendingInteraction: (pendingInteraction) => set({ pendingInteraction }),
   setPlanModeActive: (planModeActive) => set({ planModeActive }),
+  setWorktreeState: (worktreeState) => set({ worktreeState }),
 });

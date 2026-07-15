@@ -8,6 +8,7 @@ import type { IToolAuditLogger } from '../../domain/ports/IToolAuditLogger.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 import type { IToolPermissionPolicy } from '../../domain/ports/IToolPermissionPolicy.js';
 import type { ILifecycleHookDispatcher } from '../../domain/ports/ILifecycleHookDispatcher.js';
+import type { IAgentWorkspaceScope } from '../../domain/ports/IAgentWorkspaceScope.js';
 import type { AgentTaskCheckpoint } from '../../domain/entities/agentTask.js';
 import { createAgentRunState, transitionAgentRun } from '../../domain/entities/agentRunState.js';
 import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
@@ -26,6 +27,7 @@ import { contextProjectionPolicy, projectConversationForModel } from '../service
 import { AgentConversationBuilder } from '../services/AgentConversationBuilder.js';
 import { OUTPUT_CONTINUATION_PROMPT, shouldContinueModelOutput } from '../services/outputContinuation.js';
 import { readAssistantContent } from '../services/assistantMessage.js';
+import { buildAgentSystemPrompt } from '../services/agentSystemPrompt.js';
 
 export class RunAgentSession {
   private readonly modelRequester: ResilientModelRequester;
@@ -61,6 +63,7 @@ export class RunAgentSession {
     skillContext?: string,
     signal?: AbortSignal,
     task?: AgentTaskRun,
+    workspaceScope?: IAgentWorkspaceScope,
   ) {
     const requestId = typeof payload.requestId === 'string' ? payload.requestId : '';
     if (!requestId) {
@@ -74,7 +77,8 @@ export class RunAgentSession {
 
     const messages = Array.isArray(payload.messages) ? payload.messages : [];
     const inputContextTokens = Math.min(getInputContextTokenBudget(settings.contextWindow), settings.contextBudgetTokens ?? Number.POSITIVE_INFINITY);
-    const toolDefinitions = await this.toolCatalog.list(workspaceRoot);
+    const currentWorkspaceRoot = () => workspaceScope?.currentRoot(workspaceRoot) ?? workspaceRoot;
+    const toolDefinitions = await this.toolCatalog.list(currentWorkspaceRoot());
     const toolsByName = new Map(toolDefinitions.map((tool) => [tool.name, tool]));
 
     let currentMessages = task?.messages.length ? [...task.messages] : [...messages];
@@ -84,7 +88,7 @@ export class RunAgentSession {
 
     const rebuildConversation = async () => {
       const rebuilt = await this.conversationBuilder.build({
-        messages: currentMessages, inputContextTokens, workspaceRoot, settings, knowledgeContext, skillContext,
+        messages: currentMessages, inputContextTokens, workspaceRoot: currentWorkspaceRoot(), settings, knowledgeContext, skillContext,
       });
       conversation = rebuilt.conversation;
       if (rebuilt.compactionNotice) currentMessages.push(rebuilt.compactionNotice);
@@ -101,6 +105,9 @@ export class RunAgentSession {
       }
 
       const step = runState.completedSteps;
+      synchronizeSystemPrompt(conversation, buildAgentSystemPrompt(
+        currentWorkspaceRoot(), settings.permissionMode, knowledgeContext, skillContext,
+      ));
       runState = transitionAgentRun(runState, { type: 'request_model' });
       const modelStartedAt = new Date().toISOString();
       let assistantMessage: Awaited<ReturnType<IAiProvider['requestAssistantMessage']>>;
@@ -156,7 +163,8 @@ export class RunAgentSession {
         step,
         toolCalls,
         toolsByName,
-        workspaceRoot,
+        workspaceRoot: currentWorkspaceRoot(),
+        workspaceRootProvider: currentWorkspaceRoot,
         traceContext: task ? { traceId: task.traceId, taskId: task.id } : undefined,
         signal,
       });
@@ -218,6 +226,12 @@ export class RunAgentSession {
     await this.tracer.recordSpan({ kind: 'model_call', traceId: task.traceId, taskId: task.id, requestId, step, startedAt, endedAt: new Date().toISOString(), status, model, finishReason, usage }).catch(() => undefined);
   }
 
+}
+
+function synchronizeSystemPrompt(conversation: ChatMessage[], content: string) {
+  const systemMessage: ChatMessage = { role: 'system', content };
+  if (conversation[0]?.role === 'system') conversation[0] = systemMessage;
+  else conversation.unshift(systemMessage);
 }
 
 export type AgentTaskRun = {

@@ -14,6 +14,7 @@ import type { SkillCandidate } from '../domain/entities/skillLearning';
 import type { AgentProfileStatus } from '../domain/entities/agentProfile';
 import type { PluginStatus } from '../domain/entities/plugin';
 import type { AgentInteractionRequest, AgentInteractionResponse } from '../domain/entities/agentInteraction';
+import type { AgentWorktreeState } from '../domain/entities/agentWorktree';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -45,6 +46,7 @@ export type ChatEventPayload = {
   task?: ChatTaskStatusPayload;
   interaction?: AgentInteractionRequest;
   planMode?: { active: boolean };
+  worktree?: AgentWorktreeState;
 };
 
 export type ChatActionPayload = {
@@ -225,6 +227,8 @@ declare global {
       onChatTaskStatus: (listener: ChatEventListener) => () => void;
       onChatInteraction: (listener: ChatEventListener) => () => void;
       onChatPlanMode: (listener: ChatEventListener) => () => void;
+      onChatWorktree: (listener: ChatEventListener) => () => void;
+      getAgentWorktreeState: (scopeId: string) => Promise<IpcResult<AgentWorktreeState>>;
       listResumableAgentTasks: () => Promise<AgentTaskListResult>;
       forkAgentTask: (taskId: string) => Promise<IpcResult<AgentTaskSummary>>;
       listAgentTraces: (limit?: number) => Promise<IpcResult<AgentTraceSummary[]>>;

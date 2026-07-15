@@ -42,4 +42,26 @@ describe('AgentToolBatchRunner', () => {
     expect(maximumActive).toBe(2);
     expect(results.map((result) => result.stepContent)).toEqual(['1', '2']);
   });
+
+  it('resolves the active workspace again before every sequential tool', async () => {
+    let workspaceRoot = '/original';
+    const observedRoots: string[] = [];
+    const runner = { run: async (input: { toolCall: ReturnType<typeof call>; workspaceRoot: string }) => {
+      observedRoots.push(input.workspaceRoot);
+      if (input.toolCall.id === 'enter') workspaceRoot = '/isolated';
+      return { stepContent: '', toolMessage: { role: 'tool' as const, tool_call_id: input.toolCall.id, content: '' } };
+    } };
+    const batch = new AgentToolBatchRunner(runner as never);
+    await batch.run({
+      eventSink: { emitChunk: () => undefined, emitAction: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'workspace-write', requestId: 'request', step: 0, workspaceRoot,
+      workspaceRootProvider: () => workspaceRoot,
+      toolCalls: [call('enter', 'EnterWorktree'), call('write', 'write_file')],
+      toolsByName: new Map([
+        ['EnterWorktree', { name: 'EnterWorktree', description: 'enter', risk: 'write', parameters: {} }],
+        ['write_file', writeTool],
+      ]),
+    });
+    expect(observedRoots).toEqual(['/original', '/isolated']);
+  });
 });

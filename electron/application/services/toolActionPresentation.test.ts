@@ -11,4 +11,11 @@ describe('summarizeToolArguments', () => {
     expect(summary).toBe('role=review agentId=profile-1 (29 prompt characters)');
     expect(summary).not.toContain('private investigation');
   });
+
+  it('summarizes worktree lifecycle decisions without paths or file contents', () => {
+    expect(summarizeToolArguments('EnterWorktree', { name: 'feature/auth' })).toBe('name=feature/auth');
+    expect(summarizeToolArguments('ExitWorktree', { action: 'remove', discard_changes: true }))
+      .toBe('action=remove discard_changes=true');
+    expect(summarizeToolArguments('ExitWorktree', {})).toBe('action=invalid discard_changes=false');
+  });
 });

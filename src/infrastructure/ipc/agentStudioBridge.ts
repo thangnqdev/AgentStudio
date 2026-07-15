@@ -240,6 +240,16 @@ export const AgentBridge = {
     return window.agentStudio.onChatPlanMode(listener);
   },
 
+  onChatWorktree(listener: Parameters<NonNullable<Window['agentStudio']>['onChatWorktree']>[0]) {
+    if (!window.agentStudio) return () => {};
+    return window.agentStudio.onChatWorktree(listener);
+  },
+
+  async getAgentWorktreeState(scopeId: string) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.getAgentWorktreeState(scopeId);
+  },
+
   async listResumableAgentTasks() {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     return window.agentStudio.listResumableAgentTasks();

@@ -204,6 +204,14 @@ The external hook file may use `{ "hooks": { ... } }` or AgentStudio's versioned
 - Answers, selected previews, notes, and approved plan text become tool results and are therefore sent to the configured model provider. Do not include credentials or unrelated private data. Approved plans persist across app restarts, but an unapproved active Plan Mode session currently does not.
 - Architecture decision and security boundary: [`docs/adr/0011-structured-interaction-plan-mode.md`](docs/adr/0011-structured-interaction-plan-mode.md).
 
+### Managed Agent Worktrees
+
+- The root agent can call `EnterWorktree` only after an explicit user request. AgentStudio creates an application-owned Git worktree below private Electron `userData`, switches every local tool, command, hook, skill, task, subagent, permission check, and audit record to that root, and shows the active branch in the chat UI.
+- Worktree state is scoped to the chat and persisted across follow-up turns and app restarts. Restore verifies the checkout path, registered Git worktree, branch, and common repository directory before trusting it.
+- `ExitWorktree` with `keep` preserves the directory and branch. `remove` rejects uncommitted files, commits since entry, and unknown Git state unless the user explicitly confirms permanent loss and the model retries with `discard_changes=true`.
+- Git commands use argument arrays and a filtered environment. Models cannot choose an arbitrary output directory, and cleanup touches only an ownership-verified AgentStudio worktree.
+- Architecture decision and remaining optional parity gaps: [`docs/adr/0012-managed-agent-worktrees.md`](docs/adr/0012-managed-agent-worktrees.md).
+
 ### Read-only Subagents
 
 - The root model can use `delegate_task` for bounded `explore`, `review`, or `plan` work. Delegation is classified as network risk and therefore follows the same central approval rules as every other tool.

@@ -1,6 +1,7 @@
 import type { AgentActionPayload, AgentTaskStatusPayload } from '../entities/agent.js';
 import type { AgentInteractionRequest } from '../entities/agentInteraction.js';
 import type { AgentPlanModePayload } from '../entities/agentPlan.js';
+import type { AgentWorktreeStatePayload } from '../entities/agentWorktree.js';
 
 /**
  * Port trừu tượng để use-case gửi sự kiện streaming về phía renderer mà không
@@ -21,4 +22,6 @@ export interface IAgentEventSink {
   emitInteraction?(requestId: string, interaction: AgentInteractionRequest): void;
   /** Reports the authoritative plan-mode state after the main process commits it. */
   emitPlanMode?(requestId: string, planMode: AgentPlanModePayload): void;
+  /** Reports the chat-scoped managed worktree selected by the main process. */
+  emitWorktree?(requestId: string, worktree: AgentWorktreeStatePayload): void;
 }

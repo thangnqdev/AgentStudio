@@ -3,6 +3,7 @@ import type { IAgentEventSink } from '../domain/ports/IAgentEventSink.js';
 import type { AgentActionPayload, AgentTaskStatusPayload } from '../domain/entities/agent.js';
 import type { AgentInteractionRequest } from '../domain/entities/agentInteraction.js';
 import type { AgentPlanModePayload } from '../domain/entities/agentPlan.js';
+import type { AgentWorktreeStatePayload } from '../domain/entities/agentWorktree.js';
 
 /**
  * Infrastructure implementation của IAgentEventSink.
@@ -43,5 +44,9 @@ export class ElectronAgentEventSink implements IAgentEventSink {
 
   emitPlanMode(requestId: string, planMode: AgentPlanModePayload): void {
     this.sender.send('ai:chat:plan-mode', { requestId, planMode });
+  }
+
+  emitWorktree(requestId: string, worktree: AgentWorktreeStatePayload): void {
+    this.sender.send('ai:chat:worktree', { requestId, worktree });
   }
 }

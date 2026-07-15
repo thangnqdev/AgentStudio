@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { agentTaskService, agentToolApprovalManager, agentTraceService, agentUserInteractionManager, runAgentSession } from '../agentRuntime.js';
+import { agentTaskService, agentToolApprovalManager, agentTraceService, agentUserInteractionManager, agentWorktreeManager, resolveAgentSessionScope, runAgentSession } from '../agentRuntime.js';
 import { settingsRepo } from '../infrastructure/JsonSettingsRepository.js';
 import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { knowledgeBaseUseCase } from '../knowledgeRuntime.js';
@@ -83,8 +83,11 @@ export function registerAgentIpc() {
       }
 
       const workspaceRoot = await workspaceManager.getWorkspaceRoot();
+      const worktreeScopeId = resolveAgentSessionScope(payload, requestId);
+      await agentWorktreeManager.restore(worktreeScopeId, workspaceRoot);
+      const runtimeWorkspaceRoot = agentWorktreeManager.currentRoot(worktreeScopeId, workspaceRoot);
       const tuning = (await safeOptimizer.getState()).active;
-      const { task, skillContext, projectInstructionContext, lifecycleHookContext } = await prepareAgentSession.execute({ payload, taskId, requestId, workspaceRoot });
+      const { task, skillContext, projectInstructionContext, lifecycleHookContext } = await prepareAgentSession.execute({ payload, taskId, requestId, workspaceRoot, runtimeWorkspaceRoot });
       activeAgentTaskIds.set(requestId, task.id);
 
       const providerSettings = buildAgentProviderSettings({

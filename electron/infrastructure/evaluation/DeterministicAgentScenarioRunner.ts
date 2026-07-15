@@ -28,6 +28,9 @@ import { PrivateAgentPlanRepository } from '../plans/PrivateAgentPlanRepository.
 import { PlanAwareToolPermissionPolicy } from '../../application/services/PlanAwareToolPermissionPolicy.js';
 import { ToolPermissionPolicy } from '../../application/services/ToolPermissionPolicy.js';
 import type { AgentInteractionResponse } from '../../domain/entities/agentInteraction.js';
+import { WorktreeToolPlatform } from '../../application/services/WorktreeToolPlatform.js';
+import { ManageAgentWorktrees } from '../../application/usecases/ManageAgentWorktrees.js';
+import { MemoryEvaluationWorktreeSessionRepository, ScriptedEvaluationWorktreeGateway } from './ScriptedEvaluationWorktreeAdapters.js';
 
 type Observation = GoldenTaskFixture['observed'];
 
@@ -41,6 +44,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
     const workItemRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-tasks-'));
     const backgroundOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-background-'));
     const planOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-plans-'));
+    const worktreeOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-worktrees-'));
     const backgroundSupervisor = new BackgroundCommandProcessSupervisor(backgroundOutputRoot, () => 'bg-runtime-eval');
     const taskId = `runtime-eval-${randomUUID()}`;
     const traceId = randomUUID();
@@ -83,7 +87,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
       );
       const planManager = new ManageAgentPlanMode(new PrivateAgentPlanRepository(planOutputRoot));
       const interactionResponses = [...(definition.runtime.interactions ?? [])];
-      const platform = new InteractiveToolPlatform(
+      const interactivePlatform = new InteractiveToolPlatform(
         backgroundPlatform,
         backgroundPlatform,
         planManager,
@@ -91,6 +95,17 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         NOOP_EVENT_SINK,
         { scopeId: taskId, requestId: taskId },
         () => `interaction-runtime-${interactionResponses.length}`,
+      );
+      const worktreeManager = new ManageAgentWorktrees(
+        new ScriptedEvaluationWorktreeGateway(worktreeOutputRoot),
+        new MemoryEvaluationWorktreeSessionRepository(),
+      );
+      const platform = new WorktreeToolPlatform(
+        interactivePlatform,
+        interactivePlatform,
+        worktreeManager,
+        NOOP_EVENT_SINK,
+        { scopeId: taskId, requestId: taskId, originalWorkspaceRoot: workspaceRoot },
       );
       const permissionPolicy = new PlanAwareToolPermissionPolicy(new ToolPermissionPolicy([]), planManager, taskId);
       const session = new RunAgentSession(
@@ -126,6 +141,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
               completedSteps = checkpoint.completedSteps;
             },
           },
+          platform,
         );
         taskStatus = result?.status ?? 'failed';
         completedSteps = result?.completedSteps ?? completedSteps;
@@ -162,6 +178,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         fs.rm(workItemRoot, { recursive: true, force: true }),
         fs.rm(backgroundOutputRoot, { recursive: true, force: true }),
         fs.rm(planOutputRoot, { recursive: true, force: true }),
+        fs.rm(worktreeOutputRoot, { recursive: true, force: true }),
       ]);
     }
   }

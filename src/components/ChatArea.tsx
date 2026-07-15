@@ -9,8 +9,11 @@ import { ChatEmptyState } from './chat/ChatEmptyState';
 import { MessageErrorBoundary } from './chat/MessageErrorBoundary';
 import { AgentInteractionPanel } from './chat/AgentInteractionPanel';
 import { PlanModeBanner } from './chat/PlanModeBanner';
+import { WorktreeBanner } from './chat/WorktreeBanner';
+import { useWorktreeStateSync } from '../application/hooks/useWorktreeStateSync';
 
 export function ChatArea() {
+  useWorktreeStateSync();
   const messages = useAppStore((s) => s.messages);
   const activeTask = useAppStore((s) => s.activeTask);
   const agentActions = useAppStore((s) => s.agentActions);
@@ -106,6 +109,7 @@ export function ChatArea() {
         {forkError && <p className="text-[12px] text-error">{forkError}</p>}
 
         <PlanModeBanner />
+        <WorktreeBanner />
 
         {messages.length === 0 && !isAgentTyping ? (
           <ChatEmptyState />
