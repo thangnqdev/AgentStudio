@@ -173,15 +173,16 @@ export class RunAgentSession {
         stepContent += result.stepContent;
       }
 
-      // Lưu lại kết quả của step hiện tại dưới dạng CompactableMessage để có thể compact ở step sau
       currentMessages.push({
         id: `step-${step}`,
         sender: 'agent',
         content: stepContent,
       });
+      const pendingMessages = await task?.drainMessages?.() ?? [];
+      currentMessages.push(...pendingMessages);
+      conversation.push(...pendingMessages.map((message) => ({ role: 'user' as const, content: message.content })));
       runState = transitionAgentRun(runState, { type: 'tools_completed' });
 
-      // Mid-session compaction check: nếu conversation quá dài, build lại
       const roughConversationTokens = conversation.reduce((acc, msg) => acc + Math.ceil(JSON.stringify(msg).length / 4), 0);
       if (roughConversationTokens > inputContextTokens) {
         await rebuildConversation();
@@ -243,4 +244,5 @@ export type AgentTaskRun = {
   conversation: ChatMessage[];
   knowledgeContext?: string;
   onCheckpoint?: (checkpoint: AgentTaskCheckpoint) => Promise<void>;
+  drainMessages?: () => Promise<Message[]>;
 };

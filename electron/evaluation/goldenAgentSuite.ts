@@ -8,7 +8,7 @@ const BASE_EXPECTATIONS = {
 };
 
 export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
-  id: 'agent-studio-runtime-golden', version: '2.3.0', minimumAggregateScore: 0.95,
+  id: 'agent-studio-runtime-golden', version: '2.4.0', minimumAggregateScore: 0.95,
   minimumScores: { task: 1, tool_selection: 1, code_change: 1, policy: 1, trajectory: 1, retrieval: 1 },
   fixtures: [
     {
@@ -37,6 +37,33 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
         responses: [
           { toolCalls: [{ name: 'read_file', args: { path: 'docs/architecture.md' } }] },
           { content: 'The document keeps domain code independent from infrastructure.' },
+        ],
+      },
+    },
+    {
+      id: 'foreground-agent-delegation', version: '1.0.0',
+      expected: {
+        ...BASE_EXPECTATIONS,
+        tools: ['Agent', 'read_file'],
+        forbiddenTools: ['write_file', 'apply_patch', 'run_command'],
+        changedFiles: [],
+        maxSteps: 3,
+      },
+      runtime: {
+        prompt: 'Delegate a focused read-only architecture review to a named agent, then report its evidence.',
+        permissionMode: 'danger-full-access',
+        initialFiles: [{ path: 'docs/architecture.md', content: '# Boundary\n\nDomain imports no infrastructure modules.\n' }],
+        assertedFiles: [],
+        responses: [
+          { toolCalls: [{ name: 'Agent', args: {
+            description: 'Review architecture boundary', prompt: 'Read docs/architecture.md and return the exact dependency boundary.',
+            name: 'architecture-reviewer', mode: 'read-only', run_in_background: false,
+          } }] },
+          { content: 'The delegated reviewer confirmed that domain imports no infrastructure modules.' },
+        ],
+        workerResponses: [
+          { toolCalls: [{ name: 'read_file', args: { path: 'docs/architecture.md' } }] },
+          { content: 'Evidence: docs/architecture.md states that domain imports no infrastructure modules.' },
         ],
       },
     },

@@ -15,6 +15,7 @@ import type { AgentProfileStatus } from '../domain/entities/agentProfile';
 import type { PluginStatus } from '../domain/entities/plugin';
 import type { AgentInteractionRequest, AgentInteractionResponse } from '../domain/entities/agentInteraction';
 import type { AgentWorktreeState } from '../domain/entities/agentWorktree';
+import type { AgentWorkerEvent, AgentWorkerSummary } from '../domain/entities/agentWorker';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -65,6 +66,7 @@ export type ChatTaskStatusPayload = {
 };
 
 export type ChatEventListener = (payload: ChatEventPayload) => void;
+export type AgentWorkerEventListener = (payload: AgentWorkerEvent) => void;
 
 export type TerminalCreatePayload = {
   cols: number;
@@ -229,6 +231,10 @@ declare global {
       onChatPlanMode: (listener: ChatEventListener) => () => void;
       onChatWorktree: (listener: ChatEventListener) => () => void;
       getAgentWorktreeState: (scopeId: string) => Promise<IpcResult<AgentWorktreeState>>;
+      listAgentWorkers: (scopeId: string) => Promise<IpcResult<AgentWorkerSummary[]>>;
+      stopAgentWorker: (payload: { scopeId: string; agentId: string }) => Promise<IpcResult<{ stopped: true }>>;
+      respondToAgentWorkerApproval: (payload: { agentId: string; actionId: string; approved: boolean }) => void;
+      onAgentWorkerEvent: (listener: AgentWorkerEventListener) => () => void;
       listResumableAgentTasks: () => Promise<AgentTaskListResult>;
       forkAgentTask: (taskId: string) => Promise<IpcResult<AgentTaskSummary>>;
       listAgentTraces: (limit?: number) => Promise<IpcResult<AgentTraceSummary[]>>;

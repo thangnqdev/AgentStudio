@@ -8,7 +8,7 @@ import { DEFAULT_OPTIMIZATION_CONFIG } from '../../domain/entities/optimizer.js'
 
 describe('DeterministicAgentScenarioRunner', () => {
   it('runs the real session, permission, approval and filesystem tool path', async () => {
-    const observed = await new DeterministicAgentScenarioRunner().run(GOLDEN_AGENT_RUNTIME_SUITE.fixtures[0], DEFAULT_OPTIMIZATION_CONFIG);
+    const observed = await new DeterministicAgentScenarioRunner().run(fixture('read-and-patch'), DEFAULT_OPTIMIZATION_CONFIG);
 
     expect(observed.taskStatus).toBe('completed');
     expect(observed.completedSteps).toBe(2);
@@ -22,7 +22,7 @@ describe('DeterministicAgentScenarioRunner', () => {
   });
 
   it('keeps a read-only research workspace unchanged', async () => {
-    const observed = await new DeterministicAgentScenarioRunner().run(GOLDEN_AGENT_RUNTIME_SUITE.fixtures[1], DEFAULT_OPTIMIZATION_CONFIG);
+    const observed = await new DeterministicAgentScenarioRunner().run(fixture('read-only-research'), DEFAULT_OPTIMIZATION_CONFIG);
 
     expect(observed.taskStatus).toBe('completed');
     expect(observed.toolCalls).toEqual([{ toolName: 'read_file', outcome: 'succeeded' }]);
@@ -31,7 +31,7 @@ describe('DeterministicAgentScenarioRunner', () => {
   });
 
   it('derives retrieval evidence from the production lexical ranker', async () => {
-    const observed = await new DeterministicAgentScenarioRunner().run(GOLDEN_AGENT_RUNTIME_SUITE.fixtures[2], DEFAULT_OPTIMIZATION_CONFIG);
+    const observed = await new DeterministicAgentScenarioRunner().run(fixture('knowledge-assisted-answer'), DEFAULT_OPTIMIZATION_CONFIG);
 
     expect(observed.taskStatus).toBe('completed');
     expect(observed.retrievedChunkIds).toEqual(['chunk-domain-boundary']);
@@ -40,7 +40,7 @@ describe('DeterministicAgentScenarioRunner', () => {
   });
 
   it('runs the production task supervisor composition without workspace changes', async () => {
-    const observed = await new DeterministicAgentScenarioRunner().run(GOLDEN_AGENT_RUNTIME_SUITE.fixtures[3], DEFAULT_OPTIMIZATION_CONFIG);
+    const observed = await new DeterministicAgentScenarioRunner().run(fixture('task-supervisor-dependencies'), DEFAULT_OPTIMIZATION_CONFIG);
 
     expect(observed.taskStatus).toBe('completed');
     expect(observed.completedSteps).toBe(5);
@@ -50,6 +50,17 @@ describe('DeterministicAgentScenarioRunner', () => {
       { toolName: 'task_update', outcome: 'succeeded' },
       { toolName: 'task_update', outcome: 'succeeded' },
       { toolName: 'task_list', outcome: 'succeeded' },
+    ]);
+    expect(observed.changedFiles).toEqual([]);
+    expect(observed.policyViolationCodes).toEqual([]);
+  });
+
+  it('runs the production Agent tool and child session with a separate scripted model', async () => {
+    const observed = await new DeterministicAgentScenarioRunner().run(fixture('foreground-agent-delegation'), DEFAULT_OPTIMIZATION_CONFIG);
+    expect(observed.taskStatus).toBe('completed');
+    expect(observed.toolCalls).toEqual([
+      { toolName: 'read_file', outcome: 'succeeded' },
+      { toolName: 'Agent', outcome: 'succeeded' },
     ]);
     expect(observed.changedFiles).toEqual([]);
     expect(observed.policyViolationCodes).toEqual([]);
@@ -74,7 +85,7 @@ describe('DeterministicAgentScenarioRunner', () => {
   });
 
   it('keeps same-turn writes isolated after entering a managed worktree', async () => {
-    const observed = await new DeterministicAgentScenarioRunner().run(GOLDEN_AGENT_RUNTIME_SUITE.fixtures[6], DEFAULT_OPTIMIZATION_CONFIG);
+    const observed = await new DeterministicAgentScenarioRunner().run(fixture('isolated-worktree-lifecycle'), DEFAULT_OPTIMIZATION_CONFIG);
 
     expect(observed.taskStatus).toBe('completed');
     expect(observed.toolCalls).toEqual([
@@ -87,3 +98,9 @@ describe('DeterministicAgentScenarioRunner', () => {
     expect(observed.policyViolationCodes).toEqual([]);
   });
 });
+
+function fixture(id: string) {
+  const definition = GOLDEN_AGENT_RUNTIME_SUITE.fixtures.find((item) => item.id === id);
+  if (!definition) throw new Error(`Missing golden fixture: ${id}`);
+  return definition;
+}

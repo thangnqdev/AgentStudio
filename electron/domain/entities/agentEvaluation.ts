@@ -53,6 +53,7 @@ export type GoldenRuntimeTaskDefinition = Omit<GoldenTaskFixture, 'observed'> & 
     initialFiles: RuntimeEvaluationFile[];
     assertedFiles: RuntimeEvaluationFile[];
     responses: RuntimeEvaluationResponse[];
+    workerResponses?: RuntimeEvaluationResponse[];
     knowledge?: { store: KnowledgeStore; query: string; limit: number };
     knowledgeContext?: string;
     interactions?: AgentInteractionResponse[];

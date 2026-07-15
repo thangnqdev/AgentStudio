@@ -30,6 +30,18 @@ export function summarizeToolArguments(toolName: string, args: Record<string, un
     const characters = typeof args.prompt === 'string' ? args.prompt.length : 0;
     return `role=${role}${agentId} (${characters} prompt characters)`;
   }
+  if (toolName === 'Agent') {
+    const name = typeof args.name === 'string' ? ` name=${args.name}` : '';
+    const description = typeof args.description === 'string' ? args.description.slice(0, 120) : '';
+    const characters = typeof args.prompt === 'string' ? args.prompt.length : 0;
+    return `description=${description}${name} background=${args.run_in_background === true} (${characters} prompt characters)`;
+  }
+  if (toolName === 'SendMessage') {
+    const recipient = typeof args.to === 'string' ? args.to : '';
+    const message = args.message;
+    const detail = typeof message === 'string' ? `${message.length} message characters` : `type=${typeof message === 'object' && message && 'type' in message ? String(message.type) : 'invalid'}`;
+    return `to=${recipient} (${detail})`;
+  }
   if (toolName === 'AskUserQuestion') {
     return `questions=${Array.isArray(args.questions) ? args.questions.length : 0}`;
   }

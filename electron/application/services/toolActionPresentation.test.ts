@@ -10,6 +10,12 @@ describe('summarizeToolArguments', () => {
     const summary = summarizeToolArguments('delegate_task', { role: 'review', agentId: 'profile-1', prompt: 'private investigation details' });
     expect(summary).toBe('role=review agentId=profile-1 (29 prompt characters)');
     expect(summary).not.toContain('private investigation');
+    const agent = summarizeToolArguments('Agent', { description: 'Review auth flow', name: 'reviewer', prompt: 'private worker prompt', run_in_background: true });
+    expect(agent).toBe('description=Review auth flow name=reviewer background=true (21 prompt characters)');
+    expect(agent).not.toContain('private worker prompt');
+    const message = summarizeToolArguments('SendMessage', { to: 'reviewer', summary: 'Please inspect the timeout path now', message: 'private redirect' });
+    expect(message).toBe('to=reviewer (16 message characters)');
+    expect(message).not.toContain('private redirect');
   });
 
   it('summarizes worktree lifecycle decisions without paths or file contents', () => {

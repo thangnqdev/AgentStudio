@@ -41,6 +41,13 @@ type ChatInteractionPayload = {
 
 type ChatEventListener = (payload: ChatEventPayload) => void;
 
+type AgentWorkerEventPayload = {
+  scopeId: string;
+  worker: Record<string, unknown>;
+  action?: ChatActionPayload;
+};
+type AgentWorkerEventListener = (payload: AgentWorkerEventPayload) => void;
+
 type TerminalEventPayload = {
   terminalId: string;
   data?: string;
@@ -85,6 +92,12 @@ function subscribeAppUpdate(listener: AppUpdateEventListener) {
   const handler = (_event: Electron.IpcRendererEvent, payload: AppUpdateSnapshot) => listener(payload);
   ipcRenderer.on('update:status', handler);
   return () => ipcRenderer.off('update:status', handler);
+}
+
+function subscribeAgentWorkers(listener: AgentWorkerEventListener) {
+  const handler = (_event: Electron.IpcRendererEvent, payload: AgentWorkerEventPayload) => listener(payload);
+  ipcRenderer.on('ai:agent-worker:event', handler);
+  return () => ipcRenderer.off('ai:agent-worker:event', handler);
 }
 
 contextBridge.exposeInMainWorld('agentStudio', {
@@ -153,6 +166,10 @@ contextBridge.exposeInMainWorld('agentStudio', {
   onChatPlanMode: (listener: ChatEventListener) => subscribe('ai:chat:plan-mode', listener),
   onChatWorktree: (listener: ChatEventListener) => subscribe('ai:chat:worktree', listener),
   getAgentWorktreeState: (scopeId: string) => ipcRenderer.invoke('agent:worktree:get-state', scopeId),
+  listAgentWorkers: (scopeId: string) => ipcRenderer.invoke('agent:workers:list', scopeId),
+  stopAgentWorker: (payload: unknown) => ipcRenderer.invoke('agent:workers:stop', payload),
+  respondToAgentWorkerApproval: (payload: unknown) => ipcRenderer.send('agent:workers:approval', payload),
+  onAgentWorkerEvent: (listener: AgentWorkerEventListener) => subscribeAgentWorkers(listener),
   listResumableAgentTasks: () => ipcRenderer.invoke('agent:tasks:list-resumable'),
   forkAgentTask: (taskId: string) => ipcRenderer.invoke('agent:tasks:fork', { taskId }),
   listAgentTraces: (limit?: number) => ipcRenderer.invoke('traces:list', limit),

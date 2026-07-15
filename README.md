@@ -231,6 +231,17 @@ Check assumptions, identify concrete failure modes, and clearly label uncertaint
 
 - Architecture decision and invariants: [`docs/adr/0007-bounded-subagents-and-profiles.md`](docs/adr/0007-bounded-subagents-and-profiles.md).
 
+### Addressable Agent Workers
+
+- The model can call the reference-compatible `Agent` tool with a stable ID/name, optional model/profile override, reduced permission mode, foreground or background lifecycle, `cwd`, and `isolation: "worktree"`.
+- Workers use the production agent loop and normal tool policy rather than the legacy read-only catalog. A child can read, edit, test, search, use MCP, manage tasks, and run commands only when its inherited permission mode allows those actions.
+- `SendMessage` queues instructions for the next tool-round boundary. Sending to a stopped worker resumes its persisted transcript in the background; sending to `*` broadcasts only within the current chat scope.
+- Worker transcripts, pending messages, and completion notifications persist in private hashed files below Electron `userData`. Interrupted workers recover as paused, never as falsely completed.
+- Background worker status and approvals use a long-lived renderer event path, so they remain visible after the parent chat stream finishes. Completion notifications re-enter the parent model at the next available tool boundary or follow-up turn.
+- A clean worker worktree is removed automatically. If the worker changed files or created commits, AgentStudio preserves the worktree and returns its path and branch.
+- Nested workers are bounded to three levels and must run synchronously. A child permission mode cannot exceed its parent.
+- Architecture decision and remaining team-runtime boundary: [`docs/adr/0013-addressable-agent-workers.md`](docs/adr/0013-addressable-agent-workers.md).
+
 ### MCP Servers
 
 - MCP servers are added only through Settings; models, repository files, and skills cannot register or launch servers.

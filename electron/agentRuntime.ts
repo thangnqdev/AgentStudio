@@ -37,6 +37,12 @@ import { GitAgentWorktreeGateway } from './infrastructure/worktrees/GitAgentWork
 import { PrivateAgentWorktreeSessionRepository } from './infrastructure/worktrees/PrivateAgentWorktreeSessionRepository.js';
 import { ManageAgentWorktrees } from './application/usecases/ManageAgentWorktrees.js';
 import { WorktreeToolPlatform } from './application/services/WorktreeToolPlatform.js';
+import { PrivateAgentWorkerRepository } from './infrastructure/agents/PrivateAgentWorkerRepository.js';
+import { ManageAgentWorkers } from './application/usecases/ManageAgentWorkers.js';
+import { ElectronAgentWorkerEventSink } from './infrastructure/agents/ElectronAgentWorkerEventSink.js';
+import { createAgentWorkerExecution } from './infrastructure/agents/createAgentWorkerExecution.js';
+import { AgentWorkerToolPlatform } from './application/services/AgentWorkerToolPlatform.js';
+import { formatAgentNotificationContext } from './application/services/agentNotificationContext.js';
 
 export * from './domain/entities/agent.js';
 
@@ -46,6 +52,15 @@ const toolAuditLogger = new JsonlToolAuditLogger();
 const taskRepository = new JsonlAgentTaskRepository();
 export const agentTraceService = new AgentTraceService(new JsonlAgentTraceRepository());
 export const agentTaskService = new AgentTaskService(taskRepository, agentTraceService);
+export const agentWorkerManager = new ManageAgentWorkers(
+  new PrivateAgentWorkerRepository(() => path.join(app.getPath('userData'), 'agent-workers')),
+  agentTraceService,
+  {
+    cancel: (requestId) => agentToolApprovalManager.cancelRequest(requestId),
+    respond: (requestId, actionId, approved) => agentToolApprovalManager.respond(requestId, actionId, approved),
+  },
+);
+export const agentWorkerRecovery = agentWorkerManager.recoverInterrupted().catch(() => []);
 const agentWorkItemManager = new ManageAgentWorkItems(new JsonAgentWorkItemRepository({
   directory: () => path.join(app.getPath('userData'), 'agent-work-items'),
 }), lifecycleHookDispatcher);
@@ -60,7 +75,10 @@ export const agentWorktreeManager = new ManageAgentWorktrees(
   new GitAgentWorktreeGateway(() => path.join(app.getPath('userData'), 'managed-worktrees')),
   new PrivateAgentWorktreeSessionRepository(() => path.join(app.getPath('userData'), 'agent-worktree-sessions')),
 );
-app.once('before-quit', () => { void backgroundCommandSupervisor.stopAll(); });
+app.once('before-quit', () => {
+  void backgroundCommandSupervisor.stopAll();
+  void agentWorkerManager.stopAll();
+});
 
 export function resolveAgentSessionScope(payload: AgentStartPayload, requestId: string) {
   return payload.taskListId || payload.taskId || requestId;
@@ -80,6 +98,7 @@ export async function runAgentSession(
   const webSearchSettings = await webSearchSettingsRepository.load();
   const provider = new OpenAIProvider();
   const eventSink = new ElectronAgentEventSink(sender);
+  const workerEventSink = new ElectronAgentWorkerEventSink(sender);
   const requestId = payload.requestId || task?.id || crypto.randomUUID();
   const taskScopeId = resolveAgentSessionScope(payload, requestId);
   await agentWorktreeManager.restore(taskScopeId, workspaceRoot);
@@ -106,11 +125,23 @@ export async function runAgentSession(
     skillContext,
   );
   const delegatingToolPlatform = new DelegatingToolPlatform(baseToolPlatform, baseToolPlatform, subagent);
+  const attachmentFormatter = new AttachmentMessageFormatter();
+  const workerExecution = createAgentWorkerExecution({
+    provider, settings, baseCatalog: baseToolPlatform, baseExecutor: baseToolPlatform,
+    workers: agentWorkerManager, workItems: agentWorkItemManager, backgroundCommands: backgroundCommandManager,
+    worktrees: agentWorktreeManager, profiles: agentProfileManager, formatter: attachmentFormatter,
+    approval: agentToolApprovalManager, audit: toolAuditLogger, tracer: agentTraceService,
+    policy: toolPermissionPolicy, hooks: lifecycleHookDispatcher, events: workerEventSink,
+  });
+  const agentWorkerPlatform = new AgentWorkerToolPlatform(
+    delegatingToolPlatform, delegatingToolPlatform, agentWorkerManager, workerExecution,
+    { parentScopeId: taskScopeId, depth: 0 },
+  );
   eventSink.emitPlanMode(requestId, { active: agentPlanManager.isActive(taskScopeId) });
   eventSink.emitWorktree(requestId, agentWorktreeManager.state(taskScopeId));
   const taskToolPlatform = new TaskToolPlatform(
-    delegatingToolPlatform,
-    delegatingToolPlatform,
+    agentWorkerPlatform,
+    agentWorkerPlatform,
     agentWorkItemManager,
     { taskListId: taskScopeId, requestId: payload.requestId },
   );
@@ -136,8 +167,10 @@ export async function runAgentSession(
     { scopeId: taskScopeId, requestId, originalWorkspaceRoot: workspaceRoot },
   );
   const sessionPolicy = new PlanAwareToolPermissionPolicy(toolPermissionPolicy, agentPlanManager, taskScopeId);
-  const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, sessionPolicy, lifecycleHookDispatcher);
-  const combinedSkillContext = [skillContext, agentProfileContext].filter(Boolean).join('\n\n');
+  const session = new RunAgentSession(provider, toolPlatform, toolPlatform, attachmentFormatter, agentToolApprovalManager, toolAuditLogger, agentTraceService, sessionPolicy, lifecycleHookDispatcher);
+  const notifications = await agentWorkerManager.drainParentMessages(taskScopeId);
+  const notificationContext = formatAgentNotificationContext(notifications);
+  const combinedSkillContext = [skillContext, agentProfileContext, notificationContext].filter(Boolean).join('\n\n');
   const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, combinedSkillContext, signal, task
     ? {
       id: task.id,
@@ -148,6 +181,7 @@ export async function runAgentSession(
       conversation: task.conversation,
       knowledgeContext: task.knowledgeContext,
       onCheckpoint: (checkpoint) => agentTaskService.checkpoint(checkpoint),
+      drainMessages: () => agentWorkerManager.drainParentMessages(taskScopeId),
     }
     : undefined, toolPlatform);
   if (task && result?.status) {

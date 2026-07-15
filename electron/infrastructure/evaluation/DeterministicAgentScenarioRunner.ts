@@ -14,23 +14,8 @@ import type { SkillStatus } from '../../domain/entities/skill.js';
 import { rankRelevantSkills } from '../../application/services/skillRanking.js';
 import { AttachmentMessageFormatter } from '../ai/AttachmentMessageFormatter.js';
 import { resolveSafeWorkspacePath } from '../security/resolveSafePath.js';
-import { AgentToolExecutor } from '../tools/AgentToolExecutor.js';
 import { ScriptedEvaluationProvider } from './ScriptedEvaluationProvider.js';
-import { TaskToolPlatform } from '../../application/services/TaskToolPlatform.js';
-import { ManageAgentWorkItems } from '../../application/usecases/ManageAgentWorkItems.js';
-import { JsonAgentWorkItemRepository } from '../tasks/JsonAgentWorkItemRepository.js';
-import { BackgroundCommandToolPlatform } from '../../application/services/BackgroundCommandToolPlatform.js';
-import { ManageBackgroundCommands } from '../../application/usecases/ManageBackgroundCommands.js';
-import { BackgroundCommandProcessSupervisor } from '../tasks/BackgroundCommandProcessSupervisor.js';
-import { InteractiveToolPlatform } from '../../application/services/InteractiveToolPlatform.js';
-import { ManageAgentPlanMode } from '../../application/usecases/ManageAgentPlanMode.js';
-import { PrivateAgentPlanRepository } from '../plans/PrivateAgentPlanRepository.js';
-import { PlanAwareToolPermissionPolicy } from '../../application/services/PlanAwareToolPermissionPolicy.js';
-import { ToolPermissionPolicy } from '../../application/services/ToolPermissionPolicy.js';
-import type { AgentInteractionResponse } from '../../domain/entities/agentInteraction.js';
-import { WorktreeToolPlatform } from '../../application/services/WorktreeToolPlatform.js';
-import { ManageAgentWorktrees } from '../../application/usecases/ManageAgentWorktrees.js';
-import { MemoryEvaluationWorktreeSessionRepository, ScriptedEvaluationWorktreeGateway } from './ScriptedEvaluationWorktreeAdapters.js';
+import { createEvaluationToolRuntime } from './createEvaluationToolRuntime.js';
 
 type Observation = GoldenTaskFixture['observed'];
 
@@ -45,7 +30,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
     const backgroundOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-background-'));
     const planOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-plans-'));
     const worktreeOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-worktrees-'));
-    const backgroundSupervisor = new BackgroundCommandProcessSupervisor(backgroundOutputRoot, () => 'bg-runtime-eval');
+    const workerOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-workers-'));
     const taskId = `runtime-eval-${randomUUID()}`;
     const traceId = randomUUID();
     const tracer = new MemoryEvaluationTracer();
@@ -53,6 +38,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
     let completedSteps = 0;
     let runtimeFailed = false;
     let retrievedChunkIds: string[] = [];
+    let stopRuntime = async () => undefined;
 
     try {
       await writeInitialFiles(workspaceRoot, definition.runtime.initialFiles);
@@ -72,42 +58,14 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
       const knowledgeContext = retrieval?.results.map((result) => `${result.citation}\n${result.content}`).join('\n\n')
         || definition.runtime.knowledgeContext;
       const provider = new ScriptedEvaluationProvider(definition.runtime.responses);
-      const basePlatform = new AgentToolExecutor({ provider: 'disabled' }, undefined, undefined, undefined, config.timeoutMs);
-      const taskPlatform = new TaskToolPlatform(
-        basePlatform,
-        basePlatform,
-        new ManageAgentWorkItems(new JsonAgentWorkItemRepository({ directory: workItemRoot })),
-        { taskListId: taskId, requestId: taskId },
-      );
-      const backgroundPlatform = new BackgroundCommandToolPlatform(
-        taskPlatform,
-        taskPlatform,
-        new ManageBackgroundCommands(backgroundSupervisor),
-        taskId,
-      );
-      const planManager = new ManageAgentPlanMode(new PrivateAgentPlanRepository(planOutputRoot));
-      const interactionResponses = [...(definition.runtime.interactions ?? [])];
-      const interactivePlatform = new InteractiveToolPlatform(
-        backgroundPlatform,
-        backgroundPlatform,
-        planManager,
-        new ScriptedInteractionGateway(interactionResponses),
-        NOOP_EVENT_SINK,
-        { scopeId: taskId, requestId: taskId },
-        () => `interaction-runtime-${interactionResponses.length}`,
-      );
-      const worktreeManager = new ManageAgentWorktrees(
-        new ScriptedEvaluationWorktreeGateway(worktreeOutputRoot),
-        new MemoryEvaluationWorktreeSessionRepository(),
-      );
-      const platform = new WorktreeToolPlatform(
-        interactivePlatform,
-        interactivePlatform,
-        worktreeManager,
-        NOOP_EVENT_SINK,
-        { scopeId: taskId, requestId: taskId, originalWorkspaceRoot: workspaceRoot },
-      );
-      const permissionPolicy = new PlanAwareToolPermissionPolicy(new ToolPermissionPolicy([]), planManager, taskId);
+      const workerProvider = new ScriptedEvaluationProvider(definition.runtime.workerResponses ?? []);
+      const runtime = createEvaluationToolRuntime({
+        workspaceRoot, taskId, config, workerProvider, tracer,
+        interactionResponses: [...(definition.runtime.interactions ?? [])],
+        roots: { workItems: workItemRoot, background: backgroundOutputRoot, plans: planOutputRoot, worktrees: worktreeOutputRoot, workers: workerOutputRoot },
+      });
+      const { platform, permissionPolicy, workers, backgroundSupervisor } = runtime;
+      stopRuntime = async () => { await workers.stopAll(); await backgroundSupervisor.stopAll(); };
       const session = new RunAgentSession(
         provider,
         platform,
@@ -140,12 +98,14 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
               taskStatus = checkpoint.status === 'running' ? taskStatus : checkpoint.status;
               completedSteps = checkpoint.completedSteps;
             },
+            drainMessages: () => workers.drainParentMessages(taskId),
           },
           platform,
         );
         taskStatus = result?.status ?? 'failed';
         completedSteps = result?.completedSteps ?? completedSteps;
         provider.assertComplete();
+        workerProvider.assertComplete();
       } catch {
         runtimeFailed = true;
         taskStatus = 'failed';
@@ -172,13 +132,14 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         retrievedChunkIds,
       };
     } finally {
-      await backgroundSupervisor.stopAll();
+      await stopRuntime();
       await Promise.all([
         fs.rm(workspaceRoot, { recursive: true, force: true }),
         fs.rm(workItemRoot, { recursive: true, force: true }),
         fs.rm(backgroundOutputRoot, { recursive: true, force: true }),
         fs.rm(planOutputRoot, { recursive: true, force: true }),
         fs.rm(worktreeOutputRoot, { recursive: true, force: true }),
+        fs.rm(workerOutputRoot, { recursive: true, force: true }),
       ]);
     }
   }
@@ -213,16 +174,6 @@ const NOOP_EVENT_SINK: IAgentEventSink = {
   emitError: () => undefined,
   emitInteraction: () => undefined,
 };
-
-class ScriptedInteractionGateway {
-  private readonly responses: AgentInteractionResponse[];
-  constructor(responses: AgentInteractionResponse[]) { this.responses = responses; }
-  async waitForResponse() {
-    const response = this.responses.shift();
-    if (!response) throw new Error('Scripted interaction response is missing.');
-    return structuredClone(response);
-  }
-}
 
 async function writeInitialFiles(workspaceRoot: string, files: readonly RuntimeEvaluationFile[]) {
   for (const file of files) {
