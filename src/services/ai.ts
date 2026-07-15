@@ -1,4 +1,5 @@
 import type { AgentAction, Message } from '../domain/entities/message';
+import type { AgentInteractionRequest } from '../domain/entities/agentInteraction';
 import { AgentBridge } from '../infrastructure/ipc/agentStudioBridge';
 
 export function streamChatCompletion(
@@ -10,6 +11,8 @@ export function streamChatCompletion(
   onAction?: (action: AgentAction) => void,
   _onThought?: (thought: string, requestId: string) => void,
   onTaskStatus?: (task: { taskId: string; status: 'paused' | 'completed'; completedSteps: number }) => void,
+  onInteraction?: (interaction: AgentInteractionRequest, requestId: string) => void,
+  onPlanMode?: (active: boolean, requestId: string) => void,
   taskId?: string,
   taskListId?: string,
 ) {
@@ -59,6 +62,12 @@ export function streamChatCompletion(
       }),
       bridge.onChatTaskStatus((payload) => {
         if (payload.requestId === requestId && payload.task) onTaskStatus?.(payload.task);
+      }),
+      bridge.onChatInteraction((payload) => {
+        if (payload.requestId === requestId && payload.interaction) onInteraction?.(payload.interaction, requestId);
+      }),
+      bridge.onChatPlanMode((payload) => {
+        if (payload.requestId === requestId && payload.planMode) onPlanMode?.(payload.planMode.active, requestId);
       }),
     );
 

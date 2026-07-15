@@ -30,5 +30,12 @@ export function summarizeToolArguments(toolName: string, args: Record<string, un
     const characters = typeof args.prompt === 'string' ? args.prompt.length : 0;
     return `role=${role}${agentId} (${characters} prompt characters)`;
   }
+  if (toolName === 'AskUserQuestion') {
+    return `questions=${Array.isArray(args.questions) ? args.questions.length : 0}`;
+  }
+  if (toolName === 'EnterPlanMode') return 'request plan mode';
+  if (toolName === 'ExitPlanMode') {
+    return `plan=${typeof args.plan === 'string' ? args.plan.length : 0} characters`;
+  }
   return Object.keys(args).sort().join(', ');
 }

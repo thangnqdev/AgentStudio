@@ -13,6 +13,7 @@ import type { OptimizationCandidate, OptimizerState, RuntimeOptimizationConfig }
 import type { SkillCandidate } from '../domain/entities/skillLearning';
 import type { AgentProfileStatus } from '../domain/entities/agentProfile';
 import type { PluginStatus } from '../domain/entities/plugin';
+import type { AgentInteractionRequest, AgentInteractionResponse } from '../domain/entities/agentInteraction';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -42,6 +43,8 @@ export type ChatEventPayload = {
   error?: string;
   action?: ChatActionPayload;
   task?: ChatTaskStatusPayload;
+  interaction?: AgentInteractionRequest;
+  planMode?: { active: boolean };
 };
 
 export type ChatActionPayload = {
@@ -214,11 +217,14 @@ declare global {
       startChat: (payload: { requestId: string; taskId?: string; taskListId?: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;
       respondToToolApproval: (payload: { requestId: string; actionId: string; approved: boolean }) => void;
+      respondToAgentInteraction: (payload: { requestId: string; interactionId: string; response: AgentInteractionResponse }) => void;
       onChatChunk: (listener: ChatEventListener) => () => void;
       onChatAction: (listener: ChatEventListener) => () => void;
       onChatDone: (listener: ChatEventListener) => () => void;
       onChatError: (listener: ChatEventListener) => () => void;
       onChatTaskStatus: (listener: ChatEventListener) => () => void;
+      onChatInteraction: (listener: ChatEventListener) => () => void;
+      onChatPlanMode: (listener: ChatEventListener) => () => void;
       listResumableAgentTasks: () => Promise<AgentTaskListResult>;
       forkAgentTask: (taskId: string) => Promise<IpcResult<AgentTaskSummary>>;
       listAgentTraces: (limit?: number) => Promise<IpcResult<AgentTraceSummary[]>>;

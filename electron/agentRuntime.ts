@@ -28,10 +28,16 @@ import { TaskToolPlatform } from './application/services/TaskToolPlatform.js';
 import { BackgroundCommandProcessSupervisor } from './infrastructure/tasks/BackgroundCommandProcessSupervisor.js';
 import { ManageBackgroundCommands } from './application/usecases/ManageBackgroundCommands.js';
 import { BackgroundCommandToolPlatform } from './application/services/BackgroundCommandToolPlatform.js';
+import { ElectronUserInteractionManager } from './infrastructure/interactions/ElectronUserInteractionManager.js';
+import { PrivateAgentPlanRepository } from './infrastructure/plans/PrivateAgentPlanRepository.js';
+import { ManageAgentPlanMode } from './application/usecases/ManageAgentPlanMode.js';
+import { InteractiveToolPlatform } from './application/services/InteractiveToolPlatform.js';
+import { PlanAwareToolPermissionPolicy } from './application/services/PlanAwareToolPermissionPolicy.js';
 
 export * from './domain/entities/agent.js';
 
 export const agentToolApprovalManager = new ElectronToolApprovalManager();
+export const agentUserInteractionManager = new ElectronUserInteractionManager();
 const toolAuditLogger = new JsonlToolAuditLogger();
 const taskRepository = new JsonlAgentTaskRepository();
 export const agentTraceService = new AgentTraceService(new JsonlAgentTraceRepository());
@@ -43,6 +49,9 @@ const backgroundCommandSupervisor = new BackgroundCommandProcessSupervisor(
   () => path.join(app.getPath('userData'), 'background-command-output'),
 );
 const backgroundCommandManager = new ManageBackgroundCommands(backgroundCommandSupervisor);
+const agentPlanManager = new ManageAgentPlanMode(new PrivateAgentPlanRepository(
+  () => path.join(app.getPath('userData'), 'agent-plans'),
+));
 app.once('before-quit', () => { void backgroundCommandSupervisor.stopAll(); });
 
 export async function runAgentSession(
@@ -81,20 +90,31 @@ export async function runAgentSession(
     skillContext,
   );
   const delegatingToolPlatform = new DelegatingToolPlatform(baseToolPlatform, baseToolPlatform, subagent);
-  const taskScopeId = payload.taskListId || task?.id || payload.taskId || payload.requestId || crypto.randomUUID();
+  const requestId = payload.requestId || task?.id || crypto.randomUUID();
+  const taskScopeId = payload.taskListId || task?.id || payload.taskId || requestId;
+  eventSink.emitPlanMode(requestId, { active: agentPlanManager.isActive(taskScopeId) });
   const taskToolPlatform = new TaskToolPlatform(
     delegatingToolPlatform,
     delegatingToolPlatform,
     agentWorkItemManager,
     { taskListId: taskScopeId, requestId: payload.requestId },
   );
-  const toolPlatform = new BackgroundCommandToolPlatform(
+  const backgroundToolPlatform = new BackgroundCommandToolPlatform(
     taskToolPlatform,
     taskToolPlatform,
     backgroundCommandManager,
     taskScopeId,
   );
-  const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, toolPermissionPolicy, lifecycleHookDispatcher);
+  const toolPlatform = new InteractiveToolPlatform(
+    backgroundToolPlatform,
+    backgroundToolPlatform,
+    agentPlanManager,
+    agentUserInteractionManager,
+    eventSink,
+    { scopeId: taskScopeId, requestId },
+  );
+  const sessionPolicy = new PlanAwareToolPermissionPolicy(toolPermissionPolicy, agentPlanManager, taskScopeId);
+  const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, sessionPolicy, lifecycleHookDispatcher);
   const combinedSkillContext = [skillContext, agentProfileContext].filter(Boolean).join('\n\n');
   const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, combinedSkillContext, signal, task
     ? {

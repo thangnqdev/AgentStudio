@@ -8,7 +8,7 @@ const BASE_EXPECTATIONS = {
 };
 
 export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
-  id: 'agent-studio-runtime-golden', version: '2.1.0', minimumAggregateScore: 0.95,
+  id: 'agent-studio-runtime-golden', version: '2.2.0', minimumAggregateScore: 0.95,
   minimumScores: { task: 1, tool_selection: 1, code_change: 1, policy: 1, trajectory: 1, retrieval: 1 },
   fixtures: [
     {
@@ -111,6 +111,41 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
           } }] },
           { toolCalls: [{ name: 'task_output', args: { task_id: 'bg-runtime-eval', block: true, timeoutMs: 5_000 } }] },
           { content: 'The background command completed and emitted background-eval-ready.' },
+        ],
+      },
+    },
+    {
+      id: 'interactive-plan-lifecycle', version: '1.0.0',
+      expected: {
+        ...BASE_EXPECTATIONS,
+        tools: ['EnterPlanMode', 'read_file', 'AskUserQuestion', 'ExitPlanMode'],
+        forbiddenTools: ['write_file', 'apply_patch', 'run_command'],
+        changedFiles: [],
+        maxSteps: 4,
+      },
+      runtime: {
+        prompt: 'Enter plan mode, inspect the architecture, clarify the adapter choice, and present a plan for approval before coding.',
+        permissionMode: 'danger-full-access',
+        initialFiles: [{ path: 'docs/architecture.md', content: '# Architecture\n\nUse ports between application and infrastructure.\n' }],
+        assertedFiles: [],
+        interactions: [
+          { accepted: true },
+          { accepted: true, answers: { 'Which adapter boundary should the plan use?': 'Explicit port' } },
+          { accepted: true },
+        ],
+        responses: [
+          { toolCalls: [{ name: 'EnterPlanMode', args: {} }] },
+          { toolCalls: [{ name: 'read_file', args: { path: 'docs/architecture.md' } }] },
+          { toolCalls: [{ name: 'AskUserQuestion', args: { questions: [{
+            question: 'Which adapter boundary should the plan use?', header: 'Boundary',
+            options: [
+              { label: 'Explicit port', description: 'Keep application independent.' },
+              { label: 'Direct import', description: 'Couple application to infrastructure.' },
+            ],
+            multiSelect: false,
+          }] } }] },
+          { toolCalls: [{ name: 'ExitPlanMode', args: { plan: '# Plan\n\n1. Define a port.\n2. Implement the infrastructure adapter.\n3. Add tests.' } }] },
+          { content: 'The plan was approved; implementation can now begin.' },
         ],
       },
     },

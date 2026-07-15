@@ -6,6 +6,8 @@ type ChatEventPayload = {
   error?: string;
   action?: ChatActionPayload;
   task?: ChatTaskStatusPayload;
+  interaction?: ChatInteractionPayload;
+  planMode?: { active: boolean };
 };
 
 type ChatActionPayload = {
@@ -21,6 +23,19 @@ type ChatTaskStatusPayload = {
   taskId: string;
   status: 'paused' | 'completed';
   completedSteps: number;
+};
+
+type ChatInteractionPayload = {
+  id: string;
+  kind: 'questions' | 'plan_enter' | 'plan_exit';
+  title: string;
+  questions?: Array<{
+    question: string;
+    header: string;
+    options: Array<{ label: string; description: string; preview?: string }>;
+    multiSelect: boolean;
+  }>;
+  plan?: string;
 };
 
 type ChatEventListener = (payload: ChatEventPayload) => void;
@@ -41,7 +56,7 @@ type AppUpdateSnapshot = {
 };
 type AppUpdateEventListener = (payload: AppUpdateSnapshot) => void;
 
-type EventChannel = 'ai:chat:chunk' | 'ai:chat:done' | 'ai:chat:error' | 'ai:chat:action' | 'ai:chat:task-status';
+type EventChannel = 'ai:chat:chunk' | 'ai:chat:done' | 'ai:chat:error' | 'ai:chat:action' | 'ai:chat:task-status' | 'ai:chat:interaction' | 'ai:chat:plan-mode';
 
 function subscribe(channel: EventChannel, listener: ChatEventListener) {
   const handler = (_event: Electron.IpcRendererEvent, payload: ChatEventPayload) => {
@@ -127,11 +142,14 @@ contextBridge.exposeInMainWorld('agentStudio', {
   startChat: (payload: unknown) => ipcRenderer.send('ai:chat:start', payload),
   stopChat: (requestId: string) => ipcRenderer.send('ai:chat:stop', { requestId }),
   respondToToolApproval: (payload: unknown) => ipcRenderer.send('ai:chat:tool-approval', payload),
+  respondToAgentInteraction: (payload: unknown) => ipcRenderer.send('ai:chat:interaction-response', payload),
   onChatChunk: (listener: ChatEventListener) => subscribe('ai:chat:chunk', listener),
   onChatAction: (listener: ChatEventListener) => subscribe('ai:chat:action', listener),
   onChatDone: (listener: ChatEventListener) => subscribe('ai:chat:done', listener),
   onChatError: (listener: ChatEventListener) => subscribe('ai:chat:error', listener),
   onChatTaskStatus: (listener: ChatEventListener) => subscribe('ai:chat:task-status', listener),
+  onChatInteraction: (listener: ChatEventListener) => subscribe('ai:chat:interaction', listener),
+  onChatPlanMode: (listener: ChatEventListener) => subscribe('ai:chat:plan-mode', listener),
   listResumableAgentTasks: () => ipcRenderer.invoke('agent:tasks:list-resumable'),
   forkAgentTask: (taskId: string) => ipcRenderer.invoke('agent:tasks:fork', { taskId }),
   listAgentTraces: (limit?: number) => ipcRenderer.invoke('traces:list', limit),

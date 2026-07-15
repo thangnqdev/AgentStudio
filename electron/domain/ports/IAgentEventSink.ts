@@ -1,4 +1,6 @@
 import type { AgentActionPayload, AgentTaskStatusPayload } from '../entities/agent.js';
+import type { AgentInteractionRequest } from '../entities/agentInteraction.js';
+import type { AgentPlanModePayload } from '../entities/agentPlan.js';
 
 /**
  * Port trừu tượng để use-case gửi sự kiện streaming về phía renderer mà không
@@ -15,4 +17,8 @@ export interface IAgentEventSink {
   emitError(requestId: string, error: string): void;
   /** Emits durable task progress so the renderer can offer resume controls. */
   emitTaskStatus?(requestId: string, task: AgentTaskStatusPayload): void;
+  /** Requests a structured, session-scoped response from the local user. */
+  emitInteraction?(requestId: string, interaction: AgentInteractionRequest): void;
+  /** Reports the authoritative plan-mode state after the main process commits it. */
+  emitPlanMode?(requestId: string, planMode: AgentPlanModePayload): void;
 }

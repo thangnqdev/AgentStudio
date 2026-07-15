@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { agentTaskService, agentToolApprovalManager, agentTraceService, runAgentSession } from '../agentRuntime.js';
+import { agentTaskService, agentToolApprovalManager, agentTraceService, agentUserInteractionManager, runAgentSession } from '../agentRuntime.js';
 import { settingsRepo } from '../infrastructure/JsonSettingsRepository.js';
 import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { knowledgeBaseUseCase } from '../knowledgeRuntime.js';
@@ -10,6 +10,7 @@ import { parseAgentStartPayload } from '../application/services/agentStartPayloa
 import { buildAgentProviderSettings } from '../application/services/buildAgentProviderSettings.js';
 import { FileSystemProjectInstructionLoader } from '../infrastructure/instructions/FileSystemProjectInstructionLoader.js';
 import { lifecycleHookDispatcher } from '../hookRuntime.js';
+import { parseAgentInteractionResponse } from '../application/services/agentInteractionResponseValidation.js';
 
 const activeAgentControllers = new Map<string, AbortController>();
 const activeAgentTaskIds = new Map<string, string>();
@@ -44,6 +45,7 @@ export function registerAgentIpc() {
     const requestId = getString(payload.requestId);
     activeAgentControllers.get(requestId)?.abort();
     agentToolApprovalManager.cancelRequest(requestId);
+    agentUserInteractionManager.cancelRequest(requestId);
   });
 
   ipcMain.on('ai:chat:tool-approval', (_event, rawPayload: unknown) => {
@@ -52,6 +54,12 @@ export function registerAgentIpc() {
     const actionId = getString(payload.actionId);
     if (!requestId || !actionId) return;
     agentToolApprovalManager.respond(requestId, actionId, getBoolean(payload.approved));
+  });
+
+  ipcMain.on('ai:chat:interaction-response', (_event, rawPayload: unknown) => {
+    const parsed = parseAgentInteractionResponse(rawPayload);
+    if (!parsed) return;
+    agentUserInteractionManager.respond(parsed.requestId, parsed.interactionId, parsed.response);
   });
 
   ipcMain.on('ai:chat:start', async (event, rawPayload: unknown) => {
@@ -102,6 +110,7 @@ export function registerAgentIpc() {
       }
     } finally {
       agentToolApprovalManager.cancelRequest(requestId);
+      agentUserInteractionManager.cancelRequest(requestId);
       activeAgentControllers.delete(requestId);
       activeAgentTaskIds.delete(requestId);
     }

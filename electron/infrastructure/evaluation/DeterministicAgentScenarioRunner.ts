@@ -22,6 +22,12 @@ import { JsonAgentWorkItemRepository } from '../tasks/JsonAgentWorkItemRepositor
 import { BackgroundCommandToolPlatform } from '../../application/services/BackgroundCommandToolPlatform.js';
 import { ManageBackgroundCommands } from '../../application/usecases/ManageBackgroundCommands.js';
 import { BackgroundCommandProcessSupervisor } from '../tasks/BackgroundCommandProcessSupervisor.js';
+import { InteractiveToolPlatform } from '../../application/services/InteractiveToolPlatform.js';
+import { ManageAgentPlanMode } from '../../application/usecases/ManageAgentPlanMode.js';
+import { PrivateAgentPlanRepository } from '../plans/PrivateAgentPlanRepository.js';
+import { PlanAwareToolPermissionPolicy } from '../../application/services/PlanAwareToolPermissionPolicy.js';
+import { ToolPermissionPolicy } from '../../application/services/ToolPermissionPolicy.js';
+import type { AgentInteractionResponse } from '../../domain/entities/agentInteraction.js';
 
 type Observation = GoldenTaskFixture['observed'];
 
@@ -34,6 +40,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-'));
     const workItemRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-tasks-'));
     const backgroundOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-background-'));
+    const planOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-plans-'));
     const backgroundSupervisor = new BackgroundCommandProcessSupervisor(backgroundOutputRoot, () => 'bg-runtime-eval');
     const taskId = `runtime-eval-${randomUUID()}`;
     const traceId = randomUUID();
@@ -68,12 +75,24 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         new ManageAgentWorkItems(new JsonAgentWorkItemRepository({ directory: workItemRoot })),
         { taskListId: taskId, requestId: taskId },
       );
-      const platform = new BackgroundCommandToolPlatform(
+      const backgroundPlatform = new BackgroundCommandToolPlatform(
         taskPlatform,
         taskPlatform,
         new ManageBackgroundCommands(backgroundSupervisor),
         taskId,
       );
+      const planManager = new ManageAgentPlanMode(new PrivateAgentPlanRepository(planOutputRoot));
+      const interactionResponses = [...(definition.runtime.interactions ?? [])];
+      const platform = new InteractiveToolPlatform(
+        backgroundPlatform,
+        backgroundPlatform,
+        planManager,
+        new ScriptedInteractionGateway(interactionResponses),
+        NOOP_EVENT_SINK,
+        { scopeId: taskId, requestId: taskId },
+        () => `interaction-runtime-${interactionResponses.length}`,
+      );
+      const permissionPolicy = new PlanAwareToolPermissionPolicy(new ToolPermissionPolicy([]), planManager, taskId);
       const session = new RunAgentSession(
         provider,
         platform,
@@ -82,6 +101,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         { requestApproval: async () => true },
         { record: async () => undefined },
         tracer,
+        permissionPolicy,
       );
 
       try {
@@ -141,6 +161,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         fs.rm(workspaceRoot, { recursive: true, force: true }),
         fs.rm(workItemRoot, { recursive: true, force: true }),
         fs.rm(backgroundOutputRoot, { recursive: true, force: true }),
+        fs.rm(planOutputRoot, { recursive: true, force: true }),
       ]);
     }
   }
@@ -173,7 +194,18 @@ const NOOP_EVENT_SINK: IAgentEventSink = {
   emitAction: () => undefined,
   emitDone: () => undefined,
   emitError: () => undefined,
+  emitInteraction: () => undefined,
 };
+
+class ScriptedInteractionGateway {
+  private readonly responses: AgentInteractionResponse[];
+  constructor(responses: AgentInteractionResponse[]) { this.responses = responses; }
+  async waitForResponse() {
+    const response = this.responses.shift();
+    if (!response) throw new Error('Scripted interaction response is missing.');
+    return structuredClone(response);
+  }
+}
 
 async function writeInitialFiles(workspaceRoot: string, files: readonly RuntimeEvaluationFile[]) {
   for (const file of files) {

@@ -12,13 +12,14 @@ import { mcpGateway } from './mcpRuntime.js';
 import { skillManager } from './skillRuntime.js';
 import { getTaskToolDefinitions } from './application/services/TaskToolPlatform.js';
 import { getBackgroundCommandToolDefinitions } from './application/services/BackgroundCommandToolPlatform.js';
+import { getInteractiveToolDefinitions } from './application/services/interactiveToolDefinitions.js';
 
 const source = new LocalPlatformCapabilitySource({
   tools: async () => {
     const workspaceRoot = await workspaceManager.getWorkspaceRoot();
     const settings = await webSearchSettingsRepository.load();
     const baseTools = await new AgentToolExecutor(settings, undefined, mcpGateway, mcpGateway).list(workspaceRoot);
-    const sessionTools = [...getTaskToolDefinitions(), ...getBackgroundCommandToolDefinitions()];
+    const sessionTools = [...getTaskToolDefinitions(), ...getBackgroundCommandToolDefinitions(), ...getInteractiveToolDefinitions()];
     const sessionNames = new Set(sessionTools.map((tool) => tool.name));
     return [...baseTools.filter((tool) => !sessionNames.has(tool.name)), ...sessionTools];
   },

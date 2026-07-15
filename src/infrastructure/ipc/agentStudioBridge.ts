@@ -200,6 +200,11 @@ export const AgentBridge = {
     window.agentStudio.respondToToolApproval(payload);
   },
 
+  respondToAgentInteraction(payload: Parameters<NonNullable<Window['agentStudio']>['respondToAgentInteraction']>[0]) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    window.agentStudio.respondToAgentInteraction(payload);
+  },
+
   onChatChunk(listener: Parameters<NonNullable<Window['agentStudio']>['onChatChunk']>[0]) {
     if (!window.agentStudio) return () => {};
     return window.agentStudio.onChatChunk(listener);
@@ -223,6 +228,16 @@ export const AgentBridge = {
   onChatTaskStatus(listener: Parameters<NonNullable<Window['agentStudio']>['onChatTaskStatus']>[0]) {
     if (!window.agentStudio) return () => {};
     return window.agentStudio.onChatTaskStatus(listener);
+  },
+
+  onChatInteraction(listener: Parameters<NonNullable<Window['agentStudio']>['onChatInteraction']>[0]) {
+    if (!window.agentStudio) return () => {};
+    return window.agentStudio.onChatInteraction(listener);
+  },
+
+  onChatPlanMode(listener: Parameters<NonNullable<Window['agentStudio']>['onChatPlanMode']>[0]) {
+    if (!window.agentStudio) return () => {};
+    return window.agentStudio.onChatPlanMode(listener);
   },
 
   async listResumableAgentTasks() {

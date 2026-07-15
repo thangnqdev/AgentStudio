@@ -1,5 +1,6 @@
 import type { PermissionMode } from './agent.js';
 import type { KnowledgeStore } from './knowledge.js';
+import type { AgentInteractionResponse } from './agentInteraction.js';
 import {
   assertOptimizationConfig,
   configurationDigest,
@@ -54,6 +55,7 @@ export type GoldenRuntimeTaskDefinition = Omit<GoldenTaskFixture, 'observed'> & 
     responses: RuntimeEvaluationResponse[];
     knowledge?: { store: KnowledgeStore; query: string; limit: number };
     knowledgeContext?: string;
+    interactions?: AgentInteractionResponse[];
   };
 };
 export type GoldenRuntimeSuiteDefinition = Omit<GoldenTaskSuite, 'fixtures'> & {

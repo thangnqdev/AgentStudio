@@ -74,6 +74,7 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 ## Tool Platform
 
 - Local tools are registered from one typed catalog, shared by the model schema and execution policy.
+- For OpenAI-compatible providers that stringify nested array/object arguments, AgentStudio performs one bounded schema-directed JSON decode and then applies the same strict validation; scalar strings are never coerced.
 - `glob` finds files recursively and `grep` returns bounded `path:line` evidence. Both skip dependency/build trees, do not follow symlinks, support cancellation, and remain subject to path-scoped permission rules.
 - Read-only tools run automatically. In `workspace-write`, file writes and shell commands require explicit per-action approval and remain workspace-scoped/sandboxed. In `danger-full-access`, tools run automatically by default, commands are unsandboxed, and absolute file paths are allowed; explicit central `ask`/`deny` rules still take precedence.
 - Tool audit records persist locally as JSONL with a hashed workspace identifier. File contents and tool arguments are not written to that audit log.
@@ -193,6 +194,15 @@ The external hook file may use `{ "hooks": { ... } }` or AgentStudio's versioned
 - Output streams to private Electron `userData` storage instead of model memory or the workspace. Files are owner-only and no-follow opened, retrieval returns a bounded tail, and timeout/output limits terminate runaway commands with explicit status evidence.
 - Tasks survive follow-up turns in the same chat for the current app lifetime. Bounded historical tool results are reconstructed into later model requests so the model can reuse the exact task ID; this also means earlier command output can be sent to the configured provider again. A different chat cannot guess/read/stop tasks, and app shutdown terminates retained process trees.
 - Architecture decision and remaining durability boundary: [`docs/adr/0010-background-command-supervisor.md`](docs/adr/0010-background-command-supervisor.md).
+
+### Structured Questions & Plan Mode
+
+- The root agent can call `AskUserQuestion` with one to four validated questions. Each question has two to four unique options, single- or multi-select behavior, an automatic **Other** answer, optional Markdown preview, and optional user notes.
+- `EnterPlanMode` asks for explicit consent before entering a read-only research phase. While active, the main-process permission policy blocks write, execute, and network mutations before the normal approval flow; local reads, task bookkeeping, structured questions, and web research remain available.
+- `ExitPlanMode` presents a concrete Markdown plan for approval. A rejection keeps Plan Mode active; approval first stores the plan under private Electron `userData` storage, then closes the mode and notifies the renderer from the authoritative main-process state.
+- Interactive requests are scoped to the active chat request, support cancellation, and wait up to ten minutes instead of inheriting the short tool timeout. Subagents do not receive these interactive tools.
+- Answers, selected previews, notes, and approved plan text become tool results and are therefore sent to the configured model provider. Do not include credentials or unrelated private data. Approved plans persist across app restarts, but an unapproved active Plan Mode session currently does not.
+- Architecture decision and security boundary: [`docs/adr/0011-structured-interaction-plan-mode.md`](docs/adr/0011-structured-interaction-plan-mode.md).
 
 ### Read-only Subagents
 

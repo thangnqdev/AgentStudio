@@ -9,6 +9,8 @@ export const createAgentSlice: AppSlice<AgentSlice> = (set) => ({
   agentThoughtStartsNewLine: true,
   isAgentTyping: false,
   resumableTask: null,
+  pendingInteraction: null,
+  planModeActive: false,
   setActiveRequestId: (activeRequestId) => set({ activeRequestId }),
   upsertAgentAction: (action) => set((state) => {
     const { agentActions, messages } = reduceAgentAction(
@@ -42,4 +44,6 @@ export const createAgentSlice: AppSlice<AgentSlice> = (set) => ({
   }),
   setIsAgentTyping: (isAgentTyping) => set({ isAgentTyping }),
   setResumableTask: (resumableTask) => set({ resumableTask }),
+  setPendingInteraction: (pendingInteraction) => set({ pendingInteraction }),
+  setPlanModeActive: (planModeActive) => set({ planModeActive }),
 });

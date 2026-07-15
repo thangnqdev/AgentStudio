@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getLocalToolDefinition } from '../../infrastructure/tools/localToolDefinitions.js';
+import { getInteractiveToolDefinitions } from './interactiveToolDefinitions.js';
 import { parseAndValidateToolArguments } from './toolArgumentValidation.js';
 
 describe('parseAndValidateToolArguments', () => {
@@ -17,5 +18,26 @@ describe('parseAndValidateToolArguments', () => {
   it('keeps valid arguments available to the executor', () => {
     const tool = getLocalToolDefinition('write_file')!;
     expect(parseAndValidateToolArguments('{"path":"file.txt","content":"hello"}', tool)).toEqual({ ok: true, args: { path: 'file.txt', content: 'hello' } });
+  });
+
+  it('recovers structured values stringified by OpenAI-compatible providers', () => {
+    const tool = getInteractiveToolDefinitions().find((definition) => definition.name === 'AskUserQuestion')!;
+    const questions = [{
+      question: 'Which approach?', header: 'Approach', multiSelect: false,
+      options: [
+        { label: 'Ports', description: 'Keep dependencies inward.' },
+        { label: 'Direct', description: 'Use infrastructure directly.' },
+      ],
+    }];
+    const raw = JSON.stringify({ questions: `\n${JSON.stringify(questions)}\n` });
+    expect(parseAndValidateToolArguments(raw, tool)).toEqual({ ok: true, args: { questions } });
+  });
+
+  it('does not coerce ordinary strings or invalid structured values', () => {
+    const tool = getLocalToolDefinition('run_command')!;
+    expect(parseAndValidateToolArguments('{"command":"[1,2]"}', tool)).toEqual({ ok: true, args: { command: '[1,2]' } });
+    expect(parseAndValidateToolArguments('{"command":"pwd","timeoutMs":"[1,2]"}', tool)).toMatchObject({
+      ok: false, error: expect.stringContaining('"timeoutMs" must be number'),
+    });
   });
 });

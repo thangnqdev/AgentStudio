@@ -7,6 +7,8 @@ import { SystemMessage } from './chat/SystemMessage';
 import { TypingIndicator } from './chat/TypingIndicator';
 import { ChatEmptyState } from './chat/ChatEmptyState';
 import { MessageErrorBoundary } from './chat/MessageErrorBoundary';
+import { AgentInteractionPanel } from './chat/AgentInteractionPanel';
+import { PlanModeBanner } from './chat/PlanModeBanner';
 
 export function ChatArea() {
   const messages = useAppStore((s) => s.messages);
@@ -15,6 +17,7 @@ export function ChatArea() {
   const agentThoughts = useAppStore((s) => s.agentThoughts);
   const isAgentTyping = useAppStore((s) => s.isAgentTyping);
   const resumableTask = useAppStore((s) => s.resumableTask);
+  const pendingInteraction = useAppStore((s) => s.pendingInteraction);
   const { forkAgentTask, handleRegenerate, resumeAgentTask } = useAgentChat();
 
   const [isDragging, setIsDragging] = useState(false);
@@ -24,7 +27,7 @@ export function ChatArea() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isAgentTyping, agentActions, agentThoughts]);
+  }, [messages, isAgentTyping, agentActions, agentThoughts, pendingInteraction]);
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -102,6 +105,8 @@ export function ChatArea() {
 
         {forkError && <p className="text-[12px] text-error">{forkError}</p>}
 
+        <PlanModeBanner />
+
         {messages.length === 0 && !isAgentTyping ? (
           <ChatEmptyState />
         ) : (
@@ -121,6 +126,7 @@ export function ChatArea() {
                 </MessageErrorBoundary>
               )
             )}
+            <AgentInteractionPanel />
             {isAgentTyping && <TypingIndicator />}
           </>
         )}

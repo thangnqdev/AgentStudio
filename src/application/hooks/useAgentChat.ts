@@ -16,6 +16,8 @@ export function useAgentChat() {
   const activeRequestId = useAppStore((s) => s.activeRequestId);
   const replaceUserMessageAndTrim = useAppStore((s) => s.replaceUserMessageAndTrim);
   const setResumableTask = useAppStore((s) => s.setResumableTask);
+  const setPendingInteraction = useAppStore((s) => s.setPendingInteraction);
+  const setPlanModeActive = useAppStore((s) => s.setPlanModeActive);
   const workspacePath = useAppStore((s) => s.settings.workspacePath);
   const activeThreadId = useAppStore((s) => s.activeThreadId);
 
@@ -34,6 +36,7 @@ export function useAgentChat() {
   const startAgentResponse = async (messagesToSend: Message[], taskId?: string) => {
     clearAgentActions();
     clearAgentThoughts();
+    setPendingInteraction(null);
     setResumableTask(null);
     setIsAgentTyping(true);
     
@@ -58,6 +61,7 @@ export function useAgentChat() {
           setActiveRequestId(null);
           clearAgentActions();
           clearAgentThoughts();
+          setPendingInteraction(null);
         },
         (error) => {
           const finalActions = useAppStore.getState().agentActions;
@@ -66,6 +70,7 @@ export function useAgentChat() {
           setActiveRequestId(null);
           clearAgentActions();
           clearAgentThoughts();
+          setPendingInteraction(null);
         },
         setActiveRequestId,
         (action) => {
@@ -81,6 +86,11 @@ export function useAgentChat() {
             setResumableTask({ id: task.taskId, completedSteps: task.completedSteps });
           }
         },
+        (interaction, requestId) => {
+          setIsAgentTyping(false);
+          setPendingInteraction({ ...interaction, requestId });
+        },
+        (active) => setPlanModeActive(active),
         taskId,
         activeThreadId ?? undefined,
       );
@@ -95,6 +105,7 @@ export function useAgentChat() {
       setActiveRequestId(null);
       clearAgentActions();
       clearAgentThoughts();
+      setPendingInteraction(null);
     }
   };
 
