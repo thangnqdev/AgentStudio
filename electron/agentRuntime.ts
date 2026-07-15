@@ -42,7 +42,13 @@ import { ManageAgentWorkers } from './application/usecases/ManageAgentWorkers.js
 import { ElectronAgentWorkerEventSink } from './infrastructure/agents/ElectronAgentWorkerEventSink.js';
 import { createAgentWorkerExecution } from './infrastructure/agents/createAgentWorkerExecution.js';
 import { AgentWorkerToolPlatform } from './application/services/AgentWorkerToolPlatform.js';
+import { PrivateAgentTeamRepository } from './infrastructure/agents/PrivateAgentTeamRepository.js';
+import { ElectronAgentTeamEventHub } from './infrastructure/agents/ElectronAgentTeamEventHub.js';
+import { ManageAgentTeams } from './application/usecases/ManageAgentTeams.js';
+import { AgentTeamToolPlatform } from './application/services/AgentTeamToolPlatform.js';
 import { formatAgentNotificationContext } from './application/services/agentNotificationContext.js';
+import { ToolSearchPlatform } from './application/services/ToolSearchPlatform.js';
+import { extractLoadedToolNames } from './application/services/toolSearchHistory.js';
 
 export * from './domain/entities/agent.js';
 
@@ -64,6 +70,13 @@ export const agentWorkerRecovery = agentWorkerManager.recoverInterrupted().catch
 const agentWorkItemManager = new ManageAgentWorkItems(new JsonAgentWorkItemRepository({
   directory: () => path.join(app.getPath('userData'), 'agent-work-items'),
 }), lifecycleHookDispatcher);
+export const agentTeamEventHub = new ElectronAgentTeamEventHub();
+export const agentTeamManager = new ManageAgentTeams(
+  new PrivateAgentTeamRepository(() => path.join(app.getPath('userData'), 'agent-teams')),
+  agentWorkerManager,
+  agentWorkItemManager,
+  agentTeamEventHub,
+);
 const backgroundCommandSupervisor = new BackgroundCommandProcessSupervisor(
   () => path.join(app.getPath('userData'), 'background-command-output'),
 );
@@ -98,9 +111,14 @@ export async function runAgentSession(
   const webSearchSettings = await webSearchSettingsRepository.load();
   const provider = new OpenAIProvider();
   const eventSink = new ElectronAgentEventSink(sender);
-  const workerEventSink = new ElectronAgentWorkerEventSink(sender);
   const requestId = payload.requestId || task?.id || crypto.randomUUID();
   const taskScopeId = resolveAgentSessionScope(payload, requestId);
+  agentTeamEventHub.attach(taskScopeId, sender);
+  const workerEventSink = new ElectronAgentWorkerEventSink(sender, (worker) => {
+    void agentTeamManager.view(worker.parentScopeId)
+      .then((team) => agentTeamEventHub.emitTeam(worker.parentScopeId, team))
+      .catch(() => undefined);
+  });
   await agentWorktreeManager.restore(taskScopeId, workspaceRoot);
   const runtimeWorkspaceRoot = agentWorktreeManager.currentRoot(taskScopeId, workspaceRoot);
   const agentProfileContext = await agentProfileManager.buildPromptContext(runtimeWorkspaceRoot);
@@ -128,7 +146,7 @@ export async function runAgentSession(
   const attachmentFormatter = new AttachmentMessageFormatter();
   const workerExecution = createAgentWorkerExecution({
     provider, settings, baseCatalog: baseToolPlatform, baseExecutor: baseToolPlatform,
-    workers: agentWorkerManager, workItems: agentWorkItemManager, backgroundCommands: backgroundCommandManager,
+    workers: agentWorkerManager, teams: agentTeamManager, workItems: agentWorkItemManager, backgroundCommands: backgroundCommandManager,
     worktrees: agentWorktreeManager, profiles: agentProfileManager, formatter: attachmentFormatter,
     approval: agentToolApprovalManager, audit: toolAuditLogger, tracer: agentTraceService,
     policy: toolPermissionPolicy, hooks: lifecycleHookDispatcher, events: workerEventSink,
@@ -137,13 +155,22 @@ export async function runAgentSession(
     delegatingToolPlatform, delegatingToolPlatform, agentWorkerManager, workerExecution,
     { parentScopeId: taskScopeId, depth: 0 },
   );
+  const teamContext = { scopeId: taskScopeId, depth: 0 };
+  const agentTeamPlatform = new AgentTeamToolPlatform(
+    agentWorkerPlatform, agentWorkerPlatform, agentTeamManager, workerExecution, teamContext,
+  );
   eventSink.emitPlanMode(requestId, { active: agentPlanManager.isActive(taskScopeId) });
   eventSink.emitWorktree(requestId, agentWorktreeManager.state(taskScopeId));
   const taskToolPlatform = new TaskToolPlatform(
-    agentWorkerPlatform,
-    agentWorkerPlatform,
+    agentTeamPlatform,
+    agentTeamPlatform,
     agentWorkItemManager,
-    { taskListId: taskScopeId, requestId: payload.requestId },
+    {
+      taskListId: () => agentTeamManager.taskListId(taskScopeId), requestId: payload.requestId,
+      onOwnerChanged: (item) => agentTeamManager.assignTask(taskScopeId, item, {
+        ...teamContext, workspaceRoot: runtimeWorkspaceRoot, permissionMode: settings.permissionMode,
+      }, workerExecution),
+    },
   );
   const backgroundToolPlatform = new BackgroundCommandToolPlatform(
     taskToolPlatform,
@@ -159,12 +186,16 @@ export async function runAgentSession(
     eventSink,
     { scopeId: taskScopeId, requestId },
   );
-  const toolPlatform = new WorktreeToolPlatform(
+  const worktreePlatform = new WorktreeToolPlatform(
     interactiveToolPlatform,
     interactiveToolPlatform,
     agentWorktreeManager,
     eventSink,
     { scopeId: taskScopeId, requestId, originalWorkspaceRoot: workspaceRoot },
+  );
+  const restoredToolNames = extractLoadedToolNames(task?.messages.length ? task.messages : payload.messages ?? []);
+  const toolPlatform = new ToolSearchPlatform(
+    worktreePlatform, worktreePlatform, worktreePlatform, restoredToolNames,
   );
   const sessionPolicy = new PlanAwareToolPermissionPolicy(toolPermissionPolicy, agentPlanManager, taskScopeId);
   const session = new RunAgentSession(provider, toolPlatform, toolPlatform, attachmentFormatter, agentToolApprovalManager, toolAuditLogger, agentTraceService, sessionPolicy, lifecycleHookDispatcher);

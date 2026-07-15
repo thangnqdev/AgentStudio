@@ -33,4 +33,4 @@ The deterministic golden runtime now executes a real foreground `Agent` call wit
 - Child tools cannot use delegation to escalate permission, escape a workspace path, bypass audit, or bypass hooks.
 - Worker transcripts and messages are sent to the configured provider when executed or resumed; users must not place unrelated secrets in delegated prompts.
 - Worker processes remain in-process and are stopped when Electron quits; persisted transcripts support later continuation, not process resurrection.
-- `TeamCreate`, `TeamDelete`, team membership, shared mailbox protocol, task claiming, and graceful multi-member shutdown are still required for complete team parity.
+- Team membership and graceful multi-member coordination are implemented by [`0014-persistent-agent-team-runtime.md`](0014-persistent-agent-team-runtime.md); cross-process transport and the broader reference mailbox protocol remain later parity work.

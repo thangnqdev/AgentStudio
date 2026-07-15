@@ -1,5 +1,7 @@
 # AgentStudio — Architect AI
 
+Reference-client implementation status and the ordered remaining roadmap are tracked in [`docs/reference-client-parity.md`](docs/reference-client-parity.md).
+
 An **Electron + React + TypeScript** desktop application for AI-powered coding agent sessions.
 
 ## Tech Stack
@@ -242,6 +244,16 @@ Check assumptions, identify concrete failure modes, and clearly label uncertaint
 - Nested workers are bounded to three levels and must run synchronously. A child permission mode cannot exceed its parent.
 - Architecture decision and remaining team-runtime boundary: [`docs/adr/0013-addressable-agent-workers.md`](docs/adr/0013-addressable-agent-workers.md).
 
+### Persistent Agent Teams
+
+- `TeamCreate` creates one durable team and one shared task list for the active chat. `TeamDelete` succeeds only after every teammate is no longer running.
+- A named `Agent` joins the active team, always runs asynchronously, and receives a unique suffixed name when necessary. The roster is flat: teammates cannot spawn more named teammates.
+- Team `SendMessage` supports direct messages, sender-excluding broadcasts, task assignments, plan responses, and correlated graceful shutdown requests/responses.
+- Teammates share task ownership and dependency state. Starting an unowned task auto-claims it; assigning an owner persists a mailbox notification and wakes that teammate.
+- Private team files use hashed scope identities, atomic owner-only writes, and bounded validation. IPC exposes roster/count/summary metadata, never full mailbox content.
+- The chat UI restores and streams team roster state across turns and application restarts. Interrupted workers recover as idle/paused instead of being shown as active.
+- Architecture decision and remaining transport boundary: [`docs/adr/0014-persistent-agent-team-runtime.md`](docs/adr/0014-persistent-agent-team-runtime.md).
+
 ### MCP Servers
 
 - MCP servers are added only through Settings; models, repository files, and skills cannot register or launch servers.
@@ -249,6 +261,13 @@ Check assumptions, identify concrete failure modes, and clearly label uncertaint
 - Streamable HTTP requires HTTPS except on localhost. Static bearer tokens and OAuth 2 client-credentials authentication are supported; secrets use Electron `safeStorage` when available.
 - Server tool metadata and output are marked untrusted. Each server receives a local default risk classification, and all MCP calls pass through the same approval and audit pipeline as local tools.
 - Lifecycle controls include start, stop, auto-start, connection status, error reporting, pagination-aware tool discovery, request timeout, and shutdown cleanup.
+
+### Deferred Tool Search
+
+- `ToolSearch` stays visible while complete schemas for MCP and selected specialized built-ins remain deferred, reducing repeated model context cost.
+- Exact `select:ToolName,OtherTool`, keyword, required-term, and MCP-prefix search return bounded full schemas. A selected tool becomes callable on the next model turn and still passes through normal permission, approval, hook, audit, trace, and workspace routing.
+- The underlying catalog is refreshed every model step, so MCP tools connected during a session are discoverable. Validated loaded-tool names are restored from durable root/worker transcripts after pause, restart, or local context compaction.
+- Architecture decision and invariants: [`docs/adr/0015-deferred-tool-search-runtime.md`](docs/adr/0015-deferred-tool-search-runtime.md).
 
 ## Unified Observability
 

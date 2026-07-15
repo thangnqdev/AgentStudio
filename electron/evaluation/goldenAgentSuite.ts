@@ -8,7 +8,7 @@ const BASE_EXPECTATIONS = {
 };
 
 export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
-  id: 'agent-studio-runtime-golden', version: '2.4.0', minimumAggregateScore: 0.95,
+  id: 'agent-studio-runtime-golden', version: '3.0.0', minimumAggregateScore: 0.95,
   minimumScores: { task: 1, tool_selection: 1, code_change: 1, policy: 1, trajectory: 1, retrieval: 1 },
   fixtures: [
     {
@@ -68,6 +68,35 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
       },
     },
     {
+      id: 'team-agent-coordination', version: '2.0.0',
+      expected: {
+        ...BASE_EXPECTATIONS,
+        tools: ['ToolSearch', 'TeamCreate', 'read_file', 'Agent'],
+        forbiddenTools: ['write_file', 'apply_patch', 'run_command'],
+        changedFiles: [],
+        maxSteps: 4,
+      },
+      runtime: {
+        prompt: 'Create a review team, launch a named teammate to inspect the architecture boundary, then report the delegation.',
+        permissionMode: 'danger-full-access',
+        initialFiles: [{ path: 'docs/architecture.md', content: '# Boundary\n\nDomain imports no infrastructure modules.\n' }],
+        assertedFiles: [],
+        responses: [
+          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:TeamCreate' } }] },
+          { toolCalls: [{ name: 'TeamCreate', args: { team_name: 'architecture-team', description: 'Review architecture boundaries.' } }] },
+          { toolCalls: [{ name: 'Agent', args: {
+            description: 'Review architecture boundary', prompt: 'Read docs/architecture.md and report the dependency boundary.',
+            name: 'reviewer', team_name: 'architecture-team', mode: 'read-only',
+          } }] },
+          { content: 'The architecture review was delegated to reviewer in architecture-team.' },
+        ],
+        workerResponses: [
+          { toolCalls: [{ name: 'read_file', args: { path: 'docs/architecture.md' } }] },
+          { content: 'The domain layer imports no infrastructure modules.' },
+        ],
+      },
+    },
+    {
       id: 'knowledge-assisted-answer', version: '2.0.0',
       expected: { ...BASE_EXPECTATIONS, tools: [], forbiddenTools: ['run_command', 'write_file', 'apply_patch'], changedFiles: [], maxSteps: 2, relevantChunkIds: ['chunk-domain-boundary'] },
       runtime: {
@@ -92,13 +121,13 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
       },
     },
     {
-      id: 'task-supervisor-dependencies', version: '1.0.0',
+      id: 'task-supervisor-dependencies', version: '2.0.0',
       expected: {
         ...BASE_EXPECTATIONS,
-        tools: ['task_create', 'task_update', 'task_list'],
+        tools: ['ToolSearch', 'task_create', 'task_update', 'task_list'],
         forbiddenTools: ['run_command', 'write_file', 'apply_patch'],
         changedFiles: [],
-        maxSteps: 5,
+        maxSteps: 6,
       },
       runtime: {
         prompt: 'Create implementation and verification tasks, make verification depend on implementation, complete implementation, then list the remaining work.',
@@ -106,6 +135,7 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
         initialFiles: [],
         assertedFiles: [],
         responses: [
+          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:task_create,task_update,task_list' } }] },
           { toolCalls: [{ name: 'task_create', args: { subject: 'Implement feature', description: 'Build the requested behavior.' } }] },
           { toolCalls: [{ name: 'task_create', args: { subject: 'Verify feature', description: 'Run the verification checks.' } }] },
           { toolCalls: [{ name: 'task_update', args: { taskId: '2', addBlockedBy: ['1'] } }] },
@@ -116,13 +146,13 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
       },
     },
     {
-      id: 'background-command-lifecycle', version: '1.0.0',
+      id: 'background-command-lifecycle', version: '2.0.0',
       expected: {
         ...BASE_EXPECTATIONS,
-        tools: ['run_command', 'task_output'],
+        tools: ['ToolSearch', 'run_command', 'task_output'],
         forbiddenTools: ['write_file', 'apply_patch', 'task_stop'],
         changedFiles: [],
-        maxSteps: 3,
+        maxSteps: 4,
       },
       runtime: {
         prompt: 'Run a short command in the background, wait for it, read its output, and report only after it completes.',
@@ -130,6 +160,7 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
         initialFiles: [],
         assertedFiles: [],
         responses: [
+          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:task_output' } }] },
           { toolCalls: [{ name: 'run_command', args: {
             command: 'node -e "process.stdout.write(\'background-eval-ready\')"',
             description: 'Emit background evaluation marker',
@@ -142,13 +173,13 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
       },
     },
     {
-      id: 'interactive-plan-lifecycle', version: '1.0.0',
+      id: 'interactive-plan-lifecycle', version: '2.0.0',
       expected: {
         ...BASE_EXPECTATIONS,
-        tools: ['EnterPlanMode', 'read_file', 'AskUserQuestion', 'ExitPlanMode'],
+        tools: ['ToolSearch', 'EnterPlanMode', 'read_file', 'AskUserQuestion', 'ExitPlanMode'],
         forbiddenTools: ['write_file', 'apply_patch', 'run_command'],
         changedFiles: [],
-        maxSteps: 4,
+        maxSteps: 5,
       },
       runtime: {
         prompt: 'Enter plan mode, inspect the architecture, clarify the adapter choice, and present a plan for approval before coding.',
@@ -161,6 +192,7 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
           { accepted: true },
         ],
         responses: [
+          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:EnterPlanMode,AskUserQuestion,ExitPlanMode' } }] },
           { toolCalls: [{ name: 'EnterPlanMode', args: {} }] },
           { toolCalls: [{ name: 'read_file', args: { path: 'docs/architecture.md' } }] },
           { toolCalls: [{ name: 'AskUserQuestion', args: { questions: [{
@@ -177,14 +209,14 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
       },
     },
     {
-      id: 'isolated-worktree-lifecycle', version: '1.0.0',
+      id: 'isolated-worktree-lifecycle', version: '2.0.0',
       expected: {
         ...BASE_EXPECTATIONS,
-        tools: ['EnterWorktree', 'write_file', 'ExitWorktree'],
+        tools: ['ToolSearch', 'EnterWorktree', 'write_file', 'ExitWorktree'],
         forbiddenTools: ['apply_patch', 'run_command'],
         changedFiles: [],
         testsMustPass: true,
-        maxSteps: 3,
+        maxSteps: 4,
       },
       runtime: {
         prompt: 'Explicitly enter an isolated worktree, create proof.txt there, then keep and exit the worktree. Do not change the original workspace.',
@@ -192,6 +224,7 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
         initialFiles: [{ path: 'original.txt', content: 'original workspace remains unchanged\n' }],
         assertedFiles: [{ path: 'original.txt', content: 'original workspace remains unchanged\n' }],
         responses: [
+          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:EnterWorktree,ExitWorktree' } }] },
           { toolCalls: [
             { name: 'EnterWorktree', args: { name: 'evaluation/isolation' } },
             { name: 'write_file', args: { path: 'proof.txt', content: 'isolated change\n' } },

@@ -13,6 +13,9 @@ export type AgentToolDefinition = {
   description: string;
   risk: ToolRisk;
   concurrencySafe?: boolean;
+  deferLoading?: boolean;
+  alwaysLoad?: boolean;
+  searchHint?: string;
   parameters: JsonSchema;
   source?: ToolSource;
 };

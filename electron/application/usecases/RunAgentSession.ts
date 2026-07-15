@@ -28,6 +28,7 @@ import { AgentConversationBuilder } from '../services/AgentConversationBuilder.j
 import { OUTPUT_CONTINUATION_PROMPT, shouldContinueModelOutput } from '../services/outputContinuation.js';
 import { readAssistantContent } from '../services/assistantMessage.js';
 import { buildAgentSystemPrompt } from '../services/agentSystemPrompt.js';
+import { loadToolCatalogSnapshot } from '../services/toolCatalogSnapshot.js';
 
 export class RunAgentSession {
   private readonly modelRequester: ResilientModelRequester;
@@ -78,8 +79,6 @@ export class RunAgentSession {
     const messages = Array.isArray(payload.messages) ? payload.messages : [];
     const inputContextTokens = Math.min(getInputContextTokenBudget(settings.contextWindow), settings.contextBudgetTokens ?? Number.POSITIVE_INFINITY);
     const currentWorkspaceRoot = () => workspaceScope?.currentRoot(workspaceRoot) ?? workspaceRoot;
-    const toolDefinitions = await this.toolCatalog.list(currentWorkspaceRoot());
-    const toolsByName = new Map(toolDefinitions.map((tool) => [tool.name, tool]));
 
     let currentMessages = task?.messages.length ? [...task.messages] : [...messages];
     let conversation: ChatMessage[] = task?.conversation.length ? [...task.conversation] : [];
@@ -105,6 +104,7 @@ export class RunAgentSession {
       }
 
       const step = runState.completedSteps;
+      const tools = await loadToolCatalogSnapshot(this.toolCatalog, currentWorkspaceRoot());
       synchronizeSystemPrompt(conversation, buildAgentSystemPrompt(
         currentWorkspaceRoot(), settings.permissionMode, knowledgeContext, skillContext,
       ));
@@ -113,7 +113,7 @@ export class RunAgentSession {
       let assistantMessage: Awaited<ReturnType<IAiProvider['requestAssistantMessage']>>;
       try {
         const projectedConversation = projectConversationForModel(conversation, contextProjectionPolicy(inputContextTokens));
-        const outcome = await this.modelRequester.execute({ settings, messages: projectedConversation.messages, tools: toolDefinitions, eventSink, requestId, signal });
+        const outcome = await this.modelRequester.execute({ settings, messages: projectedConversation.messages, tools: tools.definitions, eventSink, requestId, signal });
         assistantMessage = outcome.response;
         await this.recordModelSpan(task, requestId, step, modelStartedAt, outcome.model, 'succeeded', assistantMessage.finishReason, assistantMessage.usage);
       } catch (error) {
@@ -162,7 +162,7 @@ export class RunAgentSession {
         requestId,
         step,
         toolCalls,
-        toolsByName,
+        toolsByName: tools.byName,
         workspaceRoot: currentWorkspaceRoot(),
         workspaceRootProvider: currentWorkspaceRoot,
         traceContext: task ? { traceId: task.traceId, taskId: task.id } : undefined,

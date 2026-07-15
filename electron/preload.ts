@@ -47,6 +47,8 @@ type AgentWorkerEventPayload = {
   action?: ChatActionPayload;
 };
 type AgentWorkerEventListener = (payload: AgentWorkerEventPayload) => void;
+type AgentTeamEventPayload = { scopeId: string; team: Record<string, unknown> | null };
+type AgentTeamEventListener = (payload: AgentTeamEventPayload) => void;
 
 type TerminalEventPayload = {
   terminalId: string;
@@ -98,6 +100,12 @@ function subscribeAgentWorkers(listener: AgentWorkerEventListener) {
   const handler = (_event: Electron.IpcRendererEvent, payload: AgentWorkerEventPayload) => listener(payload);
   ipcRenderer.on('ai:agent-worker:event', handler);
   return () => ipcRenderer.off('ai:agent-worker:event', handler);
+}
+
+function subscribeAgentTeams(listener: AgentTeamEventListener) {
+  const handler = (_event: Electron.IpcRendererEvent, payload: AgentTeamEventPayload) => listener(payload);
+  ipcRenderer.on('ai:agent-team:event', handler);
+  return () => ipcRenderer.off('ai:agent-team:event', handler);
 }
 
 contextBridge.exposeInMainWorld('agentStudio', {
@@ -170,6 +178,8 @@ contextBridge.exposeInMainWorld('agentStudio', {
   stopAgentWorker: (payload: unknown) => ipcRenderer.invoke('agent:workers:stop', payload),
   respondToAgentWorkerApproval: (payload: unknown) => ipcRenderer.send('agent:workers:approval', payload),
   onAgentWorkerEvent: (listener: AgentWorkerEventListener) => subscribeAgentWorkers(listener),
+  getAgentTeam: (scopeId: string) => ipcRenderer.invoke('agent:teams:get', scopeId),
+  onAgentTeamEvent: (listener: AgentTeamEventListener) => subscribeAgentTeams(listener),
   listResumableAgentTasks: () => ipcRenderer.invoke('agent:tasks:list-resumable'),
   forkAgentTask: (taskId: string) => ipcRenderer.invoke('agent:tasks:fork', { taskId }),
   listAgentTraces: (limit?: number) => ipcRenderer.invoke('traces:list', limit),

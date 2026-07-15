@@ -26,6 +26,8 @@ describe('JsonAgentWorkItemRepository', () => {
     expect(files[0]).not.toContain('session-secret');
     expect(await new JsonAgentWorkItemRepository({ directory }).load('../../session-secret')).toEqual(board);
     expect((await fs.stat(path.join(directory, files[0]))).mode & 0o777).toBe(0o600);
+    await repository.delete('../../session-secret');
+    expect(await repository.load('../../session-secret')).toEqual({ version: 1, nextId: 1, items: [] });
   });
 
   it('rejects invalid JSON and oversized task-list identities', async () => {

@@ -31,6 +31,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
     const planOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-plans-'));
     const worktreeOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-worktrees-'));
     const workerOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-workers-'));
+    const teamOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-teams-'));
     const taskId = `runtime-eval-${randomUUID()}`;
     const traceId = randomUUID();
     const tracer = new MemoryEvaluationTracer();
@@ -62,7 +63,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
       const runtime = createEvaluationToolRuntime({
         workspaceRoot, taskId, config, workerProvider, tracer,
         interactionResponses: [...(definition.runtime.interactions ?? [])],
-        roots: { workItems: workItemRoot, background: backgroundOutputRoot, plans: planOutputRoot, worktrees: worktreeOutputRoot, workers: workerOutputRoot },
+        roots: { workItems: workItemRoot, background: backgroundOutputRoot, plans: planOutputRoot, worktrees: worktreeOutputRoot, workers: workerOutputRoot, teams: teamOutputRoot },
       });
       const { platform, permissionPolicy, workers, backgroundSupervisor } = runtime;
       stopRuntime = async () => { await workers.stopAll(); await backgroundSupervisor.stopAll(); };
@@ -104,6 +105,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         );
         taskStatus = result?.status ?? 'failed';
         completedSteps = result?.completedSteps ?? completedSteps;
+        await waitForBackgroundWorkers(workers, taskId);
         provider.assertComplete();
         workerProvider.assertComplete();
       } catch {
@@ -140,8 +142,16 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         fs.rm(planOutputRoot, { recursive: true, force: true }),
         fs.rm(worktreeOutputRoot, { recursive: true, force: true }),
         fs.rm(workerOutputRoot, { recursive: true, force: true }),
+        fs.rm(teamOutputRoot, { recursive: true, force: true }),
       ]);
     }
+  }
+}
+
+async function waitForBackgroundWorkers(workers: ReturnType<typeof createEvaluationToolRuntime>['workers'], scopeId: string) {
+  for (let index = 0; index < 200; index += 1) {
+    if ((await workers.list(scopeId)).every((worker) => worker.status !== 'running')) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
 

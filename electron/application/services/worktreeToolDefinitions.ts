@@ -8,7 +8,7 @@ const DEFINITIONS: AgentToolDefinition[] = [
   {
     name: ENTER_WORKTREE_TOOL_NAME,
     description: 'Create an isolated Git worktree and switch this chat session into it. Use only when the user explicitly asks for a worktree; do not infer it from an ordinary feature or branch request.',
-    risk: 'write',
+    risk: 'write', deferLoading: true, searchHint: 'enter create git worktree isolation',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -22,7 +22,7 @@ const DEFINITIONS: AgentToolDefinition[] = [
   {
     name: EXIT_WORKTREE_TOOL_NAME,
     description: 'Exit the worktree created for this chat. Keep preserves its directory and branch; remove deletes both. Never remove dirty or unmerged work without explicit user confirmation.',
-    risk: 'write',
+    risk: 'write', deferLoading: true, searchHint: 'exit keep remove git worktree',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {

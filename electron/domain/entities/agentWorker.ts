@@ -84,7 +84,7 @@ export type SendMessageRequest = {
 };
 
 export type AgentWorkerStructuredMessage =
-  | { type: 'shutdown_request'; reason?: string }
+  | { type: 'shutdown_request'; reason?: string; request_id?: string }
   | { type: 'shutdown_response'; request_id: string; approve: boolean; reason?: string }
   | { type: 'plan_approval_response'; request_id: string; approve: boolean; feedback?: string };
 
@@ -113,7 +113,7 @@ export const AGENT_WORKER_TOOL_DEFINITION: AgentToolDefinition = {
 export const SEND_MESSAGE_TOOL_DEFINITION: AgentToolDefinition = {
   name: SEND_MESSAGE_TOOL_NAME,
   description: 'Send a message to a named or identified agent, broadcast to all agents in this scope, or request a graceful shutdown.',
-  risk: 'network',
+  risk: 'network', deferLoading: true, searchHint: 'message teammate agent shutdown plan response',
   parameters: {
     type: 'object', additionalProperties: false,
     properties: {

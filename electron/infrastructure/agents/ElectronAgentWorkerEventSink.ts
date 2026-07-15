@@ -4,16 +4,20 @@ import type { IAgentWorkerEventSink } from '../../domain/ports/IAgentWorkerEvent
 
 export class ElectronAgentWorkerEventSink implements IAgentWorkerEventSink {
   private readonly sender: WebContents;
+  private readonly onWorker?: (worker: AgentWorkerSummary) => void;
 
-  constructor(sender: WebContents) {
+  constructor(sender: WebContents, onWorker?: (worker: AgentWorkerSummary) => void) {
     this.sender = sender;
+    this.onWorker = onWorker;
   }
 
   emitWorker(worker: AgentWorkerSummary) {
     if (!this.sender.isDestroyed()) this.sender.send('ai:agent-worker:event', { scopeId: worker.parentScopeId, worker });
+    this.onWorker?.(worker);
   }
 
   emitEvent(event: AgentWorkerEvent) {
     if (!this.sender.isDestroyed()) this.sender.send('ai:agent-worker:event', event);
+    this.onWorker?.(event.worker);
   }
 }

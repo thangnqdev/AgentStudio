@@ -12,6 +12,7 @@ import { PlanModeBanner } from './chat/PlanModeBanner';
 import { WorktreeBanner } from './chat/WorktreeBanner';
 import { useWorktreeStateSync } from '../application/hooks/useWorktreeStateSync';
 import { AgentWorkerPanel } from './chat/AgentWorkerPanel';
+import { AgentTeamPanel } from './chat/AgentTeamPanel';
 
 export function ChatArea() {
   useWorktreeStateSync();
@@ -111,6 +112,7 @@ export function ChatArea() {
 
         <PlanModeBanner />
         <WorktreeBanner />
+        <AgentTeamPanel />
         <AgentWorkerPanel />
 
         {messages.length === 0 && !isAgentTyping ? (

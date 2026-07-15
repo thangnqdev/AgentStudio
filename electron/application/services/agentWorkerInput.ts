@@ -18,7 +18,7 @@ export function parseAgentWorkerSpawnRequest(args: Record<string, unknown>): Age
   const subagentType = optionalIdentifier(args.subagent_type, 'Agent subagent_type is invalid.');
   const model = optionalEnum(args.model, AGENT_WORKER_MODELS, 'Agent model is invalid.');
   const name = optionalName(args.name, 'Agent name is invalid.');
-  const teamName = optionalName(args.team_name, 'Agent team_name is invalid.');
+  const teamName = optionalString(args.team_name, 64, 'Agent team_name is invalid.');
   const mode = optionalEnum(args.mode, PERMISSION_MODES, 'Agent mode is invalid.');
   if (args.run_in_background !== undefined && typeof args.run_in_background !== 'boolean') throw new Error('Agent run_in_background must be a boolean.');
   if (args.isolation !== undefined && args.isolation !== 'worktree') throw new Error('Agent isolation must be worktree.');

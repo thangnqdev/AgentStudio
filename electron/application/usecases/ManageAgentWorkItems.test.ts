@@ -8,6 +8,7 @@ class MemoryWorkItemRepository implements IAgentWorkItemRepository {
   boards = new Map<string, AgentWorkItemBoard>();
   async load(id: string) { return structuredClone(this.boards.get(id) ?? createEmptyAgentWorkItemBoard()); }
   async save(id: string, board: AgentWorkItemBoard) { this.boards.set(id, structuredClone(board)); }
+  async delete(id: string) { this.boards.delete(id); }
 }
 
 const context = { workspaceRoot: '/workspace', requestId: 'request-1' };
@@ -58,5 +59,18 @@ describe('ManageAgentWorkItems', () => {
     await manager.update('session-1', { taskId: '1', addBlocks: ['2'] }, context);
     await expect(manager.update('session-1', { taskId: '2', addBlocks: ['1'] }, context)).rejects.toThrow('cycle');
     expect(await manager.get('session-1', '2')).toMatchObject({ blocks: [] });
+  });
+
+  it('auto-claims unowned in-progress work and reports assignment changes', async () => {
+    const manager = new ManageAgentWorkItems(new MemoryWorkItemRepository(), allowHooks);
+    const onOwnerChanged = vi.fn();
+    await manager.create('team-list', { subject: 'Review', description: 'Review auth' }, context);
+    await manager.update('team-list', { taskId: '1', status: 'in_progress' }, {
+      ...context, actorName: 'reviewer', onOwnerChanged,
+    });
+    expect(await manager.get('team-list', '1')).toMatchObject({ status: 'in_progress', owner: 'reviewer' });
+    expect(onOwnerChanged).toHaveBeenCalledWith(expect.objectContaining({ id: '1', owner: 'reviewer' }), undefined);
+    await manager.clear('team-list');
+    expect(await manager.list('team-list')).toEqual([]);
   });
 });

@@ -10,6 +10,7 @@ import { registerTerminalIpc } from './ipc/registerTerminalIpc.js';
 import { registerAgentIpc } from './ipc/registerAgentIpc.js';
 import { registerAgentWorktreeIpc } from './ipc/registerAgentWorktreeIpc.js';
 import { registerAgentWorkerIpc } from './ipc/registerAgentWorkerIpc.js';
+import { registerAgentTeamIpc } from './ipc/registerAgentTeamIpc.js';
 import { registerKnowledgeIpc } from './ipc/registerKnowledgeIpc.js';
 import { registerWebSearchIpc } from './ipc/registerWebSearchIpc.js';
 import { registerUpdateIpc } from './ipc/registerUpdateIpc.js';
@@ -92,6 +93,7 @@ function registerIpcHandlers() {
   registerAgentIpc();
   registerAgentWorktreeIpc();
   registerAgentWorkerIpc();
+  registerAgentTeamIpc();
   registerWebSearchIpc();
   registerSkillIpc();
   registerMcpIpc();

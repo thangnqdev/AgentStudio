@@ -41,6 +41,10 @@ export class JsonAgentWorkItemRepository implements IAgentWorkItemRepository {
     await writePrivateFileAtomic(this.targetPath(taskListId), serialized);
   }
 
+  async delete(taskListId: string) {
+    await fs.rm(this.targetPath(taskListId), { force: true });
+  }
+
   private targetPath(taskListId: string) {
     if (!taskListId || taskListId.length > 256 || taskListId.includes('\0')) throw new Error('Task list ID is invalid.');
     const digest = createHash('sha256').update(taskListId).digest('hex');

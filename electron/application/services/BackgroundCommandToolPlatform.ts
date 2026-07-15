@@ -17,7 +17,7 @@ const BACKGROUND_TOOL_DEFINITIONS: AgentToolDefinition[] = [
   {
     name: 'task_output',
     description: 'Read status and bounded output from a background command. Set block=true to wait for completion.',
-    risk: 'read', concurrencySafe: true,
+    risk: 'read', concurrencySafe: true, deferLoading: true, searchHint: 'read wait background command output',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -31,7 +31,7 @@ const BACKGROUND_TOOL_DEFINITIONS: AgentToolDefinition[] = [
   {
     name: 'task_stop',
     description: 'Stop one running background command by task ID.',
-    risk: 'execute',
+    risk: 'execute', deferLoading: true, searchHint: 'stop background command task',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {

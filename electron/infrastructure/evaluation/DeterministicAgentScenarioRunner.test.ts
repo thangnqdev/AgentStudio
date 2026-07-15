@@ -43,8 +43,9 @@ describe('DeterministicAgentScenarioRunner', () => {
     const observed = await new DeterministicAgentScenarioRunner().run(fixture('task-supervisor-dependencies'), DEFAULT_OPTIMIZATION_CONFIG);
 
     expect(observed.taskStatus).toBe('completed');
-    expect(observed.completedSteps).toBe(5);
+    expect(observed.completedSteps).toBe(6);
     expect(observed.toolCalls).toEqual([
+      { toolName: 'ToolSearch', outcome: 'succeeded' },
       { toolName: 'task_create', outcome: 'succeeded' },
       { toolName: 'task_create', outcome: 'succeeded' },
       { toolName: 'task_update', outcome: 'succeeded' },
@@ -59,6 +60,19 @@ describe('DeterministicAgentScenarioRunner', () => {
     const observed = await new DeterministicAgentScenarioRunner().run(fixture('foreground-agent-delegation'), DEFAULT_OPTIMIZATION_CONFIG);
     expect(observed.taskStatus).toBe('completed');
     expect(observed.toolCalls).toEqual([
+      { toolName: 'read_file', outcome: 'succeeded' },
+      { toolName: 'Agent', outcome: 'succeeded' },
+    ]);
+    expect(observed.changedFiles).toEqual([]);
+    expect(observed.policyViolationCodes).toEqual([]);
+  });
+
+  it('runs TeamCreate and promotes a named Agent into the shared team runtime', async () => {
+    const observed = await new DeterministicAgentScenarioRunner().run(fixture('team-agent-coordination'), DEFAULT_OPTIMIZATION_CONFIG);
+    expect(observed.taskStatus).toBe('completed');
+    expect(observed.toolCalls).toEqual([
+      { toolName: 'ToolSearch', outcome: 'succeeded' },
+      { toolName: 'TeamCreate', outcome: 'succeeded' },
       { toolName: 'read_file', outcome: 'succeeded' },
       { toolName: 'Agent', outcome: 'succeeded' },
     ]);
@@ -89,6 +103,7 @@ describe('DeterministicAgentScenarioRunner', () => {
 
     expect(observed.taskStatus).toBe('completed');
     expect(observed.toolCalls).toEqual([
+      { toolName: 'ToolSearch', outcome: 'succeeded' },
       { toolName: 'EnterWorktree', outcome: 'succeeded' },
       { toolName: 'write_file', outcome: 'succeeded' },
       { toolName: 'ExitWorktree', outcome: 'succeeded' },

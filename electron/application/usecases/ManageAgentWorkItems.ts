@@ -7,7 +7,12 @@ import type { ILifecycleHookDispatcher } from '../../domain/ports/ILifecycleHook
 import type { CreateAgentWorkItemInput, UpdateAgentWorkItemInput } from '../services/agentWorkItemInput.js';
 import { applyAgentWorkItemUpdate, type AgentWorkItemUpdateResult } from '../services/agentWorkItemMutation.js';
 
-export type AgentWorkItemHookContext = { requestId?: string; workspaceRoot: string };
+export type AgentWorkItemHookContext = {
+  requestId?: string;
+  workspaceRoot: string;
+  actorName?: string;
+  onOwnerChanged?: (item: AgentWorkItem, previousOwner?: string) => void | Promise<void>;
+};
 export class ManageAgentWorkItems {
   private readonly repository: IAgentWorkItemRepository;
   private readonly hooks?: ILifecycleHookDispatcher;
@@ -71,12 +76,23 @@ export class ManageAgentWorkItems {
       if (input.status === 'completed' && item.status !== 'completed') {
         await this.assertHookAllows('TaskCompleted', item, hookContext);
       }
-      const result = applyAgentWorkItemUpdate(board, input, this.now());
+      const previousOwner = item.owner;
+      const effectiveInput = input.status === 'in_progress' && !item.owner && !input.owner && hookContext.actorName
+        ? { ...input, owner: hookContext.actorName }
+        : input;
+      const result = applyAgentWorkItemUpdate(board, effectiveInput, this.now());
       if (result.updatedFields.length > 0) {
         await this.repository.save(taskListId, board);
       }
+      if (item.owner && item.owner !== previousOwner) {
+        await Promise.resolve(hookContext.onOwnerChanged?.(structuredClone(item), previousOwner)).catch(() => undefined);
+      }
       return result;
     });
+  }
+
+  clear(taskListId: string) {
+    return this.exclusive(taskListId, () => this.repository.delete(taskListId));
   }
 
   private async assertHookAllows(event: 'TaskCreated' | 'TaskCompleted', item: AgentWorkItem, context: AgentWorkItemHookContext) {

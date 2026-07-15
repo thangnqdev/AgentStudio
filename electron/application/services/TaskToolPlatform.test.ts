@@ -8,6 +8,7 @@ class MemoryRepository implements IAgentWorkItemRepository {
   boards = new Map<string, AgentWorkItemBoard>();
   async load(id: string) { return structuredClone(this.boards.get(id) ?? createEmptyAgentWorkItemBoard()); }
   async save(id: string, board: AgentWorkItemBoard) { this.boards.set(id, structuredClone(board)); }
+  async delete(id: string) { this.boards.delete(id); }
 }
 
 describe('TaskToolPlatform', () => {
@@ -47,5 +48,28 @@ describe('TaskToolPlatform', () => {
     await expect(platform.execute('read_file', { path: 'README.md' }, '/workspace', 'read-only'))
       .resolves.toEqual({ ok: true, output: 'delegated' });
     expect(executeBase).toHaveBeenCalledOnce();
+  });
+
+  it('resolves a team task list dynamically and auto-claims for the current actor', async () => {
+    const manager = new ManageAgentWorkItems(new MemoryRepository());
+    const assigned = vi.fn();
+    const platform = new TaskToolPlatform(
+      { list: async () => [] }, { execute: async () => ({ ok: true, output: '' }) }, manager,
+      { taskListId: async () => 'shared-team-list', actorName: 'tester', onOwnerChanged: assigned },
+    );
+    await platform.execute('task_create', { subject: 'Test', description: 'Run tests' }, '/workspace', 'workspace-write');
+    await platform.execute('task_update', { taskId: '1', status: 'in_progress' }, '/workspace', 'workspace-write');
+    expect(await manager.get('shared-team-list', '1')).toMatchObject({ owner: 'tester' });
+    expect(assigned).toHaveBeenCalledOnce();
+  });
+
+  it('returns a bounded tool error when dynamic task-list resolution fails', async () => {
+    const platform = new TaskToolPlatform(
+      { list: async () => [] }, { execute: async () => ({ ok: true, output: '' }) },
+      new ManageAgentWorkItems(new MemoryRepository()),
+      { taskListId: async () => { throw new Error('Team task list is unavailable.'); } },
+    );
+    await expect(platform.execute('task_list', {}, '/workspace', 'workspace-write'))
+      .resolves.toEqual({ ok: false, output: 'Team task list is unavailable.' });
   });
 });

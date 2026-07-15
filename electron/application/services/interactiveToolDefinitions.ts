@@ -23,7 +23,7 @@ const TOOL_DEFINITIONS: AgentToolDefinition[] = [
   {
     name: ASK_USER_QUESTION_TOOL_NAME,
     description: 'Ask the local user 1-4 structured questions when a material choice or missing requirement blocks progress. Supports single-select, multi-select, Markdown previews, notes, and an automatic Other response. Do not use it for plan approval; use ExitPlanMode.',
-    risk: 'read',
+    risk: 'read', deferLoading: true, searchHint: 'ask user structured clarification questions',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -47,13 +47,13 @@ const TOOL_DEFINITIONS: AgentToolDefinition[] = [
   {
     name: ENTER_PLAN_MODE_TOOL_NAME,
     description: 'Request consent to enter a read-only exploration and planning phase before a genuinely ambiguous or high-impact implementation.',
-    risk: 'read',
+    risk: 'read', deferLoading: true, searchHint: 'enter planning mode read only exploration',
     parameters: { type: 'object', additionalProperties: false, properties: {} },
   },
   {
     name: EXIT_PLAN_MODE_TOOL_NAME,
     description: 'Present the completed implementation plan for explicit user approval. Use only while plan mode is active; after approval the normal permission mode is restored and implementation may begin.',
-    risk: 'read',
+    risk: 'read', deferLoading: true, searchHint: 'exit plan request plan approval',
     parameters: {
       type: 'object', additionalProperties: false,
       properties: {

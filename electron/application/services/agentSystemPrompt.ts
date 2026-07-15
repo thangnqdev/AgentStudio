@@ -16,6 +16,7 @@ export function buildAgentSystemPrompt(
     '- workspace-write: write_file and run_command require user approval; commands run through the sandbox executor.',
     '- danger-full-access: write_file and run_command execute automatically without user approval; commands run without sandbox and file paths may be absolute.',
     'Do not claim a command or edit succeeded unless the tool result says it did.',
+    'Some specialized tool schemas are deferred. Before calling a named tool that is listed but unavailable, call ToolSearch with select:ToolName; use capability keywords when you do not know the exact name. A successful ToolSearch makes the returned schemas callable on the next model turn.',
     'Use Agent for delegated work that can be completed independently. Give every call a short description and a self-contained prompt. Use run_in_background=true for concurrent work; completion notifications are delivered automatically, so do not poll.',
     'Use SendMessage with a 5-10 word summary to redirect a running agent or continue a completed agent from its saved transcript. Child permission mode can never exceed the parent mode. Nested agents must run synchronously.',
     'Use delegate_task only as a legacy bounded read-only alias for exploration, review, or planning. It never grants extra permissions and must not be used to bypass policy.',
