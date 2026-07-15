@@ -88,6 +88,32 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
         ],
       },
     },
+    {
+      id: 'background-command-lifecycle', version: '1.0.0',
+      expected: {
+        ...BASE_EXPECTATIONS,
+        tools: ['run_command', 'task_output'],
+        forbiddenTools: ['write_file', 'apply_patch', 'task_stop'],
+        changedFiles: [],
+        maxSteps: 3,
+      },
+      runtime: {
+        prompt: 'Run a short command in the background, wait for it, read its output, and report only after it completes.',
+        permissionMode: 'danger-full-access',
+        initialFiles: [],
+        assertedFiles: [],
+        responses: [
+          { toolCalls: [{ name: 'run_command', args: {
+            command: 'node -e "process.stdout.write(\'background-eval-ready\')"',
+            description: 'Emit background evaluation marker',
+            run_in_background: true,
+            timeoutMs: 5_000,
+          } }] },
+          { toolCalls: [{ name: 'task_output', args: { task_id: 'bg-runtime-eval', block: true, timeoutMs: 5_000 } }] },
+          { content: 'The background command completed and emitted background-eval-ready.' },
+        ],
+      },
+    },
   ],
 };
 

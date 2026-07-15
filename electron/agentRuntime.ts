@@ -25,6 +25,9 @@ import { lifecycleHookDispatcher } from './hookRuntime.js';
 import { JsonAgentWorkItemRepository } from './infrastructure/tasks/JsonAgentWorkItemRepository.js';
 import { ManageAgentWorkItems } from './application/usecases/ManageAgentWorkItems.js';
 import { TaskToolPlatform } from './application/services/TaskToolPlatform.js';
+import { BackgroundCommandProcessSupervisor } from './infrastructure/tasks/BackgroundCommandProcessSupervisor.js';
+import { ManageBackgroundCommands } from './application/usecases/ManageBackgroundCommands.js';
+import { BackgroundCommandToolPlatform } from './application/services/BackgroundCommandToolPlatform.js';
 
 export * from './domain/entities/agent.js';
 
@@ -36,6 +39,11 @@ export const agentTaskService = new AgentTaskService(taskRepository, agentTraceS
 const agentWorkItemManager = new ManageAgentWorkItems(new JsonAgentWorkItemRepository({
   directory: () => path.join(app.getPath('userData'), 'agent-work-items'),
 }), lifecycleHookDispatcher);
+const backgroundCommandSupervisor = new BackgroundCommandProcessSupervisor(
+  () => path.join(app.getPath('userData'), 'background-command-output'),
+);
+const backgroundCommandManager = new ManageBackgroundCommands(backgroundCommandSupervisor);
+app.once('before-quit', () => { void backgroundCommandSupervisor.stopAll(); });
 
 export async function runAgentSession(
   payload: AgentStartPayload,
@@ -73,11 +81,18 @@ export async function runAgentSession(
     skillContext,
   );
   const delegatingToolPlatform = new DelegatingToolPlatform(baseToolPlatform, baseToolPlatform, subagent);
-  const toolPlatform = new TaskToolPlatform(
+  const taskScopeId = payload.taskListId || task?.id || payload.taskId || payload.requestId || crypto.randomUUID();
+  const taskToolPlatform = new TaskToolPlatform(
     delegatingToolPlatform,
     delegatingToolPlatform,
     agentWorkItemManager,
-    { taskListId: payload.taskListId || task?.id || payload.taskId || payload.requestId || crypto.randomUUID(), requestId: payload.requestId },
+    { taskListId: taskScopeId, requestId: payload.requestId },
+  );
+  const toolPlatform = new BackgroundCommandToolPlatform(
+    taskToolPlatform,
+    taskToolPlatform,
+    backgroundCommandManager,
+    taskScopeId,
   );
   const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, toolPermissionPolicy, lifecycleHookDispatcher);
   const combinedSkillContext = [skillContext, agentProfileContext].filter(Boolean).join('\n\n');

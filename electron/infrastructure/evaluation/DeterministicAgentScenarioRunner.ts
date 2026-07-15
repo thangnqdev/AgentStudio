@@ -19,6 +19,9 @@ import { ScriptedEvaluationProvider } from './ScriptedEvaluationProvider.js';
 import { TaskToolPlatform } from '../../application/services/TaskToolPlatform.js';
 import { ManageAgentWorkItems } from '../../application/usecases/ManageAgentWorkItems.js';
 import { JsonAgentWorkItemRepository } from '../tasks/JsonAgentWorkItemRepository.js';
+import { BackgroundCommandToolPlatform } from '../../application/services/BackgroundCommandToolPlatform.js';
+import { ManageBackgroundCommands } from '../../application/usecases/ManageBackgroundCommands.js';
+import { BackgroundCommandProcessSupervisor } from '../tasks/BackgroundCommandProcessSupervisor.js';
 
 type Observation = GoldenTaskFixture['observed'];
 
@@ -30,6 +33,8 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
     assertOptimizationConfig(config as RuntimeOptimizationConfig);
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-'));
     const workItemRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-tasks-'));
+    const backgroundOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-background-'));
+    const backgroundSupervisor = new BackgroundCommandProcessSupervisor(backgroundOutputRoot, () => 'bg-runtime-eval');
     const taskId = `runtime-eval-${randomUUID()}`;
     const traceId = randomUUID();
     const tracer = new MemoryEvaluationTracer();
@@ -57,11 +62,17 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         || definition.runtime.knowledgeContext;
       const provider = new ScriptedEvaluationProvider(definition.runtime.responses);
       const basePlatform = new AgentToolExecutor({ provider: 'disabled' }, undefined, undefined, undefined, config.timeoutMs);
-      const platform = new TaskToolPlatform(
+      const taskPlatform = new TaskToolPlatform(
         basePlatform,
         basePlatform,
         new ManageAgentWorkItems(new JsonAgentWorkItemRepository({ directory: workItemRoot })),
         { taskListId: taskId, requestId: taskId },
+      );
+      const platform = new BackgroundCommandToolPlatform(
+        taskPlatform,
+        taskPlatform,
+        new ManageBackgroundCommands(backgroundSupervisor),
+        taskId,
       );
       const session = new RunAgentSession(
         provider,
@@ -125,9 +136,11 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         retrievedChunkIds,
       };
     } finally {
+      await backgroundSupervisor.stopAll();
       await Promise.all([
         fs.rm(workspaceRoot, { recursive: true, force: true }),
         fs.rm(workItemRoot, { recursive: true, force: true }),
+        fs.rm(backgroundOutputRoot, { recursive: true, force: true }),
       ]);
     }
   }

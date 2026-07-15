@@ -13,6 +13,12 @@ export type CompactableMessage = {
   sender: 'user' | 'agent' | 'system';
   content: string;
   attachments?: CompactableAttachment[];
+  actions?: Array<{
+    toolName: string;
+    args: string;
+    status: string;
+    output?: string;
+  }>;
 };
 
 export type CompactedContext<TMessage extends CompactableMessage = CompactableMessage> = {
@@ -97,7 +103,10 @@ function estimateMessageTokens(message: CompactableMessage) {
       attachment.type === 'text' ? attachment.data || '' : '',
     ].join(' '))
     .join('\n');
-  return estimateTextTokens(`${message.sender}\n${message.content}\n${attachmentText}`);
+  const actionText = (message.actions || [])
+    .map((action) => `${action.toolName}\n${action.args}\n${action.status}\n${action.output || ''}`)
+    .join('\n');
+  return estimateTextTokens(`${message.sender}\n${message.content}\n${attachmentText}\n${actionText}`);
 }
 
 function estimateTextTokens(text: string) {
@@ -126,6 +135,11 @@ function buildCompactionSummary(messages: CompactableMessage[]) {
     const parsedToolEvents = parseToolEvents(message.content);
     if (parsedToolEvents.length > 0) {
       toolEvents.push(...parsedToolEvents);
+    }
+    for (const action of message.actions || []) {
+      const args = cleanInlineText(action.args, 260);
+      const output = cleanInlineText(action.output || '', MAX_TOOL_OUTPUT_CHARS);
+      toolEvents.push(`- ${action.toolName} ${args || '{}'} => ${action.status}${output ? `; ${output}` : ''}`);
     }
 
     const cleanedAgentText = cleanAgentText(message.content);

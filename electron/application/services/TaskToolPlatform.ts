@@ -59,6 +59,10 @@ const TASK_TOOL_DEFINITIONS: AgentToolDefinition[] = [
   },
 ];
 
+export function getTaskToolDefinitions() {
+  return TASK_TOOL_DEFINITIONS.map((tool) => structuredClone(tool));
+}
+
 export class TaskToolPlatform implements IToolCatalog, IToolExecutor {
   private readonly baseCatalog: IToolCatalog;
   private readonly baseExecutor: IToolExecutor;
@@ -81,7 +85,7 @@ export class TaskToolPlatform implements IToolCatalog, IToolExecutor {
 
   async list(workspaceRoot: string) {
     const tools = await this.baseCatalog.list(workspaceRoot);
-    return [...tools.filter((tool) => !(TASK_TOOL_NAMES as readonly string[]).includes(tool.name)), ...TASK_TOOL_DEFINITIONS];
+    return [...tools.filter((tool) => !(TASK_TOOL_NAMES as readonly string[]).includes(tool.name)), ...getTaskToolDefinitions()];
   }
 
   async execute(toolName: string, args: Record<string, unknown>, workspaceRoot: string, permissionMode: PermissionMode, signal?: AbortSignal): Promise<ToolResult> {

@@ -2,6 +2,7 @@ import type { AgentProviderSettings, ChatMessage, Message } from '../../domain/e
 import type { IAttachmentMessageFormatter } from '../../domain/ports/IAttachmentMessageFormatter.js';
 import { buildSummarySystemMessage, compactContext } from '../../contextCompaction.js';
 import { buildAgentSystemPrompt } from './agentSystemPrompt.js';
+import { restoreHistoricalToolConversation } from './historicalToolConversation.js';
 
 export class AgentConversationBuilder {
   private readonly attachmentFormatter: IAttachmentMessageFormatter;
@@ -22,6 +23,7 @@ export class AgentConversationBuilder {
       input.messages.filter((message) => message.sender !== 'system'),
       input.inputContextTokens,
     );
+    const formattedMessages = await this.attachmentFormatter.format(compacted.recentMessages);
     const conversation: ChatMessage[] = [
       {
         role: 'system',
@@ -36,7 +38,7 @@ export class AgentConversationBuilder {
         role: 'system' as const,
         content: buildSummarySystemMessage(compacted.summary),
       }] : []),
-      ...await this.attachmentFormatter.format(compacted.recentMessages),
+      ...restoreHistoricalToolConversation(compacted.recentMessages, formattedMessages),
     ];
 
     if (!compacted.didCompact || hasRecentCompactionNotice(input.messages)) return { conversation };

@@ -10,12 +10,17 @@ import { workspaceManager } from './infrastructure/WorkspaceManager.js';
 import { knowledgeBaseUseCase } from './knowledgeRuntime.js';
 import { mcpGateway } from './mcpRuntime.js';
 import { skillManager } from './skillRuntime.js';
+import { getTaskToolDefinitions } from './application/services/TaskToolPlatform.js';
+import { getBackgroundCommandToolDefinitions } from './application/services/BackgroundCommandToolPlatform.js';
 
 const source = new LocalPlatformCapabilitySource({
   tools: async () => {
     const workspaceRoot = await workspaceManager.getWorkspaceRoot();
     const settings = await webSearchSettingsRepository.load();
-    return new AgentToolExecutor(settings, undefined, mcpGateway, mcpGateway).list(workspaceRoot);
+    const baseTools = await new AgentToolExecutor(settings, undefined, mcpGateway, mcpGateway).list(workspaceRoot);
+    const sessionTools = [...getTaskToolDefinitions(), ...getBackgroundCommandToolDefinitions()];
+    const sessionNames = new Set(sessionTools.map((tool) => tool.name));
+    return [...baseTools.filter((tool) => !sessionNames.has(tool.name)), ...sessionTools];
   },
   skills: async () => skillManager.list(await workspaceManager.getWorkspaceRoot()),
   knowledgeAvailable: async () => (await knowledgeBaseUseCase.list(await workspaceManager.getWorkspaceRoot())).totalChunks > 0,

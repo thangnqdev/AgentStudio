@@ -78,6 +78,7 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - Read-only tools run automatically. In `workspace-write`, file writes and shell commands require explicit per-action approval and remain workspace-scoped/sandboxed. In `danger-full-access`, tools run automatically by default, commands are unsandboxed, and absolute file paths are allowed; explicit central `ask`/`deny` rules still take precedence.
 - Tool audit records persist locally as JSONL with a hashed workspace identifier. File contents and tool arguments are not written to that audit log.
 - `apply_patch` performs one exact, unambiguous replacement so edits do not need to resend a complete file.
+- Foreground and background command output is returned to the configured model provider. Do not run commands that print credentials or unrelated private data; the filtered child environment reduces accidental leakage but cannot sanitize files a permitted command deliberately reads.
 
 ### Provider & Model Configuration
 
@@ -184,6 +185,14 @@ The external hook file may use `{ "hooks": { ... } }` or AgentStudio's versioned
 - IDs increase monotonically even after deletion. Deleting a task removes every inbound and outbound dependency; `task_list` hides blockers that are already completed.
 - Task mutations do not touch the workspace and therefore do not require file-write approval. They are still serialized, strictly validated, size-bounded, lifecycle-hooked, and audited through the existing agent tool path.
 - Architecture decision: [`docs/adr/0009-model-facing-task-supervisor.md`](docs/adr/0009-model-facing-task-supervisor.md).
+
+### Background Command Supervisor
+
+- `run_command` accepts `run_in_background=true` and immediately returns a session-scoped task ID. The model can use `task_output` with blocking or polling semantics, and `task_stop` to terminate a running process tree.
+- Foreground and background commands use the same OS-specific sandbox specification and filtered environment. Starting/stopping remains execute risk; reading task output is read risk.
+- Output streams to private Electron `userData` storage instead of model memory or the workspace. Files are owner-only and no-follow opened, retrieval returns a bounded tail, and timeout/output limits terminate runaway commands with explicit status evidence.
+- Tasks survive follow-up turns in the same chat for the current app lifetime. Bounded historical tool results are reconstructed into later model requests so the model can reuse the exact task ID; this also means earlier command output can be sent to the configured provider again. A different chat cannot guess/read/stop tasks, and app shutdown terminates retained process trees.
+- Architecture decision and remaining durability boundary: [`docs/adr/0010-background-command-supervisor.md`](docs/adr/0010-background-command-supervisor.md).
 
 ### Read-only Subagents
 

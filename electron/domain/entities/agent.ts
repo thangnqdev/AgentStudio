@@ -17,6 +17,7 @@ export type Message = {
   sender: 'user' | 'agent' | 'system';
   content: string;
   attachments?: Attachment[];
+  actions?: AgentActionPayload[];
 };
 
 export type ChatMessage = {
