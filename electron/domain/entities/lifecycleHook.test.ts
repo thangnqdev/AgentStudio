@@ -31,6 +31,27 @@ describe('lifecycle hooks', () => {
     expect(evaluateLifecycleHooks(hooks, 'SessionStart').contexts).toEqual(['Run focused tests.']);
   });
 
+  it('supports matching and blocking task lifecycle events', () => {
+    const hooks = normalizeLifecycleHookDocument({
+      version: 1,
+      hooks: {
+        TaskCreated: [{ id: 'require-tests', matcher: '*release*', actions: [{ type: 'block_task', reason: 'Add a test task first.' }] }],
+        TaskCompleted: [{ id: 'audit-completion', actions: [{ type: 'audit', label: 'task-done' }] }],
+      },
+    });
+
+    expect(evaluateLifecycleHooks(hooks, 'TaskCreated', 'Prepare release').taskBlockReason).toBe('Add a test task first.');
+    expect(evaluateLifecycleHooks(hooks, 'TaskCreated', 'Read docs').matchedHookIds).toEqual([]);
+    expect(evaluateLifecycleHooks(hooks, 'TaskCompleted').auditLabels).toEqual(['task-done']);
+  });
+
+  it('rejects task-blocking actions outside task lifecycle events', () => {
+    expect(() => normalizeLifecycleHookDocument({
+      version: 1,
+      hooks: { PreToolUse: [{ id: 'wrong-event', actions: [{ type: 'block_task', reason: 'No.' }] }] },
+    })).toThrow('only valid for TaskCreated and TaskCompleted');
+  });
+
   it('rejects unsupported events and permission-expanding action types', () => {
     expect(() => normalizeLifecycleHookDocument({
       version: 1,

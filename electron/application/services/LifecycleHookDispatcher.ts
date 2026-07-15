@@ -22,6 +22,7 @@ export class LifecycleHookDispatcher implements ILifecycleHookDispatcher {
         labels: result.auditLabels,
         requestId: input.requestId,
         toolName: input.toolName,
+        taskId: input.taskId,
         timestamp: new Date().toISOString(),
         workspaceRoot: input.workspaceRoot,
       }).catch(() => undefined);

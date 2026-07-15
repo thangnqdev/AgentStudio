@@ -10,6 +10,7 @@ describe('parseAgentStartPayload', () => {
     expect(parseAgentStartPayload({
       requestId: 'request-1',
       taskId: 42,
+      taskListId: 'thread-1',
       messages: [
         { id: 'message-1', sender: 'user', content: 'Hello', extra: 'drop-me', attachments: [
           { id: 'attachment-1', name: 'note.txt', type: 'text', data: 'content', size: 7, extra: true },
@@ -20,6 +21,7 @@ describe('parseAgentStartPayload', () => {
     })).toEqual({
       requestId: 'request-1',
       taskId: undefined,
+      taskListId: 'thread-1',
       messages: [{
         id: 'message-1',
         sender: 'user',
@@ -35,5 +37,10 @@ describe('parseAgentStartPayload', () => {
         }],
       }],
     });
+  });
+
+  it('rejects task-list identities that could cross storage boundaries', () => {
+    expect(parseAgentStartPayload({ taskListId: '../../other-thread' }).taskListId).toBeUndefined();
+    expect(parseAgentStartPayload({ taskListId: 'thread:valid_1' }).taskListId).toBe('thread:valid_1');
   });
 });

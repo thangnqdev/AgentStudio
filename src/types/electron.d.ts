@@ -211,7 +211,7 @@ declare global {
       removeMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;
       startMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;
       stopMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;
-      startChat: (payload: { requestId: string; taskId?: string; messages: Message[] }) => void;
+      startChat: (payload: { requestId: string; taskId?: string; taskListId?: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;
       respondToToolApproval: (payload: { requestId: string; actionId: string; approved: boolean }) => void;
       onChatChunk: (listener: ChatEventListener) => () => void;

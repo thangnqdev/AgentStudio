@@ -6,6 +6,7 @@ export type LifecycleHookAuditRecord = {
   labels: string[];
   requestId?: string;
   toolName?: string;
+  taskId?: string;
   timestamp: string;
   workspaceRoot: string;
 };

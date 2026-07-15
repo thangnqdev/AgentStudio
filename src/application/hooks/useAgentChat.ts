@@ -17,6 +17,7 @@ export function useAgentChat() {
   const replaceUserMessageAndTrim = useAppStore((s) => s.replaceUserMessageAndTrim);
   const setResumableTask = useAppStore((s) => s.setResumableTask);
   const workspacePath = useAppStore((s) => s.settings.workspacePath);
+  const activeThreadId = useAppStore((s) => s.activeThreadId);
 
   useEffect(() => {
     if (!AgentBridge.isAvailable || !workspacePath || workspacePath === 'chưa có dự án') return;
@@ -81,6 +82,7 @@ export function useAgentChat() {
           }
         },
         taskId,
+        activeThreadId ?? undefined,
       );
     } catch (error) {
       const finalActions = useAppStore.getState().agentActions;

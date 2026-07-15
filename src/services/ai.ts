@@ -11,6 +11,7 @@ export function streamChatCompletion(
   _onThought?: (thought: string, requestId: string) => void,
   onTaskStatus?: (task: { taskId: string; status: 'paused' | 'completed'; completedSteps: number }) => void,
   taskId?: string,
+  taskListId?: string,
 ) {
   return new Promise<void>((resolve) => {
     const bridge = AgentBridge;
@@ -69,7 +70,7 @@ export function streamChatCompletion(
       resolve();
     }
 
-    bridge.startChat({ requestId, messages, taskId });
+    bridge.startChat({ requestId, messages, taskId, taskListId });
   });
 }
 

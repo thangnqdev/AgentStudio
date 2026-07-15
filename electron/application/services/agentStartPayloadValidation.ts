@@ -6,6 +6,7 @@ export function parseAgentStartPayload(rawPayload: unknown): AgentStartPayload {
   return {
     requestId: getOptionalString(rawPayload.requestId),
     taskId: getOptionalString(rawPayload.taskId),
+    taskListId: getOptionalTaskListId(rawPayload.taskListId),
     messages: Array.isArray(rawPayload.messages)
       ? rawPayload.messages.map(parseMessage).filter((message): message is Message => message !== null)
       : [],
@@ -47,6 +48,11 @@ function parseAttachment(value: unknown): Attachment | null {
 
 function getOptionalString(value: unknown) {
   return typeof value === 'string' ? value : undefined;
+}
+
+function getOptionalTaskListId(value: unknown) {
+  if (typeof value !== 'string' || value.length > 128 || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/.test(value)) return undefined;
+  return value;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

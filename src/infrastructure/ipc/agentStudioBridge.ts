@@ -185,7 +185,7 @@ export const AgentBridge = {
     return window.agentStudio.removeKnowledgeDocument(documentId);
   },
 
-  startChat(payload: { requestId: string; taskId?: string; messages: Message[] }) {
+  startChat(payload: { requestId: string; taskId?: string; taskListId?: string; messages: Message[] }) {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     window.agentStudio.startChat(payload);
   },

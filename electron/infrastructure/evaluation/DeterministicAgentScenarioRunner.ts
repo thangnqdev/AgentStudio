@@ -16,6 +16,9 @@ import { AttachmentMessageFormatter } from '../ai/AttachmentMessageFormatter.js'
 import { resolveSafeWorkspacePath } from '../security/resolveSafePath.js';
 import { AgentToolExecutor } from '../tools/AgentToolExecutor.js';
 import { ScriptedEvaluationProvider } from './ScriptedEvaluationProvider.js';
+import { TaskToolPlatform } from '../../application/services/TaskToolPlatform.js';
+import { ManageAgentWorkItems } from '../../application/usecases/ManageAgentWorkItems.js';
+import { JsonAgentWorkItemRepository } from '../tasks/JsonAgentWorkItemRepository.js';
 
 type Observation = GoldenTaskFixture['observed'];
 
@@ -26,6 +29,7 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
   ): Promise<Observation> {
     assertOptimizationConfig(config as RuntimeOptimizationConfig);
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-'));
+    const workItemRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'agentstudio-runtime-eval-tasks-'));
     const taskId = `runtime-eval-${randomUUID()}`;
     const traceId = randomUUID();
     const tracer = new MemoryEvaluationTracer();
@@ -52,7 +56,13 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
       const knowledgeContext = retrieval?.results.map((result) => `${result.citation}\n${result.content}`).join('\n\n')
         || definition.runtime.knowledgeContext;
       const provider = new ScriptedEvaluationProvider(definition.runtime.responses);
-      const platform = new AgentToolExecutor({ provider: 'disabled' }, undefined, undefined, undefined, config.timeoutMs);
+      const basePlatform = new AgentToolExecutor({ provider: 'disabled' }, undefined, undefined, undefined, config.timeoutMs);
+      const platform = new TaskToolPlatform(
+        basePlatform,
+        basePlatform,
+        new ManageAgentWorkItems(new JsonAgentWorkItemRepository({ directory: workItemRoot })),
+        { taskListId: taskId, requestId: taskId },
+      );
       const session = new RunAgentSession(
         provider,
         platform,
@@ -115,7 +125,10 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
         retrievedChunkIds,
       };
     } finally {
-      await fs.rm(workspaceRoot, { recursive: true, force: true });
+      await Promise.all([
+        fs.rm(workspaceRoot, { recursive: true, force: true }),
+        fs.rm(workItemRoot, { recursive: true, force: true }),
+      ]);
     }
   }
 }

@@ -115,8 +115,8 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 
 ### Declarative Lifecycle Hooks
 
-- Workspace hooks live in `.agentstudio/hooks.json`. The versioned schema recognizes the lifecycle vocabulary researched from Claude Code, while AgentStudio currently executes only `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `PostToolUseFailure`.
-- Hook actions are deliberately capability-free: `add_context`, `deny_tool`, `require_approval`, and `audit`. There is no hook action that grants a permission, executes a shell command, invokes a model, or sends an HTTP request.
+- Workspace hooks live in `.agentstudio/hooks.json`. AgentStudio executes `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `TaskCreated`, and `TaskCompleted`; unsupported lifecycle events are rejected instead of silently appearing active.
+- Hook actions are deliberately capability-free: `add_context`, `deny_tool`, `require_approval`, `block_task`, and `audit`. `block_task` is valid only for task lifecycle events and rolls back creation/completion. There is no hook action that grants a permission, executes a shell command, invokes a model, or sends an HTTP request.
 - `PreToolUse` restrictions are translated into workspace permission rules, so they also apply to read-only subagents. A malformed hook file fails closed before tool execution.
 - Hook files are bounded, cannot be symlinks, and are read only from the current workspace. Applied hook identities and labels are written to a private JSONL audit file without hook context, tool arguments, output, or the raw workspace path.
 
@@ -138,6 +138,13 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
           { "type": "require_approval", "reason": "Review every shell command." },
           { "type": "audit", "label": "shell-review" }
         ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "id": "require-verification",
+        "matcher": "*release*",
+        "actions": [{ "type": "block_task", "reason": "Verify the release before closing this task." }]
       }
     ]
   }
@@ -169,6 +176,14 @@ The external hook file may use `{ "hooks": { ... } }` or AgentStudio's versioned
 - Running tasks checkpoint to an append-only JSONL journal. Restart recovery pauses interrupted tasks, a torn final record is repaired before the next append, and oversized journals compact atomically.
 - A paused or failed task can resume in place, or continue on an independent branch. A branch preserves the source context and conversation, records `parentTaskId` lineage, receives a fresh trace and step budget, and never mutates the source task.
 - Running tasks cannot be forked because their latest in-memory tool/model state may not yet be durable. Branch depth is bounded at 20.
+
+### Model-facing Task Supervisor
+
+- The model can use `task_create`, `task_get`, `task_list`, and `task_update` to track non-trivial work, ownership, status, metadata, and dependency edges. Dependency updates are atomic and two-way; self-dependencies and cycles are rejected.
+- Each task board is scoped to the chat-thread ID, with a durable agent-task fallback for non-UI callers. Follow-up turns in one chat share the board, while a new chat starts clean. Boards live in private Electron `userData` storage under hashed filenames and never create files in the workspace.
+- IDs increase monotonically even after deletion. Deleting a task removes every inbound and outbound dependency; `task_list` hides blockers that are already completed.
+- Task mutations do not touch the workspace and therefore do not require file-write approval. They are still serialized, strictly validated, size-bounded, lifecycle-hooked, and audited through the existing agent tool path.
+- Architecture decision: [`docs/adr/0009-model-facing-task-supervisor.md`](docs/adr/0009-model-facing-task-supervisor.md).
 
 ### Read-only Subagents
 

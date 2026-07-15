@@ -60,6 +60,7 @@ export type AgentProviderSettings = {
 export type AgentStartPayload = {
   requestId?: string;
   taskId?: string;
+  taskListId?: string;
   messages?: Message[];
 };
 

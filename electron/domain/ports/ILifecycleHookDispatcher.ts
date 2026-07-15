@@ -6,6 +6,7 @@ export type LifecycleHookDispatchInput = {
   matchValue?: string;
   requestId?: string;
   toolName?: string;
+  taskId?: string;
 };
 
 export interface ILifecycleHookDispatcher {

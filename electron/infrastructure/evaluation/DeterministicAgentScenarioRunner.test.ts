@@ -39,6 +39,22 @@ describe('DeterministicAgentScenarioRunner', () => {
     expect(observed.changedFiles).toEqual([]);
   });
 
+  it('runs the production task supervisor composition without workspace changes', async () => {
+    const observed = await new DeterministicAgentScenarioRunner().run(GOLDEN_AGENT_RUNTIME_SUITE.fixtures[3], DEFAULT_OPTIMIZATION_CONFIG);
+
+    expect(observed.taskStatus).toBe('completed');
+    expect(observed.completedSteps).toBe(5);
+    expect(observed.toolCalls).toEqual([
+      { toolName: 'task_create', outcome: 'succeeded' },
+      { toolName: 'task_create', outcome: 'succeeded' },
+      { toolName: 'task_update', outcome: 'succeeded' },
+      { toolName: 'task_update', outcome: 'succeeded' },
+      { toolName: 'task_list', outcome: 'succeeded' },
+    ]);
+    expect(observed.changedFiles).toEqual([]);
+    expect(observed.policyViolationCodes).toEqual([]);
+  });
+
   it('fails the report when a real patch execution regresses', async () => {
     const definition = structuredClone(GOLDEN_AGENT_RUNTIME_SUITE);
     definition.fixtures = [definition.fixtures[0]];

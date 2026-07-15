@@ -31,12 +31,20 @@ export const LIFECYCLE_HOOK_EVENTS = [
 ] as const;
 
 export type LifecycleHookEvent = typeof LIFECYCLE_HOOK_EVENTS[number];
-export type IntegratedLifecycleHookEvent = 'SessionStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse' | 'PostToolUseFailure';
+export type IntegratedLifecycleHookEvent =
+  | 'SessionStart'
+  | 'UserPromptSubmit'
+  | 'PreToolUse'
+  | 'PostToolUse'
+  | 'PostToolUseFailure'
+  | 'TaskCreated'
+  | 'TaskCompleted';
 
 export type LifecycleHookAction =
   | { type: 'add_context'; content: string }
   | { type: 'deny_tool'; reason: string }
   | { type: 'require_approval'; reason: string }
+  | { type: 'block_task'; reason: string }
   | { type: 'audit'; label: string };
 
 export type LifecycleHookDefinition = {
@@ -51,13 +59,16 @@ export type LifecycleHookResult = {
   contexts: string[];
   denyReason?: string;
   approvalReason?: string;
+  taskBlockReason?: string;
   auditLabels: string[];
 };
 
 const INTEGRATED_EVENTS = new Set<LifecycleHookEvent>([
-  'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
+  'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'TaskCreated', 'TaskCompleted',
 ]);
 const TOOL_EVENTS = new Set<LifecycleHookEvent>(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
+const TASK_EVENTS = new Set<LifecycleHookEvent>(['TaskCreated', 'TaskCompleted']);
+const MATCHABLE_EVENTS = new Set<LifecycleHookEvent>([...TOOL_EVENTS, ...TASK_EVENTS]);
 const CONTEXT_EVENTS = new Set<LifecycleHookEvent>(['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure']);
 const MAX_HOOKS = 100;
 const MAX_ACTIONS_PER_HOOK = 10;
@@ -101,6 +112,7 @@ export function evaluateLifecycleHooks(
       if (action.type === 'add_context') result.contexts.push(action.content);
       else if (action.type === 'deny_tool' && !result.denyReason) result.denyReason = action.reason;
       else if (action.type === 'require_approval' && !result.approvalReason) result.approvalReason = action.reason;
+      else if (action.type === 'block_task' && !result.taskBlockReason) result.taskBlockReason = action.reason;
       else if (action.type === 'audit') result.auditLabels.push(action.label);
     }
   }
@@ -115,7 +127,7 @@ function normalizeDefinition(event: IntegratedLifecycleHookEvent, raw: unknown, 
   const id = readBoundedString(raw.id, MAX_ID_LENGTH, `${event} hook ${index + 1} requires id.`);
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/.test(id)) throw new Error(`${event} hook ${index + 1} has an invalid id.`);
   const matcher = raw.matcher === undefined ? undefined : readBoundedString(raw.matcher, MAX_MATCHER_LENGTH, `${id} has an invalid matcher.`);
-  if (matcher && !TOOL_EVENTS.has(event)) throw new Error(`${event} hook ${id} cannot declare a matcher.`);
+  if (matcher && !MATCHABLE_EVENTS.has(event)) throw new Error(`${event} hook ${id} cannot declare a matcher.`);
   const actions = raw.actions.map((action, actionIndex) => normalizeAction(event, id, action, actionIndex));
   return { id, event, ...(matcher ? { matcher } : {}), actions };
 }
@@ -129,6 +141,10 @@ function normalizeAction(event: IntegratedLifecycleHookEvent, hookId: string, ra
   if (raw.type === 'deny_tool' || raw.type === 'require_approval') {
     if (event !== 'PreToolUse') throw new Error(`${raw.type} is only valid for PreToolUse.`);
     return { type: raw.type, reason: readBoundedString(raw.reason, MAX_REASON_LENGTH, `${hookId} ${raw.type} requires reason.`) };
+  }
+  if (raw.type === 'block_task') {
+    if (!TASK_EVENTS.has(event)) throw new Error('block_task is only valid for TaskCreated and TaskCompleted.');
+    return { type: raw.type, reason: readBoundedString(raw.reason, MAX_REASON_LENGTH, `${hookId} block_task requires reason.`) };
   }
   if (raw.type === 'audit') {
     return { type: raw.type, label: readBoundedString(raw.label, MAX_ID_LENGTH, `${hookId} audit requires label.`) };

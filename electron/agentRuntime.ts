@@ -1,4 +1,5 @@
-import type { WebContents } from 'electron';
+import { app, type WebContents } from 'electron';
+import path from 'node:path';
 import type { AgentStartPayload, AgentProviderSettings } from './domain/entities/agent.js';
 import { RunAgentSession } from './application/usecases/RunAgentSession.js';
 import { OpenAIProvider } from './infrastructure/providers/OpenAIProvider.js';
@@ -21,6 +22,9 @@ import { RunReadOnlySubagent } from './application/usecases/RunReadOnlySubagent.
 import { DelegatingToolPlatform } from './application/services/DelegatingToolPlatform.js';
 import { agentProfileManager } from './agentProfileRuntime.js';
 import { lifecycleHookDispatcher } from './hookRuntime.js';
+import { JsonAgentWorkItemRepository } from './infrastructure/tasks/JsonAgentWorkItemRepository.js';
+import { ManageAgentWorkItems } from './application/usecases/ManageAgentWorkItems.js';
+import { TaskToolPlatform } from './application/services/TaskToolPlatform.js';
 
 export * from './domain/entities/agent.js';
 
@@ -29,6 +33,9 @@ const toolAuditLogger = new JsonlToolAuditLogger();
 const taskRepository = new JsonlAgentTaskRepository();
 export const agentTraceService = new AgentTraceService(new JsonlAgentTraceRepository());
 export const agentTaskService = new AgentTaskService(taskRepository, agentTraceService);
+const agentWorkItemManager = new ManageAgentWorkItems(new JsonAgentWorkItemRepository({
+  directory: () => path.join(app.getPath('userData'), 'agent-work-items'),
+}), lifecycleHookDispatcher);
 
 export async function runAgentSession(
   payload: AgentStartPayload,
@@ -65,7 +72,13 @@ export async function runAgentSession(
     agentProfileManager,
     skillContext,
   );
-  const toolPlatform = new DelegatingToolPlatform(baseToolPlatform, baseToolPlatform, subagent);
+  const delegatingToolPlatform = new DelegatingToolPlatform(baseToolPlatform, baseToolPlatform, subagent);
+  const toolPlatform = new TaskToolPlatform(
+    delegatingToolPlatform,
+    delegatingToolPlatform,
+    agentWorkItemManager,
+    { taskListId: payload.taskListId || task?.id || payload.taskId || payload.requestId || crypto.randomUUID(), requestId: payload.requestId },
+  );
   const session = new RunAgentSession(provider, toolPlatform, toolPlatform, new AttachmentMessageFormatter(), agentToolApprovalManager, toolAuditLogger, agentTraceService, toolPermissionPolicy, lifecycleHookDispatcher);
   const combinedSkillContext = [skillContext, agentProfileContext].filter(Boolean).join('\n\n');
   const result = await session.execute(payload, eventSink, settings, workspaceRoot, knowledgeContext, combinedSkillContext, signal, task

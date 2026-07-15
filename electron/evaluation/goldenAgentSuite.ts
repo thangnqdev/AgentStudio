@@ -8,7 +8,7 @@ const BASE_EXPECTATIONS = {
 };
 
 export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
-  id: 'agent-studio-runtime-golden', version: '2.0.0', minimumAggregateScore: 0.95,
+  id: 'agent-studio-runtime-golden', version: '2.1.0', minimumAggregateScore: 0.95,
   minimumScores: { task: 1, tool_selection: 1, code_change: 1, policy: 1, trajectory: 1, retrieval: 1 },
   fixtures: [
     {
@@ -62,6 +62,30 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
           },
         },
         responses: [{ content: 'The domain layer must remain independent from infrastructure dependencies.' }],
+      },
+    },
+    {
+      id: 'task-supervisor-dependencies', version: '1.0.0',
+      expected: {
+        ...BASE_EXPECTATIONS,
+        tools: ['task_create', 'task_update', 'task_list'],
+        forbiddenTools: ['run_command', 'write_file', 'apply_patch'],
+        changedFiles: [],
+        maxSteps: 5,
+      },
+      runtime: {
+        prompt: 'Create implementation and verification tasks, make verification depend on implementation, complete implementation, then list the remaining work.',
+        permissionMode: 'read-only',
+        initialFiles: [],
+        assertedFiles: [],
+        responses: [
+          { toolCalls: [{ name: 'task_create', args: { subject: 'Implement feature', description: 'Build the requested behavior.' } }] },
+          { toolCalls: [{ name: 'task_create', args: { subject: 'Verify feature', description: 'Run the verification checks.' } }] },
+          { toolCalls: [{ name: 'task_update', args: { taskId: '2', addBlockedBy: ['1'] } }] },
+          { toolCalls: [{ name: 'task_update', args: { taskId: '1', status: 'completed' } }] },
+          { toolCalls: [{ name: 'task_list', args: {} }] },
+          { content: 'Implementation is complete and verification is the next unblocked task.' },
+        ],
       },
     },
   ],
