@@ -2,18 +2,21 @@ import type { AgentWorktreeSession, AgentWorktreeStatePayload } from '../../doma
 import type { IAgentWorktreeGateway } from '../../domain/ports/IAgentWorktreeGateway.js';
 import type { IAgentWorktreeSessionRepository } from '../../domain/ports/IAgentWorktreeSessionRepository.js';
 import type { ExitWorktreeInput } from '../services/agentWorktreeInput.js';
+import type { ILifecycleHookDispatcher } from '../../domain/ports/ILifecycleHookDispatcher.js';
 
 export class ManageAgentWorktrees {
   private readonly gateway: IAgentWorktreeGateway;
   private readonly repository: IAgentWorktreeSessionRepository;
+  private readonly hooks?: ILifecycleHookDispatcher;
   private readonly sessions = new Map<string, AgentWorktreeSession>();
   private readonly restored = new Set<string>();
   private readonly restoreOperations = new Map<string, Promise<void>>();
   private readonly mutations = new Map<string, Promise<unknown>>();
 
-  constructor(gateway: IAgentWorktreeGateway, repository: IAgentWorktreeSessionRepository) {
+  constructor(gateway: IAgentWorktreeGateway, repository: IAgentWorktreeSessionRepository, hooks?: ILifecycleHookDispatcher) {
     this.gateway = gateway;
     this.repository = repository;
+    this.hooks = hooks;
   }
 
   async restore(scopeId: string, originalWorkspaceRoot: string) {
@@ -62,6 +65,8 @@ export class ManageAgentWorktrees {
       throw error;
     }
     this.sessions.set(scopeId, structuredClone(session));
+    await this.dispatch('WorktreeCreate', scopeId, session.originalWorkspaceRoot, session.worktreeBranch);
+    await this.dispatchCwd(scopeId, session.worktreePath);
     return structuredClone(session);
   }
 
@@ -73,7 +78,19 @@ export class ManageAgentWorktrees {
     const removal = input.action === 'remove' ? await this.gateway.remove(session, input.discardChanges) : undefined;
     await this.repository.remove(scopeId);
     this.sessions.delete(scopeId);
+    await this.dispatch('WorktreeRemove', scopeId, session.originalWorkspaceRoot, session.worktreeBranch);
+    await this.dispatchCwd(scopeId, session.originalWorkspaceRoot);
     return { session: structuredClone(session), changes, removal };
+  }
+
+  private async dispatch(event: 'WorktreeCreate' | 'WorktreeRemove', scopeId: string, workspaceRoot: string, matchValue: string) {
+    await this.hooks?.dispatch({ event, workspaceRoot, matchValue, requestId: scopeId, taskId: scopeId }).catch(() => undefined);
+  }
+
+  private async dispatchCwd(scopeId: string, workspaceRoot: string) {
+    await this.hooks?.dispatch({
+      event: 'CwdChanged', workspaceRoot, matchValue: workspaceRoot, requestId: scopeId, taskId: scopeId,
+    }).catch(() => undefined);
   }
 
   private async serialize<T>(scopeId: string, operation: () => Promise<T>): Promise<T> {

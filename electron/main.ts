@@ -25,6 +25,10 @@ import { registerOptimizerIpc } from './ipc/registerOptimizerIpc.js';
 import { registerSkillLearningIpc } from './ipc/registerSkillLearningIpc.js';
 import { registerAgentProfileIpc } from './ipc/registerAgentProfileIpc.js';
 import { registerPluginIpc } from './ipc/registerPluginIpc.js';
+import { registerRemoteTriggerIpc } from './ipc/registerRemoteTriggerIpc.js';
+import { registerAttachmentIpc } from './ipc/registerAttachmentIpc.js';
+import { registerLifecycleHookIpc } from './ipc/registerLifecycleHookIpc.js';
+import { registerManualCompactionIpc } from './ipc/registerManualCompactionIpc.js';
 import { terminalManager } from './infrastructure/PtyTerminalManager.js';
 import { ElectronAutoUpdater } from './infrastructure/ElectronAutoUpdater.js';
 import { SplashWindow } from './infrastructure/SplashWindow.js';
@@ -37,6 +41,7 @@ import { settingsRepo } from './infrastructure/JsonSettingsRepository.js';
 import { HttpProviderModelCatalog } from './infrastructure/providers/HttpProviderModelCatalog.js';
 import { ManageProviderSettings } from './application/usecases/ManageProviderSettings.js';
 import { randomUUID } from 'node:crypto';
+import { backgroundCommandNotifier } from './backgroundCommandRuntime.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
@@ -105,8 +110,12 @@ function registerIpcHandlers() {
   registerSkillLearningIpc();
   registerAgentProfileIpc();
   registerPluginIpc();
+  registerRemoteTriggerIpc();
+  registerAttachmentIpc();
+  registerLifecycleHookIpc();
+  registerManualCompactionIpc();
   if (appUpdate) registerUpdateIpc(() => win, appUpdate);
-  registerStartupIpc(() => win, splashWindow);
+  registerStartupIpc(() => win, splashWindow, backgroundCommandNotifier);
 }
 
 app.on('window-all-closed', () => {

@@ -29,7 +29,7 @@ export type Span = {
   status: TraceStatus;
 };
 
-export type ModelUsageTrace = { inputTokens: number; outputTokens: number; totalTokens: number; cachedInputTokens?: number };
+export type ModelUsageTrace = { inputTokens: number; outputTokens: number; totalTokens: number; cachedInputTokens?: number; cacheCreationInputTokens?: number };
 export type ModelCallTrace = Span & { kind: 'model_call'; model: string; finishReason?: string; usage?: ModelUsageTrace };
 export type ToolCallTrace = Span & { kind: 'tool_call'; toolName: string; risk: 'read' | 'write' | 'execute' | 'network'; outcome: 'succeeded' | 'failed' | 'denied' | 'blocked' };
 export type RetrievalTrace = Span & { kind: 'retrieval'; mode: 'lexical' | 'hybrid' | 'unavailable'; resultCount: number };
@@ -87,11 +87,12 @@ function assertKindInvariant(span: AgentSpan) {
 }
 
 function isValidModelUsage(usage: ModelUsageTrace) {
-  const values = [usage.inputTokens, usage.outputTokens, usage.totalTokens, usage.cachedInputTokens].filter((value) => value !== undefined);
-  return Object.keys(usage).every((key) => ['inputTokens', 'outputTokens', 'totalTokens', 'cachedInputTokens'].includes(key))
+  const values = [usage.inputTokens, usage.outputTokens, usage.totalTokens, usage.cachedInputTokens, usage.cacheCreationInputTokens].filter((value) => value !== undefined);
+  return Object.keys(usage).every((key) => ['inputTokens', 'outputTokens', 'totalTokens', 'cachedInputTokens', 'cacheCreationInputTokens'].includes(key))
     && values.every((value) => Number.isSafeInteger(value) && value >= 0)
     && usage.totalTokens >= usage.inputTokens + usage.outputTokens
-    && (usage.cachedInputTokens === undefined || usage.cachedInputTokens <= usage.inputTokens);
+    && (usage.cachedInputTokens === undefined || usage.cachedInputTokens <= usage.inputTokens)
+    && (usage.cacheCreationInputTokens === undefined || usage.cacheCreationInputTokens <= usage.inputTokens);
 }
 
 function assertOnlyKeys(value: object, allowedKeys: string[]) {

@@ -4,6 +4,7 @@ import { MAX_AGENT_TASK_BRANCH_DEPTH, MAX_AGENT_TASK_STEPS } from '../../domain/
 import { summarizeAgentTask } from '../../domain/entities/agentTask.js';
 import type { IAgentTaskRepository } from '../../domain/ports/IAgentTaskRepository.js';
 import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
+import { persistableAgentMessages } from '../services/persistableAgentMessages.js';
 
 export class AgentTaskService {
   private readonly repository: IAgentTaskRepository;
@@ -34,7 +35,7 @@ export class AgentTaskService {
       knowledgeContext,
     };
     await this.tracer.startTrace(traceId, taskId);
-    await this.repository.create(task);
+    await this.repository.create({ ...task, messages: persistableAgentMessages(task.messages) });
     return task;
   }
 
@@ -50,7 +51,14 @@ export class AgentTaskService {
     const traceId = task.traceId || crypto.randomUUID();
     if (task.traceId) await this.tracer.updateTrace(traceId, task.id, 'running');
     else await this.tracer.startTrace(traceId, task.id);
-    const resumed: AgentTaskRecord = { ...task, traceId, status: 'running', updatedAt: new Date().toISOString(), lastError: undefined };
+    const resumed: AgentTaskRecord = {
+      ...task,
+      traceId,
+      status: 'running',
+      updatedAt: new Date().toISOString(),
+      lastError: undefined,
+      messages: persistableAgentMessages(task.messages),
+    };
     await this.repository.saveCheckpoint(resumed);
     return resumed;
   }
@@ -75,6 +83,7 @@ export class AgentTaskService {
       parentTaskId: source.id,
       branchDepth,
       lastError: undefined,
+      messages: persistableAgentMessages(source.messages),
     };
     await this.tracer.startTrace(branch.traceId, branch.id);
     await this.repository.create(branch);
@@ -83,8 +92,9 @@ export class AgentTaskService {
   }
 
   async checkpoint(checkpoint: AgentTaskCheckpoint) {
-    await this.repository.saveCheckpoint(checkpoint);
-    await this.recordCheckpoint(checkpoint);
+    const persistable = { ...checkpoint, messages: persistableAgentMessages(checkpoint.messages) };
+    await this.repository.saveCheckpoint(persistable);
+    await this.recordCheckpoint(persistable);
   }
 
   async listResumable(workspaceRoot: string) {

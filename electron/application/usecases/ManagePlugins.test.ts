@@ -14,6 +14,7 @@ describe('ManagePlugins', () => {
     const manager = new ManagePlugins({
       discover: async () => [plugin],
       readHooks: async () => [{ id: 'guard', event: 'PreToolUse', matcher: 'run_*', actions: [{ type: 'deny_tool', reason: 'blocked' }] }],
+      readLspServers: async () => [],
     }, {
       load: async () => structuredClone(preferences),
       save: async (next) => { preferences = structuredClone(next); },
@@ -25,5 +26,20 @@ describe('ManagePlugins', () => {
     await expect(manager.listLifecycleHooks('/workspace')).resolves.toMatchObject([{ id: 'plugin:plugin-1:guard' }]);
     await manager.setTrusted('/workspace', plugin.id, false);
     expect((await manager.list('/workspace'))[0]).toMatchObject({ trusted: false, enabled: false });
+  });
+
+  it('enables a trusted LSP-only plugin and lists its scoped servers', async () => {
+    let preferences: PluginPreferences = { enabledPluginIds: [], trustedPluginIds: [] };
+    const lspPlugin = { ...plugin, id: 'plugin-lsp', components: ['lspServers' as const], unsupportedComponents: [] };
+    const server = { name: 'plugin:review-pack:typescript', command: 'typescript-language-server', args: ['--stdio'], extensionToLanguage: { '.ts': 'typescript' } };
+    const manager = new ManagePlugins({
+      discover: async () => [lspPlugin], readHooks: async () => [], readLspServers: async () => [server],
+    }, {
+      load: async () => structuredClone(preferences),
+      save: async (next) => { preferences = structuredClone(next); },
+    });
+    await manager.setTrusted('/workspace', lspPlugin.id, true);
+    await manager.setEnabled('/workspace', lspPlugin.id, true);
+    await expect(manager.listLspServers('/workspace')).resolves.toEqual([server]);
   });
 });

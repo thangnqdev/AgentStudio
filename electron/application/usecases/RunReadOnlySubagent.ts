@@ -1,4 +1,4 @@
-import type { AgentProviderSettings, ChatMessage, ToolCall } from '../../domain/entities/agent.js';
+import type { AgentProviderSettings, ChatMessage, ToolCall, ToolResult } from '../../domain/entities/agent.js';
 import { MAX_SUBAGENT_STEPS, parseSubagentRequest, type SubagentRequest, type SubagentRole } from '../../domain/entities/subagent.js';
 import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
 import type { AgentToolDefinition } from '../../domain/entities/tool.js';
@@ -14,7 +14,7 @@ import { contextProjectionPolicy, projectConversationForModel } from '../service
 import { ResilientModelRequester } from '../services/ResilientModelRequester.js';
 import { parseAndValidateToolArguments } from '../services/toolArgumentValidation.js';
 
-const ALLOWED_TOOLS = new Set(['list_files', 'read_file', 'glob', 'grep', 'load_skill']);
+const ALLOWED_TOOLS = new Set(['list_files', 'read_file', 'glob', 'grep', 'load_skill', 'LSP']);
 const MAX_RESULT_CHARACTERS = 40_000;
 
 export class RunReadOnlySubagent implements ISubagentRunner {
@@ -85,9 +85,10 @@ export class RunReadOnlySubagent implements ISubagentRunner {
       if (toolCalls.length === 0) {
         return { content: boundResult(lastContent), role: request.role, status: 'completed' as const, steps: step + 1, ...(request.agentId ? { agentId: request.agentId } : {}) };
       }
-      for (const call of toolCalls) {
-        messages.push(await this.runTool(call, toolsByName, input.workspaceRoot));
-      }
+      const toolResults = [];
+      for (const call of toolCalls) toolResults.push(await this.runTool(call, toolsByName, input.workspaceRoot));
+      messages.push(...toolResults.map((result) => result.toolMessage));
+      messages.push(...toolResults.flatMap((result) => result.supplementalMessages ?? []));
     }
 
     return {
@@ -99,10 +100,10 @@ export class RunReadOnlySubagent implements ISubagentRunner {
     };
   }
 
-  private async runTool(call: ToolCall, tools: ReadonlyMap<string, AgentToolDefinition>, workspaceRoot: string): Promise<ChatMessage> {
+  private async runTool(call: ToolCall, tools: ReadonlyMap<string, AgentToolDefinition>, workspaceRoot: string) {
     const toolName = call.function?.name || '';
     const tool = tools.get(toolName);
-    let result = { ok: false, output: 'Subagent requested a tool outside its read-only catalog.' };
+    let result: ToolResult = { ok: false, output: 'Subagent requested a tool outside its read-only catalog.' };
     if (tool) {
       const parsed = parseAndValidateToolArguments(call.function?.arguments || '{}', tool);
       if (!parsed.ok) result = { ok: false, output: parsed.error };
@@ -117,7 +118,14 @@ export class RunReadOnlySubagent implements ISubagentRunner {
         }
       }
     }
-    return { role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) };
+    return {
+      toolMessage: {
+        role: 'tool' as const,
+        tool_call_id: call.id,
+        content: JSON.stringify({ ok: result.ok, output: result.output }),
+      },
+      ...(result.supplementalMessages?.length ? { supplementalMessages: result.supplementalMessages } : {}),
+    };
   }
 }
 

@@ -1,3 +1,4 @@
+import { constants } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Attachment, ChatMessage, Message } from '../../domain/entities/agent.js';
@@ -33,11 +34,12 @@ export class AttachmentMessageFormatter implements IAttachmentMessageFormatter {
     if (attachment.data) return `[File: ${attachment.name}]\n\`\`\`\n${attachment.data}\n\`\`\``;
     if (!attachment.filePath) return this.describe(attachment);
     try {
-      const stat = await fs.stat(attachment.filePath);
-      if (!stat.isFile()) return `${this.describe(attachment)}\nPath is not a file.`;
-      if (stat.size > MAX_FILE_BYTES) return `${this.describe(attachment)}\nFile is too large to inline (${stat.size} bytes). Read it with tools only if needed.`;
-      return `[File: ${attachment.name}]\nPath: ${attachment.filePath}\n\`\`\`\n${await fs.readFile(attachment.filePath, 'utf8')}\n\`\`\``;
+      const content = await readRegularFile(attachment.filePath, MAX_FILE_BYTES);
+      return `[File: ${attachment.name}]\nPath: ${attachment.filePath}\n\`\`\`\n${content.toString('utf8')}\n\`\`\``;
     } catch (error) {
+      if (error instanceof AttachmentSizeError) {
+        return `${this.describe(attachment)}\nFile is too large to inline (${error.size} bytes). Read it with tools only if needed.`;
+      }
       return `${this.describe(attachment)}\nCould not read file: ${error instanceof Error ? error.message : 'unknown error'}`;
     }
   }
@@ -46,10 +48,8 @@ export class AttachmentMessageFormatter implements IAttachmentMessageFormatter {
     if (attachment.data) return attachment.data;
     if (!attachment.filePath) return '';
     try {
-      const stat = await fs.stat(attachment.filePath);
-      if (!stat.isFile() || stat.size > MAX_IMAGE_BYTES) return '';
       const mimeType = attachment.mimeType || this.inferMimeType(attachment.name) || 'image/png';
-      return `data:${mimeType};base64,${(await fs.readFile(attachment.filePath)).toString('base64')}`;
+      return `data:${mimeType};base64,${(await readRegularFile(attachment.filePath, MAX_IMAGE_BYTES)).toString('base64')}`;
     } catch {
       return '';
     }
@@ -65,5 +65,36 @@ export class AttachmentMessageFormatter implements IAttachmentMessageFormatter {
     if (extension === '.png') return 'image/png';
     if (extension === '.gif') return 'image/gif';
     return extension === '.webp' ? 'image/webp' : '';
+  }
+}
+
+class AttachmentSizeError extends Error {
+  readonly size: number;
+
+  constructor(size: number) {
+    super('Attachment exceeds its inline size limit.');
+    this.size = size;
+  }
+}
+
+async function readRegularFile(filePath: string, limit: number) {
+  const linkStat = await fs.lstat(filePath);
+  if (linkStat.isSymbolicLink()) throw new Error('Symbolic-link attachments are not allowed.');
+  const handle = await fs.open(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile()) throw new Error('Path is not a regular file.');
+    if (stat.size > limit) throw new AttachmentSizeError(stat.size);
+    const buffer = Buffer.alloc(stat.size + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, null);
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    if (offset > limit) throw new AttachmentSizeError(offset);
+    return buffer.subarray(0, offset);
+  } finally {
+    await handle.close();
   }
 }

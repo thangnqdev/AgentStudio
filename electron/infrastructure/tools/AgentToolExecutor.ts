@@ -5,29 +5,34 @@ import { runSandboxedCommand } from './sandbox/SandboxedCommandExecutor.js';
 import type { WebSearchSettings } from '../../domain/entities/webSearch.js';
 import { WebSearchExecutor } from './WebSearchExecutor.js';
 import type { IToolCatalog } from '../../domain/ports/IToolCatalog.js';
+import type { IToolPlatformDecorator } from '../../domain/ports/IToolPlatformDecorator.js';
 import { LOCAL_TOOL_DEFINITIONS } from './localToolDefinitions.js';
 import { WorkspaceSearchToolExecutor } from './WorkspaceSearchToolExecutor.js';
+import type { IWorkspaceFileChangeSink } from '../../domain/ports/IWorkspaceFileChangeSink.js';
+import type { CommandShell } from '../../domain/entities/backgroundCommand.js';
 
 /**
  * Facade implement IToolExecutor — dispatch đến FileSystemToolExecutor hoặc
  * SandboxedCommandExecutor theo tên tool.
  */
 export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
-  private readonly fs = new FileSystemToolExecutor();
+  private readonly fs: FileSystemToolExecutor;
   private readonly searchTools = new WorkspaceSearchToolExecutor();
   private readonly webSearch: WebSearchExecutor;
   private readonly skillLoader?: (skillId: string, workspaceRoot: string) => Promise<string>;
-  private readonly externalCatalog?: IToolCatalog;
-  private readonly externalExecutor?: IToolExecutor;
+  private readonly externalCatalog?: IToolCatalog & Partial<IToolPlatformDecorator>;
+  private readonly externalExecutor?: IToolExecutor & Partial<IToolPlatformDecorator>;
   private readonly defaultTimeoutMs: number;
 
   constructor(
     webSearchSettings: WebSearchSettings,
     skillLoader?: (skillId: string, workspaceRoot: string) => Promise<string>,
-    externalCatalog?: IToolCatalog,
-    externalExecutor?: IToolExecutor,
+    externalCatalog?: IToolCatalog & Partial<IToolPlatformDecorator>,
+    externalExecutor?: IToolExecutor & Partial<IToolPlatformDecorator>,
     defaultTimeoutMs = 15_000,
+    fileChanges?: IWorkspaceFileChangeSink,
   ) {
+    this.fs = new FileSystemToolExecutor(fileChanges);
     this.webSearch = new WebSearchExecutor(webSearchSettings);
     this.skillLoader = skillLoader;
     this.externalCatalog = externalCatalog;
@@ -40,7 +45,8 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
       ? LOCAL_TOOL_DEFINITIONS
       : LOCAL_TOOL_DEFINITIONS.filter((tool) => tool.name !== 'web_search');
     const externalTools = this.externalCatalog ? await this.externalCatalog.list(workspaceRoot) : [];
-    return [...localTools, ...externalTools];
+    const tools = [...localTools, ...externalTools];
+    return this.externalCatalog?.decorateTools?.(tools) ?? tools;
   }
 
   async execute(
@@ -51,11 +57,14 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
     signal?: AbortSignal,
   ): Promise<ToolResult> {
     try {
+      if (this.externalExecutor?.interceptsTool?.(toolName, args)) {
+        return await this.externalExecutor.execute(toolName, args, workspaceRoot, permissionMode, signal);
+      }
       if (toolName === 'list_files') {
         return await this.fs.listFiles(args, workspaceRoot, permissionMode);
       }
       if (toolName === 'read_file') {
-        return await this.fs.readFile(args, workspaceRoot, permissionMode);
+        return await this.fs.readFile(args, workspaceRoot, permissionMode, signal);
       }
       if (toolName === 'glob') {
         return await this.searchTools.glob(args, workspaceRoot, permissionMode, signal);
@@ -79,7 +88,9 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
         if (!this.skillLoader) return { ok: false, output: 'Skill infrastructure is unavailable.' };
         const skillId = typeof args.skillId === 'string' ? args.skillId : '';
         if (!skillId) return { ok: false, output: 'skillId is required.' };
-        return { ok: true, output: await this.skillLoader(skillId, workspaceRoot) };
+        const loaded = await this.skillLoader(skillId, workspaceRoot);
+        const skillArgs = typeof args.args === 'string' ? args.args.slice(0, 20_000) : '';
+        return { ok: true, output: skillArgs ? `${loaded}\n<skill-arguments>${escapeXml(skillArgs)}</skill-arguments>` : loaded };
       }
 
       if (this.externalExecutor) return await this.externalExecutor.execute(toolName, args, workspaceRoot, permissionMode, signal);
@@ -104,7 +115,12 @@ export class AgentToolExecutor implements IToolExecutor, IToolCatalog {
       return { ok: false, output: 'Command is empty.' };
     }
 
-    const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || this.defaultTimeoutMs, 1_000), 30_000);
-    return runSandboxedCommand(command, workspaceRoot, permissionMode, timeoutMs, signal);
+    const timeoutMs = Math.min(Math.max(Number(args.timeoutMs) || this.defaultTimeoutMs, 1_000), 600_000);
+    const shell: CommandShell | undefined = args.shell === 'powershell' ? 'powershell' : undefined;
+    return runSandboxedCommand(command, workspaceRoot, permissionMode, timeoutMs, signal, shell);
   }
+}
+
+function escapeXml(value: string) {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }

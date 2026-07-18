@@ -70,6 +70,9 @@ export class PrepareAgentSession {
     const userMessages = task.messages.filter((message) => message.sender === 'user' && typeof message.content === 'string');
     const question = userMessages.at(-1)?.content || '';
     const skillContext = question ? await this.skills.buildPromptContext(runtimeWorkspaceRoot, question, tuning?.skillRankingWeight) : '';
+    await this.hooks?.dispatch({
+      event: 'InstructionsLoaded', workspaceRoot: runtimeWorkspaceRoot, requestId: input.requestId, taskId: task.id,
+    }).catch(() => undefined);
     const sessionHooks = await this.hooks?.dispatch({
       event: 'SessionStart', workspaceRoot: runtimeWorkspaceRoot, requestId: input.requestId,
     });

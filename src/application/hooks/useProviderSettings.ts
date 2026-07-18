@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AgentBridge } from '../../infrastructure/ipc/agentStudioBridge';
+import { ProviderSettingsBridge } from '../../infrastructure/ipc/providerSettingsBridge';
 import { useAppStore } from '../../store/useAppStore';
 import type { AppSettings, PermissionMode } from '../../domain/entities/settings';
 
@@ -14,8 +14,8 @@ export function useProviderSettings() {
   const setActiveModel = async (modelId: string): Promise<void> => {
     setSettingsNotice('');
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.setActiveModel(modelId);
+      if (!ProviderSettingsBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await ProviderSettingsBridge.setActiveModel(modelId);
       setSettings(nextSettings);
     } catch (error) {
       setSettingsNotice(messageFrom(error, 'Không thể đổi model.'));
@@ -26,8 +26,8 @@ export function useProviderSettings() {
   const setFallbackModel = async (modelId: string): Promise<void> => {
     setSettingsNotice('');
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.setFallbackModel(modelId);
+      if (!ProviderSettingsBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await ProviderSettingsBridge.setFallbackModel(modelId);
       setSettings(nextSettings);
     } catch (error) {
       setSettingsNotice(messageFrom(error, 'Không thể đổi fallback model.'));
@@ -38,8 +38,8 @@ export function useProviderSettings() {
   const setPermissionMode = async (permissionMode: PermissionMode): Promise<void> => {
     setSettingsNotice('');
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.setPermissionMode(permissionMode);
+      if (!ProviderSettingsBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await ProviderSettingsBridge.setPermissionMode(permissionMode);
       setSettings(nextSettings);
     } catch (error) {
       setSettingsNotice(messageFrom(error, 'Không thể đổi permission mode.'));
@@ -49,8 +49,8 @@ export function useProviderSettings() {
 
   const setActiveProvider = async (id: string): Promise<void> => {
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.setActiveProvider(id);
+      if (!ProviderSettingsBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await ProviderSettingsBridge.setActiveProvider(id);
       setSettings(nextSettings);
     } catch (error) {
       throw error instanceof Error ? error : new Error('Không thể chọn provider.');
@@ -59,8 +59,8 @@ export function useProviderSettings() {
 
   const deleteProvider = async (id: string): Promise<void> => {
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.deleteProvider(id);
+      if (!ProviderSettingsBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await ProviderSettingsBridge.deleteProvider(id);
       setSettings(nextSettings);
     } catch (error) {
       throw error instanceof Error ? error : new Error('Không thể xóa provider.');
@@ -74,8 +74,8 @@ export function useProviderSettings() {
     apiKey?: string;
   }): Promise<AppSettings> => {
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const nextSettings = await AgentBridge.saveProviderAndScan(payload);
+      if (!ProviderSettingsBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const nextSettings = await ProviderSettingsBridge.saveProviderAndScan(payload);
       setSettings(nextSettings);
       return nextSettings;
     } catch (error) {
@@ -91,8 +91,8 @@ export function useProviderSettings() {
     models?: Array<{ id: string; contextWindow?: number }>;
   }): Promise<AppSettings> => {
     try {
-      if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-      const result = await AgentBridge.saveProvider(payload);
+      if (!ProviderSettingsBridge.isAvailable) throw new Error('Electron bridge is not available.');
+      const result = await ProviderSettingsBridge.saveProvider(payload);
       if (!result.success) throw new Error(result.error);
       setSettings(result.data);
       return result.data;

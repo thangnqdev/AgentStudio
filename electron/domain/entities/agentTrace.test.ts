@@ -22,7 +22,7 @@ describe('agent trace invariants', () => {
     const modelSpan: AgentSpan = {
       recordType: 'span', version: AGENT_TRACE_VERSION, kind: 'model_call', spanId: 'span-model', traceId: 'trace-1', taskId: 'task-1', step: 2,
       startedAt: '2026-01-01T00:00:00.000Z', endedAt: '2026-01-01T00:00:00.010Z', durationMs: 10, status: 'succeeded', model: 'custom-model',
-      usage: { inputTokens: 12, outputTokens: 3, totalTokens: 15, cachedInputTokens: 4 },
+      usage: { inputTokens: 12, outputTokens: 3, totalTokens: 15, cachedInputTokens: 4, cacheCreationInputTokens: 2 },
     };
     expect(() => assertValidTraceRecord(modelSpan)).not.toThrow();
     expect(() => assertValidTraceRecord({ ...modelSpan, usage: { inputTokens: 12, outputTokens: 3, totalTokens: 2 } })).toThrow('valid model metadata');

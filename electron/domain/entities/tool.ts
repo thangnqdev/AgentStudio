@@ -12,6 +12,7 @@ export type AgentToolDefinition = {
   name: string;
   description: string;
   risk: ToolRisk;
+  readOnly?: boolean;
   concurrencySafe?: boolean;
   deferLoading?: boolean;
   alwaysLoad?: boolean;
@@ -38,6 +39,7 @@ export type ToolApprovalRequest = {
   toolName: string;
   summary: string;
   workspaceRoot: string;
+  domain?: string;
 };
 
 export type ToolAuditRecord = {
@@ -52,7 +54,7 @@ export type ToolAuditRecord = {
 
 export function evaluateToolPolicy(tool: AgentToolDefinition | undefined, permissionMode: PermissionMode): ToolPolicyDecision {
   if (!tool) return { allowed: false, requiresApproval: false, reason: 'Unknown tool.' };
-  if (permissionMode === 'read-only' && tool.risk !== 'read') {
+  if (permissionMode === 'read-only' && tool.risk !== 'read' && !tool.readOnly) {
     return { allowed: false, requiresApproval: false, reason: `${tool.name} is blocked in read-only mode.` };
   }
   

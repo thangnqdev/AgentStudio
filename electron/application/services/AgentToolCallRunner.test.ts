@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AgentToolCallRunner } from './AgentToolCallRunner.js';
 import { getLocalToolDefinition } from '../../infrastructure/tools/localToolDefinitions.js';
 import type { AgentSpanInput } from '../../domain/entities/agentTrace.js';
+import { WEB_FETCH_TOOL_DEFINITION } from '../../domain/entities/webFetch.js';
 
 describe('AgentToolCallRunner', () => {
   it('waits for approval before executing a write tool', async () => {
@@ -26,6 +27,42 @@ describe('AgentToolCallRunner', () => {
     expect(actions).toEqual(['awaiting_approval', 'running', 'ok']);
     expect(execute).toHaveBeenCalledOnce();
     expect(result.stepContent).toContain('[tool:write_file]');
+  });
+
+  it('dispatches audit-only permission request and denial lifecycle events', async () => {
+    const events: string[] = [];
+    const dispatch = vi.fn(async (input: { event: string }) => {
+      events.push(input.event);
+      return { matchedHookIds: [], contexts: [], auditLabels: [] };
+    });
+    const runner = new AgentToolCallRunner(
+      { execute: vi.fn(async () => ({ ok: true, output: 'written' })) },
+      { requestApproval: async () => false }, { record: async () => undefined }, undefined, undefined, { dispatch },
+    );
+    await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'workspace-write', requestId: 'permission-hooks', step: 0, workspaceRoot: '/workspace',
+      toolCall: { id: 'write', function: { name: 'write_file', arguments: '{"path":"notes.md","content":"hello"}' } },
+      toolDefinition: getLocalToolDefinition('write_file'),
+    });
+    expect(events).toEqual(['PreToolUse', 'PermissionRequest', 'PermissionDenied']);
+  });
+
+  it('keeps multimodal supplements outside the serialized tool result', async () => {
+    const supplementalMessages = [{ role: 'user' as const, content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } }] }];
+    const runner = new AgentToolCallRunner(
+      { execute: async () => ({ ok: true, output: 'Image read.', supplementalMessages }) },
+      { requestApproval: async () => true }, { record: async () => undefined },
+    );
+    const result = await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'read-only', requestId: 'media', step: 0, workspaceRoot: '/workspace',
+      toolCall: { id: 'image-call', function: { name: 'read_file', arguments: '{"path":"pixel.png"}' } },
+      toolDefinition: getLocalToolDefinition('read_file'),
+    });
+    expect(result.supplementalMessages).toEqual(supplementalMessages);
+    expect(result.toolMessage.content).toBe('{"ok":true,"output":"Image read."}');
+    expect(result.toolMessage.content).not.toContain('base64');
   });
 
   it('rejects mutation tools in read-only mode without executing them', async () => {
@@ -61,6 +98,22 @@ describe('AgentToolCallRunner', () => {
     });
     expect(requestApproval).toHaveBeenCalledOnce();
     expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it('includes the normalized WebFetch hostname in approval requests', async () => {
+    const requestApproval = vi.fn(async () => true);
+    const runner = new AgentToolCallRunner(
+      { execute: async () => ({ ok: true, output: 'fetched' }) },
+      { requestApproval },
+      { record: async () => undefined },
+    );
+    await runner.run({
+      eventSink: { emitAction: () => undefined, emitChunk: () => undefined, emitDone: () => undefined, emitError: () => undefined },
+      permissionMode: 'workspace-write', requestId: 'request-web', step: 0, workspaceRoot: '/workspace',
+      toolCall: { id: 'web-action', function: { name: 'WebFetch', arguments: '{"url":"https://Docs.Example.com./guide","prompt":"summarize"}' } },
+      toolDefinition: WEB_FETCH_TOOL_DEFINITION,
+    });
+    expect(requestApproval).toHaveBeenCalledWith(expect.objectContaining({ domain: 'docs.example.com' }));
   });
 
   it('rejects malformed tool arguments before asking for approval or executing', async () => {

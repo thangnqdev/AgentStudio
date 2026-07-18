@@ -16,10 +16,18 @@ import { AttachmentMessageFormatter } from '../ai/AttachmentMessageFormatter.js'
 import { resolveSafeWorkspacePath } from '../security/resolveSafePath.js';
 import { ScriptedEvaluationProvider } from './ScriptedEvaluationProvider.js';
 import { createEvaluationToolRuntime } from './createEvaluationToolRuntime.js';
+import { BackgroundCommandProcessHost } from '../tasks/BackgroundCommandProcessHost.js';
+import { fileURLToPath } from 'node:url';
 
 type Observation = GoldenTaskFixture['observed'];
 
 export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenarioRunner {
+  private readonly backgroundProcessHost: BackgroundCommandProcessHost;
+
+  constructor(backgroundProcessHost: BackgroundCommandProcessHost = sourceBackgroundProcessHost()) {
+    this.backgroundProcessHost = backgroundProcessHost;
+  }
+
   async run(
     definition: Readonly<GoldenRuntimeTaskDefinition>,
     config: Readonly<RuntimeOptimizationConfig>,
@@ -61,8 +69,9 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
       const provider = new ScriptedEvaluationProvider(definition.runtime.responses);
       const workerProvider = new ScriptedEvaluationProvider(definition.runtime.workerResponses ?? []);
       const runtime = createEvaluationToolRuntime({
-        workspaceRoot, taskId, config, workerProvider, tracer,
+        workspaceRoot, taskId, config, workerProvider, tracer, backgroundProcessHost: this.backgroundProcessHost,
         interactionResponses: [...(definition.runtime.interactions ?? [])],
+        webPages: [...(definition.runtime.webPages ?? [])],
         roots: { workItems: workItemRoot, background: backgroundOutputRoot, plans: planOutputRoot, worktrees: worktreeOutputRoot, workers: workerOutputRoot, teams: teamOutputRoot },
       });
       const { platform, permissionPolicy, workers, backgroundSupervisor } = runtime;
@@ -146,6 +155,12 @@ export class DeterministicAgentScenarioRunner implements IAgentEvaluationScenari
       ]);
     }
   }
+}
+
+function sourceBackgroundProcessHost() {
+  const entry = fileURLToPath(new URL('../../backgroundCommandProcess.ts', import.meta.url));
+  const loader = fileURLToPath(new URL('../../../node_modules/tsx/dist/loader.mjs', import.meta.url));
+  return new BackgroundCommandProcessHost(entry, ['--import', loader]);
 }
 
 async function waitForBackgroundWorkers(workers: ReturnType<typeof createEvaluationToolRuntime>['workers'], scopeId: string) {

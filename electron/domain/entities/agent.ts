@@ -8,6 +8,7 @@ export type Attachment = {
   type: 'text' | 'image' | 'audio' | 'video';
   data?: string;
   filePath?: string;
+  authorizationToken?: string;
   mimeType?: string;
   size?: number;
 };
@@ -81,11 +82,14 @@ export type ModelTokenUsage = {
   outputTokens: number;
   totalTokens: number;
   cachedInputTokens?: number;
+  cacheCreationInputTokens?: number;
 };
 
 export type ToolResult = {
   ok: boolean;
   output: string;
+  /** Model-facing messages that must follow every tool result from the same assistant turn. */
+  supplementalMessages?: ChatMessage[];
 };
 
 // Regex dùng chung phía electron để parse tool logs từ text output

@@ -3,6 +3,7 @@ import { workspaceManager } from '../infrastructure/WorkspaceManager.js';
 import { settingsRepo } from '../infrastructure/JsonSettingsRepository.js';
 import { stopWorkspaceKnowledgeSync } from '../knowledgeRuntime.js';
 import { FileSystemToolExecutor } from '../infrastructure/tools/FileSystemToolExecutor.js';
+import { parseChatHistoryInput } from '../application/services/chatHistoryInput.js';
 
 const workspaceFileExecutor = new FileSystemToolExecutor();
 
@@ -57,12 +58,14 @@ export function registerWorkspaceIpc(win: BrowserWindow | null) {
     }
   });
 
-  ipcMain.handle('chat:load-workspace', async (_event, rawWorkspacePath?: string) => {
-    return workspaceManager.loadWorkspaceChatHistory(getString(rawWorkspacePath) || await workspaceManager.getWorkspaceRoot());
+  ipcMain.handle('chat:load-workspace', async () => {
+    const workspaceRoot = await workspaceManager.getWorkspaceRoot();
+    return parseChatHistoryInput(await workspaceManager.loadWorkspaceChatHistory(workspaceRoot));
   });
 
   ipcMain.handle('chat:save-workspace', async (_event, rawPayload: unknown) => {
-    const payload = typeof rawPayload === 'object' && rawPayload !== null ? rawPayload : {};
-    return workspaceManager.saveWorkspaceChatHistory(payload);
+    const workspaceRoot = await workspaceManager.getWorkspaceRoot();
+    const payload = parseChatHistoryInput(rawPayload);
+    return workspaceManager.saveWorkspaceChatHistory({ ...payload, workspacePath: workspaceRoot });
   });
 }

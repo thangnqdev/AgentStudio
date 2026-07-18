@@ -9,7 +9,11 @@ export default defineConfig({
     react(),
     electron({
       main: {
-        entry: 'electron/main.ts',
+        entry: {
+          main: 'electron/main.ts',
+          'agent-worker-process': 'electron/agentWorkerProcess.ts',
+          'background-command-process': 'electron/backgroundCommandProcess.ts',
+        },
         vite: {
           build: {
             rolldownOptions: {

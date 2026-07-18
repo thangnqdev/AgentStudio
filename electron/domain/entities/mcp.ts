@@ -13,17 +13,39 @@ export type McpServerConfig = {
   hasCredentials: boolean;
 };
 
+export type McpOAuthTokens = {
+  access_token: string;
+  token_type: string;
+  expires_in?: number;
+  refresh_token?: string;
+  scope?: string;
+};
+
+export type McpOAuthClientInformation = {
+  client_id: string;
+  client_secret?: string;
+  client_id_issued_at?: number;
+  client_secret_expires_at?: number;
+};
+
+export type McpInteractiveOAuthCredentials = {
+  redirectUrl: string;
+  tokens?: McpOAuthTokens;
+  clientInformation?: McpOAuthClientInformation;
+};
+
 export type McpCredentials = {
   bearerToken?: string;
   oauthClientId?: string;
   oauthClientSecret?: string;
   oauthScope?: string;
+  interactiveOAuth?: McpInteractiveOAuthCredentials;
   environment?: Record<string, string>;
 };
 
 export type McpServerRecord = McpServerConfig & { credentials: McpCredentials };
 
-export type McpConnectionState = 'stopped' | 'starting' | 'connected' | 'error';
+export type McpConnectionState = 'stopped' | 'starting' | 'connected' | 'needs-auth' | 'error';
 
 export type McpServerStatus = McpServerConfig & {
   state: McpConnectionState;
@@ -40,3 +62,8 @@ export type SaveMcpServerInput = {
   credentials?: McpCredentials;
   clearCredentials?: boolean;
 };
+
+export function toPublicMcpServerConfig(server: McpServerRecord): McpServerConfig {
+  const { credentials: _credentials, ...config } = server;
+  return config;
+}

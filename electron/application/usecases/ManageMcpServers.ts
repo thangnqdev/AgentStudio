@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { McpCredentials, McpServerRecord, SaveMcpServerInput } from '../../domain/entities/mcp.js';
+import { toPublicMcpServerConfig, type McpCredentials, type McpServerRecord, type SaveMcpServerInput } from '../../domain/entities/mcp.js';
 import type { ToolRisk } from '../../domain/entities/tool.js';
 import type { IMcpConnectionGateway } from '../../domain/ports/IMcpConnectionGateway.js';
 import type { IMcpServerRepository } from '../../domain/ports/IMcpServerRepository.js';
@@ -17,27 +17,29 @@ export class ManageMcpServers {
   }
 
   async list() {
-    return (await this.repository.loadAll()).map((server) => this.gateway.getStatus(toPublicConfig(server)));
+    return (await this.repository.loadAll()).map((server) => this.gateway.getStatus(toPublicMcpServerConfig(server)));
   }
 
   async save(input: SaveMcpServerInput, workspaceRoot: string) {
-    const existing = input.id ? (await this.repository.loadAll()).find((server) => server.id === input.id) : undefined;
+    const servers = await this.repository.loadAll();
+    const existing = input.id ? servers.find((server) => server.id === input.id) : undefined;
     const record = normalizeServer(input, existing);
-    const wasConnected = existing ? this.gateway.getStatus(toPublicConfig(existing)).state === 'connected' : false;
+    if (servers.some((server) => server.id !== record.id && server.name === record.name)) throw new Error(`MCP server name "${record.name}" already exists.`);
+    const wasConnected = existing ? this.gateway.getStatus(toPublicMcpServerConfig(existing)).state === 'connected' : false;
     await this.repository.save(record);
-    if (wasConnected) await this.gateway.start(toPublicConfig(record), record.credentials, workspaceRoot);
+    if (wasConnected) await this.gateway.start(toPublicMcpServerConfig(record), record.credentials, workspaceRoot);
     return this.list();
   }
 
   async remove(serverId: string) {
-    await this.gateway.stop(serverId);
+    await this.gateway.forget(serverId);
     await this.repository.remove(serverId);
     return this.list();
   }
 
   async start(serverId: string, workspaceRoot: string) {
     const server = await this.get(serverId);
-    await this.gateway.start(toPublicConfig(server), server.credentials, workspaceRoot);
+    await this.gateway.start(toPublicMcpServerConfig(server), server.credentials, workspaceRoot);
     return this.list();
   }
 
@@ -48,7 +50,7 @@ export class ManageMcpServers {
 
   async startAuto(workspaceRoot: string) {
     const servers = (await this.repository.loadAll()).filter((server) => server.autoStart);
-    await Promise.allSettled(servers.map((server) => this.gateway.start(toPublicConfig(server), server.credentials, workspaceRoot)));
+    await Promise.allSettled(servers.map((server) => this.gateway.start(toPublicMcpServerConfig(server), server.credentials, workspaceRoot)));
   }
 
   stopAll() {
@@ -76,7 +78,7 @@ function normalizeServer(input: SaveMcpServerInput, existing?: McpServerRecord):
     transport,
     autoStart: input.autoStart === true,
     defaultRisk,
-    hasCredentials: Boolean(credentials.bearerToken || credentials.oauthClientSecret || Object.keys(credentials.environment ?? {}).length),
+    hasCredentials: Boolean(credentials.bearerToken || credentials.oauthClientSecret || credentials.interactiveOAuth || Object.keys(credentials.environment ?? {}).length),
     credentials,
   };
 }
@@ -111,15 +113,11 @@ function normalizeCredentials(credentials: McpCredentials): McpCredentials {
     oauthClientId,
     oauthClientSecret,
     oauthScope: credentials.oauthScope?.trim().slice(0, 1_024),
+    interactiveOAuth: credentials.interactiveOAuth,
     environment,
   };
 }
 
 function normalizeRisk(risk: ToolRisk | undefined): ToolRisk {
   return risk === 'read' || risk === 'write' || risk === 'network' ? risk : 'execute';
-}
-
-function toPublicConfig(server: McpServerRecord) {
-  const { credentials: _credentials, ...config } = server;
-  return config;
 }

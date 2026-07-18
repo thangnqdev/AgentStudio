@@ -29,4 +29,4 @@ The root session, durable workers, and deterministic evaluation runtime use the 
 - Loaded-tool state survives checkpoint resume without a second persistence format.
 - Selecting a tool never grants permission to execute it.
 - The golden runtime suite now exercises search-before-use for team, task, background, plan, and worktree tools.
-- `WebFetch`, LSP, notebook editing, MCP resources/auth, and exact compatibility aliases remain separate parity milestones.
+- `WebFetch`, LSP, notebook editing, MCP resources/authentication, cron, remote triggers and exact compatibility aliases are integrated behind the same deferred loading boundary. Passive LSP diagnostics use bounded ambient context rather than a callable schema.

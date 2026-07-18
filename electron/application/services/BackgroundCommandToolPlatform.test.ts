@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { BackgroundCommandSnapshot } from '../../domain/entities/backgroundCommand.js';
 import type { IBackgroundCommandSupervisor } from '../../domain/ports/IBackgroundCommandSupervisor.js';
 import { ManageBackgroundCommands } from '../usecases/ManageBackgroundCommands.js';
+import { ManageAgentWorkers } from '../usecases/ManageAgentWorkers.js';
+import type { AgentWorkerRecord } from '../../domain/entities/agentWorker.js';
 import { BackgroundCommandToolPlatform } from './BackgroundCommandToolPlatform.js';
 
 const task: BackgroundCommandSnapshot = {
@@ -14,7 +16,10 @@ describe('BackgroundCommandToolPlatform', () => {
   it('extends run_command and exposes output/stop tools without duplicating base tools', async () => {
     const platform = createPlatform();
     const tools = await platform.list('/workspace');
-    expect(tools.map((item) => item.name)).toEqual(['run_command', 'read_file', 'task_output', 'task_stop']);
+    expect(tools.map((item) => item.name)).toEqual([
+      'run_command', 'read_file', 'TaskOutput', 'TaskStop', 'task_output', 'task_stop',
+      'AgentOutputTool', 'BashOutputTool', 'KillShell',
+    ]);
     const run = tools.find((item) => item.name === 'run_command');
     expect(JSON.stringify(run?.parameters)).toContain('runInBackground');
   });
@@ -37,6 +42,39 @@ describe('BackgroundCommandToolPlatform', () => {
     const result = await platform.execute('task_output', { taskId: 'bg-1', block: false }, '/workspace', 'read-only');
     expect(result.output).toContain('<retrieval_status>not_ready</retrieval_status>');
     expect(result.output).toContain('<task_id>bg-1</task_id>');
+    const exact = await platform.execute('TaskOutput', { task_id: 'bg-1', block: false, timeout: 5 }, '/workspace', 'read-only');
+    expect(exact.output).toContain('<task_type>local_bash</task_type>');
+    const legacy = await platform.execute('BashOutputTool', { task_id: 'bg-1', block: false }, '/workspace', 'read-only');
+    expect(legacy.output).toContain('<task_id>bg-1</task_id>');
+  });
+
+  it('uses the exact TaskOutput and TaskStop namespace for background agents', async () => {
+    let worker: AgentWorkerRecord = {
+      id: 'agent-1', traceId: 'trace-1', parentScopeId: 'thread-1', description: 'Review code', prompt: 'Review',
+      workspaceRoot: '/workspace', permissionMode: 'workspace-write', depth: 1, background: true,
+      status: 'completed', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:01.000Z',
+      completedSteps: 1, messages: [], conversation: [], result: 'Review complete.',
+    };
+    const repository = {
+      create: async () => undefined, get: async (id: string) => id === worker.id ? structuredClone(worker) : null,
+      list: async () => [structuredClone(worker)], saveCheckpoint: async () => undefined,
+      enqueueMessage: async () => undefined, drainMessages: async () => [], addNotification: async () => undefined,
+      drainNotifications: async () => [], recoverInterrupted: async () => [],
+    };
+    const workers = new ManageAgentWorkers(repository, {
+      newSpanId: () => 'span', startTrace: async () => undefined, updateTrace: async () => undefined,
+      recordSpan: async () => 'span',
+    });
+    const dependencies = createPlatformWithDependencies(workers);
+    const output = await dependencies.platform.execute('TaskOutput', {
+      task_id: worker.id, block: false, timeout: 1,
+    }, '/workspace', 'read-only');
+    expect(output.output).toContain('<task_type>local_agent</task_type>');
+    expect(output.output).toContain('Review complete.');
+
+    worker = { ...worker, status: 'running' };
+    const stopped = await dependencies.platform.execute('TaskStop', { task_id: worker.id }, '/workspace', 'workspace-write');
+    expect(stopped.output).toContain('"task_type":"local_agent"');
   });
 });
 
@@ -44,7 +82,7 @@ function createPlatform() {
   return createPlatformWithDependencies().platform;
 }
 
-function createPlatformWithDependencies() {
+function createPlatformWithDependencies(workers?: ManageAgentWorkers) {
   const supervisor: IBackgroundCommandSupervisor = {
     start: vi.fn(async () => task),
     output: vi.fn(async () => ({ retrievalStatus: 'not_ready' as const, task, output: 'running' })),
@@ -66,6 +104,7 @@ function createPlatformWithDependencies() {
       baseExecutor,
       new ManageBackgroundCommands(supervisor),
       'thread-1',
+      workers,
     ),
   };
 }

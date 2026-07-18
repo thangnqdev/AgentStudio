@@ -4,7 +4,7 @@ import type { AIModel, AppSettings, PermissionMode } from '../domain/entities/se
 import type { KnowledgeDocument } from '../domain/entities/knowledge';
 import type { AppUpdateSnapshot } from '../domain/entities/appUpdate';
 import type { SkillStatus } from '../domain/entities/skill';
-import type { McpServerStatus, SaveMcpServerPayload } from '../domain/entities/mcp';
+import type { McpAuthOutput, McpServerStatus, SaveMcpServerPayload } from '../domain/entities/mcp';
 import type { AgentTraceDetails, AgentTraceSummary } from '../domain/entities/agentTrace';
 import type { AgentEvaluationReport } from '../domain/entities/agentEvaluation';
 import type { NodeCheckpoint, WorkflowDefinition } from '../domain/entities/workflow';
@@ -17,6 +17,10 @@ import type { AgentInteractionRequest, AgentInteractionResponse } from '../domai
 import type { AgentWorktreeState } from '../domain/entities/agentWorktree';
 import type { AgentWorkerEvent, AgentWorkerSummary } from '../domain/entities/agentWorker';
 import type { AgentTeamEvent, AgentTeamView } from '../domain/entities/agentTeam';
+import type { PublicRemoteTriggerSettings, SaveRemoteTriggerSettingsPayload } from '../domain/entities/remoteTrigger';
+import type { BackgroundCommandNotice } from '../domain/entities/backgroundCommand';
+import type { LifecycleHookSummary } from '../domain/entities/lifecycleHook';
+import type { ManualCompactionPayload, ManualCompactionResult } from '../domain/entities/manualCompaction';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -69,6 +73,7 @@ export type ChatTaskStatusPayload = {
 export type ChatEventListener = (payload: ChatEventPayload) => void;
 export type AgentWorkerEventListener = (payload: AgentWorkerEvent) => void;
 export type AgentTeamEventListener = (payload: AgentTeamEvent) => void;
+export type BackgroundCommandNoticeListener = (payload: BackgroundCommandNotice) => void;
 
 export type TerminalCreatePayload = {
   cols: number;
@@ -168,6 +173,15 @@ export type IpcResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
 
+export type AttachmentAuthorizationPayload = {
+  id: string;
+  name: string;
+  type: 'text' | 'image' | 'audio' | 'video';
+  authorizationToken: string;
+  mimeType?: string;
+  size?: number;
+};
+
 declare global {
   interface Window {
     agentStudio?: {
@@ -192,14 +206,19 @@ declare global {
       setActiveModel: (modelId: string) => Promise<AppSettings>;
       setFallbackModel: (modelId: string) => Promise<AppSettings>;
       setPermissionMode: (mode: PermissionMode) => Promise<AppSettings>;
+      onSettingsChanged: (listener: (settings: AppSettings) => void) => () => void;
       loadWebSearchSettings: () => Promise<WebSearchSettingsResult>;
       saveWebSearchSettings: (payload: { provider: WebSearchProvider; baseUrl?: string; apiKey?: string; model?: string }) => Promise<WebSearchSettingsResult>;
+      loadRemoteTriggerSettings: () => Promise<IpcResult<PublicRemoteTriggerSettings>>;
+      saveRemoteTriggerSettings: (payload: SaveRemoteTriggerSettingsPayload) => Promise<IpcResult<PublicRemoteTriggerSettings>>;
       getCurrentWorkspace: () => Promise<WorkspacePayload>;
       selectWorkspace: () => Promise<WorkspacePayload>;
       writeWorkspaceFile: (payload: WriteWorkspaceFilePayload) => Promise<{ success: true; path: string } | { success: false; error: string }>;
-      getFilePath: (file: File) => string;
-      loadChatHistory: (workspacePath: string) => Promise<ChatHistoryPayload>;
-      saveChatHistory: (payload: { workspacePath: string; threads: ChatThread[]; activeThreadId: string | null }) => Promise<{ ok: boolean }>;
+      authorizeAttachment: (file: File) => Promise<IpcResult<AttachmentAuthorizationPayload>>;
+      loadChatHistory: () => Promise<ChatHistoryPayload>;
+      saveChatHistory: (payload: { threads: ChatThread[]; activeThreadId: string | null }) => Promise<{ ok: boolean }>;
+      listLifecycleHooks: () => Promise<IpcResult<LifecycleHookSummary[]>>;
+      compactConversation: (payload: ManualCompactionPayload) => Promise<IpcResult<ManualCompactionResult>>;
       getGitBranch: () => Promise<string | null>;
       listKnowledge: () => Promise<IpcResult<KnowledgeLibraryPayload>>;
       selectAndImportKnowledge: () => Promise<IpcResult<KnowledgeImportPayload>>;
@@ -220,9 +239,10 @@ declare global {
       removeMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;
       startMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;
       stopMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;
+      authenticateMcpServer: (serverId: string) => Promise<IpcResult<McpAuthOutput>>;
       startChat: (payload: { requestId: string; taskId?: string; taskListId?: string; messages: Message[] }) => void;
       stopChat: (requestId: string) => void;
-      respondToToolApproval: (payload: { requestId: string; actionId: string; approved: boolean }) => void;
+      respondToToolApproval: (payload: { requestId: string; actionId: string; approved: boolean; rememberDomain?: boolean }) => void;
       respondToAgentInteraction: (payload: { requestId: string; interactionId: string; response: AgentInteractionResponse }) => void;
       onChatChunk: (listener: ChatEventListener) => () => void;
       onChatAction: (listener: ChatEventListener) => () => void;
@@ -239,6 +259,7 @@ declare global {
       onAgentWorkerEvent: (listener: AgentWorkerEventListener) => () => void;
       getAgentTeam: (scopeId: string) => Promise<IpcResult<AgentTeamView | null>>;
       onAgentTeamEvent: (listener: AgentTeamEventListener) => () => void;
+      onBackgroundCommandNotice: (listener: BackgroundCommandNoticeListener) => () => void;
       listResumableAgentTasks: () => Promise<AgentTaskListResult>;
       forkAgentTask: (taskId: string) => Promise<IpcResult<AgentTaskSummary>>;
       listAgentTraces: (limit?: number) => Promise<IpcResult<AgentTraceSummary[]>>;

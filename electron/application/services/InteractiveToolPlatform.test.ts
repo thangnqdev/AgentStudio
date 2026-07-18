@@ -26,6 +26,9 @@ describe('InteractiveToolPlatform', () => {
       { accepted: true },
     ];
     const save = vi.fn(async () => ({ reference: 'plan-private.md' }));
+    const hookDispatch = vi.fn(async (_input: { event: string; workspaceRoot: string; matchValue?: string }) => (
+      { matchedHookIds: [], contexts: [], auditLabels: [] }
+    ));
     const plans = new ManageAgentPlanMode({ save });
     const platform = new InteractiveToolPlatform(
       { list: async () => [] },
@@ -35,6 +38,7 @@ describe('InteractiveToolPlatform', () => {
       eventSink(emitted, planModeEvents),
       { scopeId: 'chat-a', requestId: 'request-a' },
       () => `interaction-${emitted.length + 1}`,
+      { dispatch: hookDispatch },
     );
 
     const answer = await platform.execute('AskUserQuestion', { questions: [question] }, '/workspace', 'read-only');
@@ -51,6 +55,10 @@ describe('InteractiveToolPlatform', () => {
     expect(save).toHaveBeenCalledWith('chat-a', '# Implement through ports');
     expect(emitted.map((item) => item.kind)).toEqual(['questions', 'plan_enter', 'plan_exit']);
     expect(planModeEvents).toEqual([true, false]);
+    expect(hookDispatch.mock.calls.map(([input]) => input)).toEqual([
+      expect.objectContaining({ event: 'Elicitation', workspaceRoot: '/workspace', matchValue: 'questions' }),
+      expect.objectContaining({ event: 'ElicitationResult', workspaceRoot: '/workspace', matchValue: 'questions' }),
+    ]);
   });
 
   it('keeps plan mode active when the user requests plan changes', async () => {

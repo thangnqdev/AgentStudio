@@ -1,4 +1,4 @@
-import type { ChatMessage, PermissionMode, ToolCall } from '../../domain/entities/agent.js';
+import type { ChatMessage, PermissionMode, ToolCall, ToolResult } from '../../domain/entities/agent.js';
 import { evaluateToolPermission } from '../../domain/entities/permissionRule.js';
 import type { AgentToolDefinition, ToolPolicyDecision } from '../../domain/entities/tool.js';
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
@@ -90,6 +90,7 @@ export class AgentToolCallRunner {
     }
     if (!policy.allowed) {
       const output = policy.reason || 'Tool execution is blocked by policy.';
+      await this.dispatchPermissionHook('PermissionDenied', input, toolName);
       input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: 'error', output });
       await this.recordAudit(actionId, 'error', input, risk, toolName);
       await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, 'blocked', 'denied');
@@ -97,6 +98,7 @@ export class AgentToolCallRunner {
     }
     if (preToolHook?.denyReason) {
       const output = `Tool denied by declarative lifecycle hook: ${preToolHook.denyReason}`;
+      await this.dispatchPermissionHook('PermissionDenied', input, toolName);
       input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: 'error', output });
       await this.recordAudit(actionId, 'denied', input, risk, toolName);
       await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, 'blocked', 'denied');
@@ -104,13 +106,19 @@ export class AgentToolCallRunner {
     }
 
     if (policy.requiresApproval || preToolHook?.approvalReason) {
+      await this.dispatchPermissionHook('PermissionRequest', input, toolName);
       const approvalStartedAt = new Date().toISOString();
       const approvalSummary = preToolHook?.approvalReason ? `${argsSummary}\nHook requires approval: ${preToolHook.approvalReason}` : argsSummary;
       input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: approvalSummary, risk, status: 'awaiting_approval' });
-      const approved = await this.approvalGateway.requestApproval({ actionId, requestId: input.requestId, risk, toolName, summary: approvalSummary, workspaceRoot: input.workspaceRoot });
+      const domain = readApprovalDomain(toolName, args);
+      const approved = await this.approvalGateway.requestApproval({
+        actionId, requestId: input.requestId, risk, toolName, summary: approvalSummary,
+        workspaceRoot: input.workspaceRoot, ...(domain ? { domain } : {}),
+      });
       await this.recordApprovalSpan(input, toolSpanId, approvalStartedAt, toolName, approved ? 'approved' : 'denied');
       if (!approved) {
         const output = 'Tool execution was denied or approval timed out.';
+        await this.dispatchPermissionHook('PermissionDenied', input, toolName);
         input.eventSink.emitAction(input.requestId, { id: actionId, toolName, args: argsSummary, risk, status: 'denied', output });
         await this.recordAudit(actionId, 'denied', input, risk, toolName);
         await this.recordToolSpan(input, toolSpanId, startedAt, toolName, risk, 'denied', 'denied');
@@ -129,7 +137,7 @@ export class AgentToolCallRunner {
     return this.result(input.toolCall, toolName, argsText, finalResult);
   }
 
-  private async applyPostToolHooks(input: ToolCallRunInput, toolName: string, toolResult: { ok: boolean; output: string }) {
+  private async applyPostToolHooks(input: ToolCallRunInput, toolName: string, toolResult: ToolResult): Promise<ToolResult> {
     if (!this.hooks) return toolResult;
     const event = toolResult.ok ? 'PostToolUse' as const : 'PostToolUseFailure' as const;
     try {
@@ -144,11 +152,20 @@ export class AgentToolCallRunner {
     }
   }
 
-  private result(toolCall: ToolCall, toolName: string, argsText: string, toolResult: { ok: boolean; output: string }) {
+  private result(toolCall: ToolCall, toolName: string, argsText: string, toolResult: ToolResult) {
+    const serializableResult = { ok: toolResult.ok, output: toolResult.output };
     return {
       stepContent: `\n[tool:${toolName}] ${argsText}\n${toolResult.ok ? '[ok]' : '[blocked/error]'}\n${toolResult.output}\n`,
-      toolMessage: { role: 'tool' as const, tool_call_id: toolCall.id, content: JSON.stringify(toolResult) } satisfies ChatMessage,
+      toolMessage: { role: 'tool' as const, tool_call_id: toolCall.id, content: JSON.stringify(serializableResult) } satisfies ChatMessage,
+      ...(toolResult.supplementalMessages?.length ? { supplementalMessages: toolResult.supplementalMessages } : {}),
     };
+  }
+
+  private async dispatchPermissionHook(event: 'PermissionRequest' | 'PermissionDenied', input: ToolCallRunInput, toolName: string) {
+    await this.hooks?.dispatch({
+      event, workspaceRoot: input.workspaceRoot, matchValue: toolName,
+      requestId: input.requestId, toolName, taskId: input.traceContext?.taskId,
+    }).catch(() => undefined);
   }
 
   private async recordAudit(actionId: string, outcome: 'approved' | 'denied' | 'error' | 'started' | 'succeeded', input: ToolCallRunInput, risk: 'read' | 'write' | 'execute' | 'network', toolName: string) {
@@ -164,4 +181,9 @@ export class AgentToolCallRunner {
     if (!this.tracer || !input.traceContext || !toolSpanId) return;
     await this.tracer.recordSpan({ kind: 'approval', ...input.traceContext, requestId: input.requestId, parentSpanId: toolSpanId, step: input.step, startedAt, endedAt: new Date().toISOString(), status: decision === 'approved' ? 'succeeded' : 'denied', toolName, toolSpanId, decision }).catch(() => undefined);
   }
+}
+
+function readApprovalDomain(toolName: string, args: Record<string, unknown>) {
+  if (toolName !== 'WebFetch' || typeof args.url !== 'string') return undefined;
+  try { return new URL(args.url).hostname.toLowerCase().replace(/\.$/, ''); } catch { return undefined; }
 }

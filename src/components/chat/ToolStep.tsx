@@ -29,7 +29,7 @@ export function ToolStep({ action }: { action: AgentAction }) {
           {isOpen ? 'expand_less' : 'expand_more'}
         </span>
       </button>
-      {awaitingApproval && <div className="flex items-center gap-2.5 border-t border-outline-variant/50 px-4 py-2.5 bg-surface-container"><button onClick={() => respondToApproval(action, true)} className="rounded-lg bg-primary hover:bg-primary/90 transition-colors px-3.5 py-1.5 text-[12px] font-medium text-on-primary shadow-sm">Cho phép</button><button onClick={() => respondToApproval(action, false)} className="rounded-lg border border-outline-variant hover:bg-surface-container-high transition-colors px-3.5 py-1.5 text-[12px] font-medium text-primary">Từ chối</button></div>}
+      {awaitingApproval && <div className="flex items-center gap-2.5 border-t border-outline-variant/50 px-4 py-2.5 bg-surface-container"><button onClick={() => respondToApproval(action, true)} className="rounded-lg bg-primary hover:bg-primary/90 transition-colors px-3.5 py-1.5 text-[12px] font-medium text-on-primary shadow-sm">Cho phép</button>{action.toolName === 'WebFetch' && <button onClick={() => respondToApproval(action, true, true)} className="rounded-lg border border-primary/40 px-3.5 py-1.5 text-[12px] font-medium text-primary">Luôn cho phép miền</button>}<button onClick={() => respondToApproval(action, false)} className="rounded-lg border border-outline-variant hover:bg-surface-container-high transition-colors px-3.5 py-1.5 text-[12px] font-medium text-primary">Từ chối</button></div>}
       {isOpen && (
         <div className="px-4 pb-3 border-t border-outline-variant/30 bg-surface-container/50">
           {action.output ? (

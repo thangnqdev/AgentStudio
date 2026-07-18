@@ -16,6 +16,8 @@ import { BackgroundCommandToolPlatform } from '../../application/services/Backgr
 import { FixedWorkspaceToolPlatform } from '../../application/services/FixedWorkspaceToolPlatform.js';
 import { TaskToolPlatform } from '../../application/services/TaskToolPlatform.js';
 import { ToolSearchPlatform } from '../../application/services/ToolSearchPlatform.js';
+import { CompatibilityToolPlatform } from '../../application/services/CompatibilityToolPlatform.js';
+import type { CronPlatformIdentity } from '../../application/services/CronToolPlatform.js';
 import { extractLoadedToolNames } from '../../application/services/toolSearchHistory.js';
 import { RunAgentSession } from '../../application/usecases/RunAgentSession.js';
 import type { ManageAgentWorkers, AgentWorkerExecution } from '../../application/usecases/ManageAgentWorkers.js';
@@ -25,13 +27,19 @@ import type { ManageAgentWorktrees } from '../../application/usecases/ManageAgen
 import type { ManageBackgroundCommands } from '../../application/usecases/ManageBackgroundCommands.js';
 import type { IAttachmentMessageFormatter } from '../../domain/ports/IAttachmentMessageFormatter.js';
 import type { IAgentWorkerEventSink } from '../../domain/ports/IAgentWorkerEventSink.js';
+import type { IAgentAmbientContextSource } from '../../domain/ports/IAgentAmbientContextSource.js';
 import { AgentWorkerRuntime } from './AgentWorkerRuntime.js';
+import { ProcessIsolatedAgentWorkerRuntime } from './ProcessIsolatedAgentWorkerRuntime.js';
+import type { IAgentWorkerSessionProcessHost } from '../../domain/ports/IAgentWorkerSessionProcessHost.js';
+import { AgentToolCallRunner } from '../../application/services/AgentToolCallRunner.js';
+import { LifecycleAwareAgentWorkerRunner } from '../../application/services/LifecycleAwareAgentWorkerRunner.js';
 
 type Dependencies = {
   provider: IAiProvider;
   settings: AgentProviderSettings;
   baseCatalog: IToolCatalog;
   baseExecutor: IToolExecutor;
+  createSessionBasePlatform?: () => { catalog: IToolCatalog; executor: IToolExecutor };
   workers: ManageAgentWorkers;
   teams: ManageAgentTeams;
   workItems: ManageAgentWorkItems;
@@ -44,24 +52,65 @@ type Dependencies = {
   tracer: IAgentTracer;
   policy: IToolPermissionPolicy;
   hooks: ILifecycleHookDispatcher;
+  ambientContext?: IAgentAmbientContextSource;
   events: IAgentWorkerEventSink;
+  cron?: {
+    decorate(baseCatalog: IToolCatalog, baseExecutor: IToolExecutor, identity: CronPlatformIdentity): IToolCatalog & IToolExecutor;
+  };
+  remoteTriggers?: {
+    decorate(baseCatalog: IToolCatalog, baseExecutor: IToolExecutor): IToolCatalog & IToolExecutor;
+  };
+  processHost?: IAgentWorkerSessionProcessHost;
 };
 
 export function createAgentWorkerExecution(dependencies: Dependencies): AgentWorkerExecution {
   let execution: AgentWorkerExecution;
-  const runner = new AgentWorkerRuntime(
-    dependencies.settings,
-    dependencies.worktrees,
-    async (worker, workspaceRoot) => createWorkerSession(dependencies, execution, worker, workspaceRoot),
-    dependencies.events,
-  );
+  const runtime = dependencies.processHost
+    ? new ProcessIsolatedAgentWorkerRuntime(
+      dependencies.settings, dependencies.worktrees,
+      async (worker, workspaceRoot) => createWorkerProcessContext(dependencies, execution, worker, workspaceRoot),
+      dependencies.events, dependencies.processHost, dependencies.tracer,
+    )
+    : new AgentWorkerRuntime(
+      dependencies.settings,
+      dependencies.worktrees,
+      async (worker, workspaceRoot) => createWorkerSession(dependencies, execution, worker, workspaceRoot),
+      dependencies.events,
+    );
+  const runner = new LifecycleAwareAgentWorkerRunner(runtime, dependencies.hooks);
   execution = { runner, events: dependencies.events };
   return execution;
 }
 
 async function createWorkerSession(dependencies: Dependencies, execution: AgentWorkerExecution, worker: AgentWorkerRecord, workspaceRoot: string) {
+  const context = await createWorkerPlatform(dependencies, execution, worker, workspaceRoot);
+  const session = new RunAgentSession(
+    dependencies.provider, context.toolPlatform, context.toolPlatform, dependencies.formatter,
+    dependencies.approval, dependencies.audit, dependencies.tracer, dependencies.policy, dependencies.hooks,
+    dependencies.ambientContext,
+  );
+  return { session, ...context };
+}
+
+async function createWorkerProcessContext(dependencies: Dependencies, execution: AgentWorkerExecution, worker: AgentWorkerRecord, workspaceRoot: string) {
+  const context = await createWorkerPlatform(dependencies, execution, worker, workspaceRoot);
+  return {
+    ...context,
+    hooks: dependencies.hooks,
+    toolRunner: new AgentToolCallRunner(
+      context.toolPlatform, dependencies.approval, dependencies.audit, dependencies.tracer,
+      dependencies.policy, dependencies.hooks,
+    ),
+  };
+}
+
+async function createWorkerPlatform(dependencies: Dependencies, execution: AgentWorkerExecution, worker: AgentWorkerRecord, workspaceRoot: string) {
+  const sessionBase = dependencies.createSessionBasePlatform?.() ?? {
+    catalog: dependencies.baseCatalog,
+    executor: dependencies.baseExecutor,
+  };
   const agentPlatform = new AgentWorkerToolPlatform(
-    dependencies.baseCatalog, dependencies.baseExecutor, dependencies.workers, execution,
+    sessionBase.catalog, sessionBase.executor, dependencies.workers, execution,
     { parentScopeId: worker.parentScopeId, parentAgentId: worker.id, depth: worker.depth },
   );
   const teamContext = {
@@ -83,20 +132,23 @@ async function createWorkerSession(dependencies: Dependencies, execution: AgentW
     },
   );
   const backgroundPlatform = new BackgroundCommandToolPlatform(
-    taskPlatform, taskPlatform, dependencies.backgroundCommands, worker.id,
+    taskPlatform, taskPlatform, dependencies.backgroundCommands, worker.parentScopeId,
+    dependencies.workers,
+    worker.parentScopeId,
   );
   const profile = worker.subagentType ? await dependencies.profiles.load(workspaceRoot, worker.subagentType) : undefined;
   const profilePlatform = new AgentProfileToolPlatform(backgroundPlatform, backgroundPlatform, profile?.allowedTools);
   const fixedPlatform = new FixedWorkspaceToolPlatform(profilePlatform, profilePlatform, workspaceRoot);
+  const cronPlatform = dependencies.cron?.decorate(fixedPlatform, fixedPlatform, {
+    scopeId: worker.parentScopeId, ownerId: worker.id, ownerKind: 'teammate',
+  }) ?? fixedPlatform;
+  const remoteTriggerPlatform = dependencies.remoteTriggers?.decorate(cronPlatform, cronPlatform) ?? cronPlatform;
+  const compatibilityPlatform = new CompatibilityToolPlatform(remoteTriggerPlatform, remoteTriggerPlatform);
   const toolPlatform = new ToolSearchPlatform(
-    fixedPlatform, fixedPlatform, fixedPlatform, extractLoadedToolNames(worker.messages),
-  );
-  const session = new RunAgentSession(
-    dependencies.provider, toolPlatform, toolPlatform, dependencies.formatter,
-    dependencies.approval, dependencies.audit, dependencies.tracer, dependencies.policy, dependencies.hooks,
+    compatibilityPlatform, compatibilityPlatform, fixedPlatform, extractLoadedToolNames(worker.messages),
   );
   const guidanceContext = profile
     ? `<agent-profile name="${profile.name}">\n${profile.instructions}\n</agent-profile>`
     : undefined;
-  return { session, toolPlatform, guidanceContext };
+  return { toolPlatform, guidanceContext };
 }

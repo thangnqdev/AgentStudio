@@ -65,4 +65,21 @@ describe('ManageAgentWorktrees', () => {
     await expect(second).rejects.toThrow('Already in a worktree');
     expect(create).toHaveBeenCalledTimes(1);
   });
+
+  it('audits successful worktree creation and removal without changing their outcome', async () => {
+    const events: Array<{ event: string; matchValue?: string }> = [];
+    const manager = new ManageAgentWorktrees(
+      { create: async () => session, verify: async () => true, inspect: async () => ({ changedFiles: 0, commits: 0 }), remove: async () => ({ branchRemoved: true }) },
+      { load: async () => null, save: async () => undefined, remove: async () => undefined },
+      { dispatch: async (input) => { events.push(input); return { matchedHookIds: [], contexts: [], auditLabels: [] }; } },
+    );
+    await manager.enter('chat-a', '/repo', 'feature');
+    await manager.exit('chat-a', { action: 'remove', discardChanges: false });
+    expect(events).toEqual([
+      expect.objectContaining({ event: 'WorktreeCreate', matchValue: session.worktreeBranch }),
+      expect.objectContaining({ event: 'CwdChanged', matchValue: session.worktreePath }),
+      expect.objectContaining({ event: 'WorktreeRemove', matchValue: session.worktreeBranch }),
+      expect.objectContaining({ event: 'CwdChanged', matchValue: session.originalWorkspaceRoot }),
+    ]);
+  });
 });

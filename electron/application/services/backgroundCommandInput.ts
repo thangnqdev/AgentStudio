@@ -7,6 +7,7 @@ export type BackgroundCommandStartRequest = {
   command: string;
   description: string;
   timeoutMs: number;
+  shell?: 'powershell';
 };
 
 export type BackgroundCommandOutputRequest = {
@@ -26,19 +27,24 @@ export function parseBackgroundCommandStart(args: Record<string, unknown>): Back
     command,
     description,
     timeoutMs: boundedInteger(args.timeoutMs, 120_000, 1_000, MAX_BACKGROUND_TIMEOUT_MS, 'timeoutMs'),
+    ...(args.shell === 'powershell' ? { shell: 'powershell' as const } : {}),
   };
 }
 
 export function parseBackgroundCommandOutput(args: Record<string, unknown>): BackgroundCommandOutputRequest {
+  const legacyWait = args.wait_up_to;
+  const timeout = args.timeout ?? args.timeoutMs ?? (
+    legacyWait === undefined ? undefined : legacyWaitInMilliseconds(legacyWait)
+  );
   return {
-    taskId: getRequiredString(args.task_id ?? args.taskId, 'task_id', 128),
+    taskId: getRequiredString(args.task_id ?? args.taskId ?? args.agentId ?? args.agent_id ?? args.bash_id ?? args.shell_id, 'task_id', 128),
     block: args.block === undefined ? true : getBoolean(args.block, 'block'),
-    timeoutMs: boundedInteger(args.timeoutMs, 30_000, 0, MAX_OUTPUT_WAIT_MS, 'timeoutMs'),
+    timeoutMs: boundedInteger(timeout, 30_000, 0, MAX_OUTPUT_WAIT_MS, 'timeout'),
   };
 }
 
 export function parseBackgroundCommandTaskId(args: Record<string, unknown>) {
-  return getRequiredString(args.task_id ?? args.taskId, 'task_id', 128);
+  return getRequiredString(args.task_id ?? args.taskId ?? args.shell_id ?? args.agent_id, 'task_id', 128);
 }
 
 function getRequiredString(value: unknown, field: string, maxLength: number) {
@@ -67,4 +73,9 @@ function boundedInteger(value: unknown, fallback: number, minimum: number, maxim
     throw new Error(`${field} must be an integer between ${minimum} and ${maximum}.`);
   }
   return value;
+}
+
+function legacyWaitInMilliseconds(value: unknown) {
+  if (typeof value !== 'number' || !Number.isInteger(value)) throw new Error('wait_up_to must be an integer.');
+  return value * 1_000;
 }

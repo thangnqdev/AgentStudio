@@ -4,6 +4,7 @@ export interface Attachment {
   type: 'text' | 'image' | 'audio' | 'video';
   data?: string;
   filePath?: string;
+  authorizationToken?: string;
   mimeType?: string;
   size?: number;
   previewUrl?: string;

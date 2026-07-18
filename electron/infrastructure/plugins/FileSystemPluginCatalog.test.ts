@@ -43,8 +43,35 @@ describe('FileSystemPluginCatalog', () => {
       name: 'command-pack', hooks: { PreToolUse: [{ id: 'shell', actions: [{ type: 'command', command: 'rm -rf .' }] }] },
     });
     await writePlugin(path.join(root, 'escape-pack'), { name: 'escape-pack', hooks: '../../outside.json' });
+    const lspRoot = path.join(root, 'escape-lsp-pack');
+    await writePlugin(lspRoot, { name: 'escape-lsp-pack', lspServers: { unsafe: {
+      command: '../outside-server', extensionToLanguage: { '.ts': 'typescript' },
+    } } });
     const plugins = await new FileSystemPluginCatalog([{ root, origin: 'workspace' }]).discover('/workspace');
     expect(plugins).toEqual([]);
+  });
+
+  it('loads scoped LSP servers and binds trust identity to .lsp.json content', async () => {
+    const root = await temporaryDirectory();
+    const dataRoot = path.join(root, '.data');
+    const pluginRoot = path.join(root, 'typescript-pack');
+    await writePlugin(pluginRoot, { name: 'typescript-pack' });
+    const lspPath = path.join(pluginRoot, '.lsp.json');
+    await fs.writeFile(lspPath, JSON.stringify({ typescript: {
+      command: '${CLAUDE_PLUGIN_ROOT}/bin/server.js', args: ['--stdio'],
+      extensionToLanguage: { '.ts': 'typescript' }, env: { PLUGIN_DATA: '${CLAUDE_PLUGIN_DATA}' },
+    } }));
+    const catalog = new FileSystemPluginCatalog([{ root, origin: 'workspace' }], dataRoot);
+    const plugin = (await catalog.discover('/workspace'))[0]!;
+    expect(plugin).toMatchObject({ components: ['lspServers'], unsupportedComponents: [] });
+    await expect(catalog.readLspServers(plugin)).resolves.toEqual([expect.objectContaining({
+      name: 'plugin:typescript-pack:typescript', command: path.join(plugin.rootPath, 'bin/server.js'),
+      env: { PLUGIN_DATA: path.join(dataRoot, 'typescript-pack') },
+    })]);
+    await fs.writeFile(lspPath, JSON.stringify({ typescript: {
+      command: 'changed-server', extensionToLanguage: { '.ts': 'typescript' },
+    } }));
+    await expect(catalog.readLspServers(plugin)).rejects.toThrow('content changed');
   });
 });
 

@@ -23,6 +23,22 @@ describe('AgentTaskService', () => {
     expect(task.traceId).toBeTruthy();
   });
 
+  it('keeps attachment capabilities only in the live run, never in durable checkpoints', async () => {
+    const repository = new MemoryTaskRepository();
+    const service = new AgentTaskService(repository, new MemoryTracer());
+    const task = await service.create({ messages: [{
+      id: 'user-1', sender: 'user', content: 'Review', attachments: [{
+        id: 'attachment-1', name: 'note.txt', type: 'text',
+        filePath: '/private/note.txt', authorizationToken: 'opaque-token',
+      }],
+    }] }, '/workspace', '');
+
+    expect(task.messages[0].attachments?.[0]).toHaveProperty('filePath', '/private/note.txt');
+    expect(repository.tasks[0].messages[0].attachments?.[0]).not.toHaveProperty('filePath');
+    await service.checkpoint({ ...task, status: 'paused' });
+    expect(repository.tasks[0].messages[0].attachments?.[0]).not.toHaveProperty('authorizationToken');
+  });
+
   it('rejects resume when the task step budget is exhausted', async () => {
     const repository = new MemoryTaskRepository([task({ completedSteps: 180, status: 'paused' })]);
     const service = new AgentTaskService(repository, new MemoryTracer());

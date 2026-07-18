@@ -38,7 +38,26 @@ export type IntegratedLifecycleHookEvent =
   | 'PostToolUse'
   | 'PostToolUseFailure'
   | 'TaskCreated'
-  | 'TaskCompleted';
+  | 'TaskCompleted'
+  | 'PermissionRequest'
+  | 'PermissionDenied'
+  | 'Stop'
+  | 'StopFailure'
+  | 'SessionEnd'
+  | 'SubagentStart'
+  | 'SubagentStop'
+  | 'WorktreeCreate'
+  | 'WorktreeRemove'
+  | 'ConfigChange'
+  | 'InstructionsLoaded'
+  | 'PreCompact'
+  | 'PostCompact'
+  | 'FileChanged'
+  | 'CwdChanged'
+  | 'TeammateIdle'
+  | 'Elicitation'
+  | 'ElicitationResult'
+  | 'Notification';
 
 export type LifecycleHookAction =
   | { type: 'add_context'; content: string }
@@ -65,10 +84,25 @@ export type LifecycleHookResult = {
 
 const INTEGRATED_EVENTS = new Set<LifecycleHookEvent>([
   'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'TaskCreated', 'TaskCompleted',
+  'PermissionRequest', 'PermissionDenied',
+  'Stop', 'StopFailure', 'SessionEnd', 'SubagentStart', 'SubagentStop',
+  'WorktreeCreate', 'WorktreeRemove',
+  'ConfigChange', 'InstructionsLoaded', 'PreCompact', 'PostCompact', 'FileChanged', 'CwdChanged', 'TeammateIdle',
+  'Elicitation', 'ElicitationResult',
+  'Notification',
 ]);
 const TOOL_EVENTS = new Set<LifecycleHookEvent>(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
 const TASK_EVENTS = new Set<LifecycleHookEvent>(['TaskCreated', 'TaskCompleted']);
-const MATCHABLE_EVENTS = new Set<LifecycleHookEvent>([...TOOL_EVENTS, ...TASK_EVENTS]);
+const MATCHABLE_EVENTS = new Set<LifecycleHookEvent>([
+  ...TOOL_EVENTS, ...TASK_EVENTS, 'PermissionRequest', 'PermissionDenied', 'SubagentStart', 'SubagentStop',
+  'WorktreeCreate', 'WorktreeRemove',
+  'ConfigChange',
+  'FileChanged',
+  'CwdChanged',
+  'TeammateIdle',
+  'Elicitation', 'ElicitationResult',
+  'Notification',
+]);
 const CONTEXT_EVENTS = new Set<LifecycleHookEvent>(['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure']);
 const MAX_HOOKS = 100;
 const MAX_ACTIONS_PER_HOOK = 10;
@@ -103,10 +137,11 @@ export function evaluateLifecycleHooks(
   definitions: readonly LifecycleHookDefinition[],
   event: IntegratedLifecycleHookEvent,
   matchValue?: string,
+  alternateMatchValue?: string,
 ): LifecycleHookResult {
   const result: LifecycleHookResult = { matchedHookIds: [], contexts: [], auditLabels: [] };
   for (const definition of definitions) {
-    if (definition.event !== event || !matchesHook(definition, matchValue)) continue;
+    if (definition.event !== event || !matchesHook(definition, matchValue, alternateMatchValue)) continue;
     result.matchedHookIds.push(definition.id);
     for (const action of definition.actions) {
       if (action.type === 'add_context') result.contexts.push(action.content);
@@ -152,9 +187,9 @@ function normalizeAction(event: IntegratedLifecycleHookEvent, hookId: string, ra
   throw new Error(`${hookId} action ${index + 1} has an unsupported type.`);
 }
 
-function matchesHook(definition: LifecycleHookDefinition, matchValue?: string) {
+function matchesHook(definition: LifecycleHookDefinition, matchValue?: string, alternateMatchValue?: string) {
   if (!definition.matcher) return true;
-  return typeof matchValue === 'string' && matchesPermissionGlob(definition.matcher, matchValue);
+  return [matchValue, alternateMatchValue].some((value) => typeof value === 'string' && matchesPermissionGlob(definition.matcher!, value));
 }
 
 function isLifecycleHookEvent(value: string): value is LifecycleHookEvent {

@@ -2,6 +2,7 @@ import { evaluateLifecycleHooks } from '../../domain/entities/lifecycleHook.js';
 import type { ILifecycleHookAuditLogger } from '../../domain/ports/ILifecycleHookAuditLogger.js';
 import type { ILifecycleHookDispatcher, LifecycleHookDispatchInput } from '../../domain/ports/ILifecycleHookDispatcher.js';
 import type { ILifecycleHookSource } from '../../domain/ports/ILifecycleHookSource.js';
+import { canonicalToolName } from '../../domain/entities/toolAliases.js';
 
 export class LifecycleHookDispatcher implements ILifecycleHookDispatcher {
   private readonly source: ILifecycleHookSource;
@@ -14,7 +15,11 @@ export class LifecycleHookDispatcher implements ILifecycleHookDispatcher {
 
   async dispatch(input: LifecycleHookDispatchInput) {
     const definitions = await this.source.list(input.workspaceRoot);
-    const result = evaluateLifecycleHooks(definitions, input.event, input.matchValue);
+    const canonicalMatch = typeof input.matchValue === 'string' ? canonicalToolName(input.matchValue) : undefined;
+    const result = evaluateLifecycleHooks(
+      definitions, input.event, input.matchValue,
+      canonicalMatch !== input.matchValue ? canonicalMatch : undefined,
+    );
     if (result.matchedHookIds.length > 0) {
       await this.auditLogger.record({
         event: input.event,

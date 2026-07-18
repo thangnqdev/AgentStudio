@@ -9,7 +9,7 @@ export function PluginSettingsPanel() {
         <button onClick={() => void refresh()} className="text-[13px] text-secondary hover:underline">Quét lại</button>
       </div>
       <p className="text-[13px] text-on-surface-variant mb-4">
-        Đọc manifest <code>.claude-plugin/plugin.json</code> từ userData/plugins và .agentstudio/plugins. Chỉ hooks khai báo được hỗ trợ; plugin phải được tin cậy và bật rõ ràng.
+        Đọc manifest <code>.claude-plugin/plugin.json</code> từ userData/plugins và .agentstudio/plugins. Hooks khai báo và LSP stdio được hỗ trợ; plugin phải được tin cậy và bật rõ ràng.
       </p>
       {loading && <p className="text-[13px] text-on-surface-variant">Đang quét plugins…</p>}
       {!loading && plugins.length === 0 && <p className="text-[13px] text-on-surface-variant">Chưa tìm thấy plugin hợp lệ.</p>}
@@ -35,9 +35,9 @@ export function PluginSettingsPanel() {
                 <input
                   type="checkbox"
                   checked={plugin.enabled}
-                  disabled={!plugin.trusted || !plugin.components.includes('hooks')}
+                  disabled={!plugin.trusted || !plugin.components.some((component) => component === 'hooks' || component === 'lspServers')}
                   onChange={(event) => void setEnabled(plugin.id, event.target.checked)}
-                /> Bật hooks
+                /> Bật plugin
               </label>
             </div>
             <div className="mt-3 flex items-center justify-between gap-4 border-t border-outline-variant pt-3">

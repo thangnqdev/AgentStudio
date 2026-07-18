@@ -11,6 +11,7 @@ import { buildAgentProviderSettings } from '../application/services/buildAgentPr
 import { FileSystemProjectInstructionLoader } from '../infrastructure/instructions/FileSystemProjectInstructionLoader.js';
 import { lifecycleHookDispatcher } from '../hookRuntime.js';
 import { parseAgentInteractionResponse } from '../application/services/agentInteractionResponseValidation.js';
+import { attachmentAuthorizations } from '../attachmentRuntime.js';
 
 const activeAgentControllers = new Map<string, AbortController>();
 const activeAgentTaskIds = new Map<string, string>();
@@ -53,7 +54,7 @@ export function registerAgentIpc() {
     const requestId = getString(payload.requestId);
     const actionId = getString(payload.actionId);
     if (!requestId || !actionId) return;
-    agentToolApprovalManager.respond(requestId, actionId, getBoolean(payload.approved));
+    agentToolApprovalManager.respond(requestId, actionId, getBoolean(payload.approved), getBoolean(payload.rememberDomain));
   });
 
   ipcMain.on('ai:chat:interaction-response', (_event, rawPayload: unknown) => {
@@ -63,9 +64,9 @@ export function registerAgentIpc() {
   });
 
   ipcMain.on('ai:chat:start', async (event, rawPayload: unknown) => {
-    const payload = parseAgentStartPayload(rawPayload);
-    const requestId = getString(payload.requestId);
-    const taskId = getString(payload.taskId);
+    const parsedPayload = parseAgentStartPayload(rawPayload);
+    const requestId = getString(parsedPayload.requestId);
+    const taskId = getString(parsedPayload.taskId);
 
     if (!requestId) {
       event.sender.send('ai:chat:error', { requestId: '', error: 'Thiếu requestId.' });
@@ -73,6 +74,7 @@ export function registerAgentIpc() {
     }
 
     try {
+      const payload = await attachmentAuthorizations.resolvePayload(parsedPayload);
       await interruptedTaskRecovery;
       const controller = new AbortController();
       activeAgentControllers.set(requestId, controller);

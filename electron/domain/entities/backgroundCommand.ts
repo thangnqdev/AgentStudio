@@ -1,5 +1,7 @@
 import type { PermissionMode } from './agent.js';
 
+export type CommandShell = 'powershell';
+
 export type BackgroundCommandStatus = 'running' | 'completed' | 'failed' | 'stopped';
 
 export type BackgroundCommandSnapshot = {
@@ -25,12 +27,33 @@ export type StartBackgroundCommandInput = {
   workspaceRoot: string;
   permissionMode: PermissionMode;
   timeoutMs: number;
+  shell?: CommandShell;
 };
 
 export type BackgroundCommandOutput = {
   retrievalStatus: 'success' | 'timeout' | 'not_ready';
   task: BackgroundCommandSnapshot;
   output: string;
+};
+
+export type BackgroundCommandCompletion = {
+  task: BackgroundCommandSnapshot;
+  output: string;
+};
+
+export type BackgroundCommandCompletionNotice = {
+  id: string;
+  scopeId: string;
+  description: string;
+  status: Exclude<BackgroundCommandStatus, 'running'>;
+  endedAt: string;
+  exitCode: number | null;
+  error?: string;
+};
+
+export type BackgroundCommandRendererDelivery = {
+  workspaceRoot: string;
+  notice: BackgroundCommandCompletionNotice;
 };
 
 export function isTerminalBackgroundCommandStatus(status: BackgroundCommandStatus) {

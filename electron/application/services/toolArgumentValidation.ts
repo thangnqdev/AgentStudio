@@ -14,6 +14,10 @@ export function parseAndValidateToolArguments(raw: string, tool: AgentToolDefini
   if (!isObject(parsed)) return { ok: false, args: {}, error: 'Invalid arguments: expected a JSON object.' };
 
   const properties = isObject(tool.parameters.properties) ? tool.parameters.properties : {};
+  if (tool.parameters.additionalProperties === false) {
+    const unknown = Object.keys(parsed).find((field) => !Object.hasOwn(properties, field));
+    if (unknown) return { ok: false, args: parsed, error: `Invalid arguments: unknown property "${unknown}".` };
+  }
   const normalized = normalizeStructuredProperties(parsed, properties);
   const required = Array.isArray(tool.parameters.required)
     ? tool.parameters.required.filter((field): field is string => typeof field === 'string')
@@ -53,7 +57,24 @@ function validateValue(field: string, value: unknown, schema: JsonSchema) {
   const type = schema.type;
   if (typeof type === 'string' && !matchesType(value, type)) return `Invalid arguments: property "${field}" must be ${type}.`;
   if (Array.isArray(schema.enum) && !schema.enum.some((option) => Object.is(option, value))) return `Invalid arguments: property "${field}" must be an allowed value.`;
+  if (typeof value === 'number') {
+    if (typeof schema.minimum === 'number' && value < schema.minimum) return `Invalid arguments: property "${field}" is below its minimum.`;
+    if (typeof schema.maximum === 'number' && value > schema.maximum) return `Invalid arguments: property "${field}" exceeds its maximum.`;
+  }
+  if (typeof value === 'string') {
+    if (typeof schema.minLength === 'number' && value.length < schema.minLength) return `Invalid arguments: property "${field}" is too short.`;
+    if (typeof schema.maxLength === 'number' && value.length > schema.maxLength) return `Invalid arguments: property "${field}" is too long.`;
+    if (typeof schema.pattern === 'string' && !matchesPattern(value, schema.pattern)) return `Invalid arguments: property "${field}" has an invalid format.`;
+  }
+  if (Array.isArray(value)) {
+    if (typeof schema.minItems === 'number' && value.length < schema.minItems) return `Invalid arguments: property "${field}" has too few items.`;
+    if (typeof schema.maxItems === 'number' && value.length > schema.maxItems) return `Invalid arguments: property "${field}" has too many items.`;
+  }
   return '';
+}
+
+function matchesPattern(value: string, pattern: string) {
+  try { return new RegExp(pattern).test(value); } catch { return false; }
 }
 
 function matchesType(value: unknown, type: string) {

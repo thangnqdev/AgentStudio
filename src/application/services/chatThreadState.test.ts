@@ -56,4 +56,18 @@ describe('syncActiveThread', () => {
     expect(result.threads[0].updatedAt).toEqual(NOW);
     expect(result.threads[0].messages).toBe(messages);
   });
+
+  it('preserves a custom session title when later messages are synchronized', () => {
+    const existing: ChatThread = {
+      id: 'thread-1', title: 'Release investigation', customTitle: true, messages: [],
+      createdAt: NOW, updatedAt: NOW,
+    };
+    const result = syncActiveThread(
+      { messages: [], threads: [existing], activeThreadId: existing.id, activeTask: existing.title },
+      [message('A different automatically derived title')],
+      { createId: () => 'unused', now: () => NOW },
+    );
+    expect(result.activeTask).toBe('Release investigation');
+    expect(result.threads[0]).toMatchObject({ title: 'Release investigation', customTitle: true });
+  });
 });

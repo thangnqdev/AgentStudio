@@ -33,9 +33,17 @@ function TraceRow({ trace, active, onClick }: { trace: AgentTraceSummary; active
 
 function SpanRow({ span }: { span: AgentSpan }) {
   const detail = span.kind === 'model_call'
-    ? [span.model, span.usage ? `${span.usage.inputTokens} in · ${span.usage.outputTokens} out` : 'usage unknown'].filter(Boolean).join(' · ')
+    ? [span.model, span.usage ? formatModelUsage(span.usage) : 'usage unknown'].filter(Boolean).join(' · ')
     : span.kind === 'tool_call' || span.kind === 'approval' ? span.toolName : span.kind === 'retrieval' ? `${span.mode} · ${span.resultCount} results` : span.kind === 'checkpoint' ? `${span.checkpointStatus} · ${span.completedSteps} steps` : span.evaluatorId;
   return <div className="grid grid-cols-[130px_1fr_auto] items-center gap-3 border border-outline-variant rounded-lg px-3 py-2"><div><span className="text-[11px] uppercase font-semibold">{span.kind.replace('_', ' ')}</span><p className="text-[10px] text-on-surface-variant">step {span.step ?? '—'}</p></div><div className="min-w-0"><p className="text-[12px] truncate">{detail || '—'}</p><p className="font-code-base text-[10px] text-on-surface-variant truncate">{span.spanId}</p></div><div className="text-right"><Status value={span.status} /><p className="text-[10px] text-on-surface-variant mt-1">{span.durationMs} ms</p></div></div>;
+}
+
+function formatModelUsage(usage: NonNullable<AgentSpan['usage']>) {
+  const cache = [
+    usage.cachedInputTokens ? `${usage.cachedInputTokens} cache hit` : '',
+    usage.cacheCreationInputTokens ? `${usage.cacheCreationInputTokens} cache write` : '',
+  ].filter(Boolean).join(' · ');
+  return `${usage.inputTokens} in · ${usage.outputTokens} out${cache ? ` · ${cache}` : ''}`;
 }
 
 function Status({ value }: { value: TraceStatus }) {

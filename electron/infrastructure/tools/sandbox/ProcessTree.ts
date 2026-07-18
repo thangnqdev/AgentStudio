@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 const ENV_ALLOWLIST = [
   'PATH', 'HOME', 'LANG', 'LC_ALL', 'LC_CTYPE',
   'TMPDIR', 'TEMP', 'TMP', 'TERM', 'USER', 'LOGNAME', 'SHELL',
+  'SystemRoot', 'WINDIR', 'ComSpec', 'PATHEXT',
 ] as const;
 
 export function buildSafeProcessEnvironment(): Record<string, string> {

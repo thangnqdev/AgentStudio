@@ -25,6 +25,31 @@ describe('RunReadOnlySubagent', () => {
     expect(execute).toHaveBeenCalledWith('read_file', { path: 'README.md' }, '/workspace', 'read-only', undefined);
   });
 
+  it('forwards image supplements after all tool responses without duplicating base64 in tool JSON', async () => {
+    const requests: ChatMessage[][] = [];
+    let call = 0;
+    const provider = {
+      requestAssistantMessage: vi.fn(async (_settings: unknown, messages: ChatMessage[]) => {
+        requests.push(structuredClone(messages));
+        call += 1;
+        return call === 1
+          ? { role: 'assistant' as const, content: '', tool_calls: [{ id: 'image', function: { name: 'read_file', arguments: '{"path":"image.png"}' } }] }
+          : { role: 'assistant' as const, content: 'Saw the image.' };
+      }),
+    };
+    const runner = new RunReadOnlySubagent(
+      provider, { list: async () => [readTool] }, {
+        execute: async () => ({
+          ok: true, output: 'Image read.',
+          supplementalMessages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } }] }],
+        }),
+      }, settings, { evaluate: async () => ({ allowed: true, requiresApproval: false }) },
+    );
+    await runner.run({ prompt: 'Inspect', role: 'explore', workspaceRoot: '/workspace' });
+    expect(requests[1].slice(-2).map((message) => message.role)).toEqual(['tool', 'user']);
+    expect(requests[1].at(-2)?.content).not.toContain('base64');
+  });
+
   it('blocks hallucinated writes and reads that require interactive approval', async () => {
     const execute = vi.fn(async () => ({ ok: true, output: 'should not run' }));
     const provider = sequenceProvider([

@@ -1,6 +1,6 @@
 import { syncActiveThread } from '../application/services/chatThreadState';
 import type { ChatThread } from '../domain/entities/chatThread';
-import { createBlankThread, reviveThread } from '../domain/entities/chatThread';
+import { createBlankThread, normalizeThreadTitle, reviveThread } from '../domain/entities/chatThread';
 import type { AgentSlice, AppSlice, ChatSlice } from './appStoreTypes';
 
 const idleAgentState = (): Pick<
@@ -70,6 +70,16 @@ export const createChatSlice: AppSlice<ChatSlice> = (set, get) => {
         ...(shouldSwitch ? idleAgentState() : {}),
       };
     }),
+    renameActiveThread: (rawTitle) => set((state) => {
+      const title = normalizeThreadTitle(rawTitle);
+      if (!title || !state.activeThreadId) return {};
+      return {
+        activeTask: title,
+        threads: state.threads.map((thread) => thread.id === state.activeThreadId
+          ? { ...thread, title, customTitle: true, updatedAt: new Date() }
+          : thread),
+      };
+    }),
     replaceChatHistory: (threads, activeThreadId) => set(() => {
       const revivedThreads = reviveThreads(threads);
       const activeThread = revivedThreads.find((thread) => thread.id === activeThreadId)
@@ -105,6 +115,7 @@ export const createChatSlice: AppSlice<ChatSlice> = (set, get) => {
       )),
     )),
     clearMessages: () => set((state) => syncMessages(state, [])),
+    replaceMessages: (messages) => set((state) => syncMessages(state, messages)),
     replaceUserMessageAndTrim: (id, content) => {
       const state = get();
       const index = state.messages.findIndex((message) => (

@@ -30,11 +30,13 @@ export interface ChatSlice {
   createThread: (title?: string) => string;
   switchThread: (threadId: string) => void;
   deleteThread: (threadId: string) => void;
+  renameActiveThread: (title: string) => void;
   replaceChatHistory: (threads: ChatThread[], activeThreadId?: string | null) => void;
   addMessage: (message: Omit<Message, 'id' | 'timestamp'> & { id?: string }) => string;
   updateMessage: (id: string, update: Partial<Message>) => void;
   appendMessageContent: (id: string, chunk: string) => void;
   clearMessages: () => void;
+  replaceMessages: (messages: Message[]) => void;
   replaceUserMessageAndTrim: (id: string, content: string) => Message[];
 }
 

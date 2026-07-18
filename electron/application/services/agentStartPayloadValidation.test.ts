@@ -13,7 +13,7 @@ describe('parseAgentStartPayload', () => {
       taskListId: 'thread-1',
       messages: [
         { id: 'message-1', sender: 'user', content: 'Hello', extra: 'drop-me', attachments: [
-          { id: 'attachment-1', name: 'note.txt', type: 'text', data: 'content', size: 7, extra: true },
+          { id: 'attachment-1', name: 'note.txt', type: 'text', data: 'content', filePath: '/forged/private-file', authorizationToken: 'picker-token', size: 7, extra: true },
           { id: 'attachment-2', name: 'bad', type: 'executable' },
         ], actions: [
           { id: 'tool-1', toolName: 'task_output', args: 'task_id', risk: 'read', status: 'ok', output: '<task_id>bg-1</task_id>', requestId: 'drop-me' },
@@ -35,7 +35,7 @@ describe('parseAgentStartPayload', () => {
           name: 'note.txt',
           type: 'text',
           data: 'content',
-          filePath: undefined,
+          authorizationToken: 'picker-token',
           mimeType: undefined,
           size: 7,
         }],
@@ -62,5 +62,20 @@ describe('parseAgentStartPayload', () => {
       actions: [{ id: 'tool-1', toolName: 'read_file', args: 'path=a', risk: 'read', status: 'ok', output: 'x'.repeat(120_001) }],
     }] }).messages?.[0];
     expect(message?.actions).toBeUndefined();
+  });
+
+  it('never accepts renderer-declared file paths or oversized inline attachment data', () => {
+    const attachment = parseAgentStartPayload({ messages: [{
+      id: 'message-1', sender: 'user', content: '', attachments: [{
+        id: 'attachment-1', name: 'secret.txt', type: 'text',
+        filePath: '/Users/victim/.ssh/id_ed25519', data: 'x'.repeat(200_001),
+      }],
+    }] }).messages?.[0].attachments?.[0];
+
+    expect(attachment).toEqual({
+      id: 'attachment-1', name: 'secret.txt', type: 'text', data: undefined,
+      authorizationToken: undefined, mimeType: undefined, size: undefined,
+    });
+    expect(attachment).not.toHaveProperty('filePath');
   });
 });

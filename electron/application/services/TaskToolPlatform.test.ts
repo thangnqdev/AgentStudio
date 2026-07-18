@@ -12,16 +12,16 @@ class MemoryRepository implements IAgentWorkItemRepository {
 }
 
 describe('TaskToolPlatform', () => {
-  it('adds four model-facing task tools and preserves them across a resumed session', async () => {
+  it('adds exact and legacy task tools and preserves them across a resumed session', async () => {
     const executeBase = vi.fn(async () => ({ ok: true, output: 'base' }));
     const base = { list: async () => [{ name: 'read_file', description: '', risk: 'read' as const, parameters: {} }] };
     const manager = new ManageAgentWorkItems(new MemoryRepository());
     const first = new TaskToolPlatform(base, { execute: executeBase }, manager, { taskListId: 'agent-session-1', requestId: 'request-1' });
 
     expect((await first.list('/workspace')).map((tool) => tool.name)).toEqual([
-      'read_file', 'task_create', 'task_get', 'task_list', 'task_update',
+      'read_file', 'TaskCreate', 'task_create', 'TaskGet', 'task_get', 'TaskList', 'task_list', 'TaskUpdate', 'task_update',
     ]);
-    await expect(first.execute('task_create', { subject: 'Implement', description: 'Build it' }, '/workspace', 'read-only'))
+    await expect(first.execute('TaskCreate', { subject: 'Implement', description: 'Build it' }, '/workspace', 'read-only'))
       .resolves.toEqual({ ok: true, output: 'Task #1 created successfully: Implement' });
     await expect(first.execute('task_update', { taskId: '1', status: 'in_progress' }, '/workspace', 'read-only'))
       .resolves.toMatchObject({ ok: true, output: expect.stringContaining('status') });

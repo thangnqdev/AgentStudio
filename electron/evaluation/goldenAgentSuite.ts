@@ -7,8 +7,17 @@ const BASE_EXPECTATIONS = {
   relevantChunkIds: [],
 };
 
+const NOTEBOOK_BEFORE = {
+  cells: [{ cell_type: 'code', id: 'calc', source: 'answer = 41', metadata: {}, execution_count: 1, outputs: [{ output_type: 'stream', text: '41' }] }],
+  metadata: { language_info: { name: 'python' } }, nbformat: 4, nbformat_minor: 5,
+};
+const NOTEBOOK_AFTER = {
+  ...NOTEBOOK_BEFORE,
+  cells: [{ cell_type: 'code', id: 'calc', source: 'answer = 42', metadata: {}, execution_count: null, outputs: [] }],
+};
+
 export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
-  id: 'agent-studio-runtime-golden', version: '3.0.0', minimumAggregateScore: 0.95,
+  id: 'agent-studio-runtime-golden', version: '4.0.0', minimumAggregateScore: 0.95,
   minimumScores: { task: 1, tool_selection: 1, code_change: 1, policy: 1, trajectory: 1, retrieval: 1 },
   fixtures: [
     {
@@ -121,10 +130,10 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
       },
     },
     {
-      id: 'task-supervisor-dependencies', version: '2.0.0',
+      id: 'task-supervisor-dependencies', version: '3.0.0',
       expected: {
         ...BASE_EXPECTATIONS,
-        tools: ['ToolSearch', 'task_create', 'task_update', 'task_list'],
+        tools: ['ToolSearch', 'TaskCreate', 'TaskUpdate', 'TaskList'],
         forbiddenTools: ['run_command', 'write_file', 'apply_patch'],
         changedFiles: [],
         maxSteps: 6,
@@ -135,12 +144,12 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
         initialFiles: [],
         assertedFiles: [],
         responses: [
-          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:task_create,task_update,task_list' } }] },
-          { toolCalls: [{ name: 'task_create', args: { subject: 'Implement feature', description: 'Build the requested behavior.' } }] },
-          { toolCalls: [{ name: 'task_create', args: { subject: 'Verify feature', description: 'Run the verification checks.' } }] },
-          { toolCalls: [{ name: 'task_update', args: { taskId: '2', addBlockedBy: ['1'] } }] },
-          { toolCalls: [{ name: 'task_update', args: { taskId: '1', status: 'completed' } }] },
-          { toolCalls: [{ name: 'task_list', args: {} }] },
+          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:TaskCreate,TaskUpdate,TaskList' } }] },
+          { toolCalls: [{ name: 'TaskCreate', args: { subject: 'Implement feature', description: 'Build the requested behavior.' } }] },
+          { toolCalls: [{ name: 'TaskCreate', args: { subject: 'Verify feature', description: 'Run the verification checks.' } }] },
+          { toolCalls: [{ name: 'TaskUpdate', args: { taskId: '2', addBlockedBy: ['1'] } }] },
+          { toolCalls: [{ name: 'TaskUpdate', args: { taskId: '1', status: 'completed' } }] },
+          { toolCalls: [{ name: 'TaskList', args: {} }] },
           { content: 'Implementation is complete and verification is the next unblocked task.' },
         ],
       },
@@ -149,8 +158,8 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
       id: 'background-command-lifecycle', version: '2.0.0',
       expected: {
         ...BASE_EXPECTATIONS,
-        tools: ['ToolSearch', 'run_command', 'task_output'],
-        forbiddenTools: ['write_file', 'apply_patch', 'task_stop'],
+        tools: ['ToolSearch', 'run_command', 'TaskOutput'],
+        forbiddenTools: ['write_file', 'apply_patch', 'TaskStop'],
         changedFiles: [],
         maxSteps: 4,
       },
@@ -160,14 +169,14 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
         initialFiles: [],
         assertedFiles: [],
         responses: [
-          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:task_output' } }] },
+          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:TaskOutput' } }] },
           { toolCalls: [{ name: 'run_command', args: {
             command: 'node -e "process.stdout.write(\'background-eval-ready\')"',
             description: 'Emit background evaluation marker',
             run_in_background: true,
             timeoutMs: 5_000,
           } }] },
-          { toolCalls: [{ name: 'task_output', args: { task_id: 'bg-runtime-eval', block: true, timeoutMs: 5_000 } }] },
+          { toolCalls: [{ name: 'TaskOutput', args: { task_id: 'bg-runtime-eval', block: true, timeout: 5_000 } }] },
           { content: 'The background command completed and emitted background-eval-ready.' },
         ],
       },
@@ -205,6 +214,59 @@ export const GOLDEN_AGENT_RUNTIME_SUITE: GoldenRuntimeSuiteDefinition = {
           }] } }] },
           { toolCalls: [{ name: 'ExitPlanMode', args: { plan: '# Plan\n\n1. Define a port.\n2. Implement the infrastructure adapter.\n3. Add tests.' } }] },
           { content: 'The plan was approved; implementation can now begin.' },
+        ],
+      },
+    },
+    {
+      id: 'deferred-web-fetch', version: '1.0.0',
+      expected: {
+        ...BASE_EXPECTATIONS,
+        tools: ['ToolSearch', 'WebFetch'],
+        forbiddenTools: ['web_search', 'run_command', 'write_file', 'apply_patch'],
+        changedFiles: [],
+        maxSteps: 2,
+      },
+      runtime: {
+        prompt: 'Load the URL fetch tool, read the supplied Python documentation page, and report the Path invariant without changing files.',
+        permissionMode: 'read-only',
+        initialFiles: [],
+        assertedFiles: [],
+        webPages: [{
+          url: 'https://docs.python.org/3/library/pathlib.html',
+          content: '# pathlib.Path\n\nPath objects provide an object-oriented interface for filesystem paths.\n',
+        }],
+        responses: [
+          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:WebFetch' } }] },
+          { toolCalls: [{ name: 'WebFetch', args: {
+            url: 'https://docs.python.org/3/library/pathlib.html',
+            prompt: 'State the documented Path invariant.',
+          } }] },
+          { content: 'Path provides an object-oriented interface for filesystem paths.' },
+        ],
+      },
+    },
+    {
+      id: 'notebook-cell-edit', version: '1.0.0',
+      expected: {
+        ...BASE_EXPECTATIONS,
+        tools: ['ToolSearch', 'read_file', 'NotebookEdit'],
+        forbiddenTools: ['write_file', 'apply_patch', 'run_command'],
+        changedFiles: ['analysis.ipynb'],
+        maxSteps: 3,
+      },
+      runtime: {
+        prompt: 'Load notebook editing, read analysis.ipynb, replace cell calc with answer = 42, and preserve notebook validity.',
+        permissionMode: 'danger-full-access',
+        initialFiles: [{ path: 'analysis.ipynb', content: JSON.stringify(NOTEBOOK_BEFORE) }],
+        assertedFiles: [{ path: 'analysis.ipynb', content: JSON.stringify(NOTEBOOK_AFTER, null, 1) }],
+        webPages: [],
+        responses: [
+          { toolCalls: [{ name: 'ToolSearch', args: { query: 'select:NotebookEdit' } }] },
+          { toolCalls: [{ name: 'read_file', args: { path: 'analysis.ipynb' } }] },
+          { toolCalls: [{ name: 'NotebookEdit', args: {
+            notebook_path: 'analysis.ipynb', cell_id: 'calc', new_source: 'answer = 42', edit_mode: 'replace',
+          } }] },
+          { content: 'Updated notebook cell calc and cleared stale execution output.' },
         ],
       },
     },

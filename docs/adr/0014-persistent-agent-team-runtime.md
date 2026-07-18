@@ -26,10 +26,18 @@ Team state intentionally persists across application restart, unlike the referen
 
 The deterministic runtime suite executes production `TeamCreate`, named team `Agent`, and a child `read_file` call with a separate scripted provider. Unit and integration tests cover unique teammate names, private persistence, shared task resolution, auto-claim, assignment delivery, mailbox redaction, shutdown correlation, deletion guards, and restart-safe views.
 
+Structured coordination also has an authenticated local transport boundary for socket/pipe clients. A transport client receives a 256-bit scoped credential over a dedicated bootstrap descriptor, then authenticates length-prefixed bounded frames on a private Unix-domain socket or Windows named pipe. HMAC verification includes epoch, timestamp and one-use nonce checks with constant-time comparison. The connection identity, not a caller-supplied name, determines the sender. Production children use their private OS parent/child IPC channel for the live session RPC described below; they do not expose a second listening endpoint.
+
+Protocol envelopes are strictly parsed and direction-checked. Private mailbox records use append, lease-based claim, ACK and release operations, so delivery is idempotent and interrupted claims recover. Shutdown and leader controls precede ordinary FIFO messages. Permission, sandbox and plan requests are correlated through the existing approval gateway and cannot increase a worker's inherited permission.
+
+Production workers run the model and conversation loop in a dedicated `ELECTRON_RUN_AS_NODE` child. The parent passes the bounded bootstrap and provider credential through a private inherited file descriptor, never argv or environment, and exposes only an allow-listed environment. The child requests dynamic tool catalogs, tool calls, checkpoints, message drains, model-span recording and audit-only pre/post-compaction dispatch through bounded, strictly parsed process RPC. The compaction request contains only an allow-listed event enum; the parent supplies workspace/request/task identity. Tool policy, user approval, lifecycle hook lookup, audit, trace persistence, durable repositories and all filesystem/process/network side effects stay in Electron main. Abort terminates the child, malformed/oversized/duplicate RPC fails closed, and a child exit without a validated final result marks the worker failed. Source-entry and compiled-bundle integration tests exercise a real streaming provider call, child compaction hooks and parent-owned file write.
+
 ## Consequences
 
 - Teams are durable coordination state rather than a prompt convention.
 - Every teammate uses the full production worker runtime without gaining authority beyond the parent.
 - Team status and mailbox metadata remain visible after the parent stream finishes through a typed long-lived event path.
 - Changed worktrees and transcripts are not destructively removed by team cleanup.
-- Cross-process teammate transport, Unix-domain socket bridges, permission-request mailbox messages, and richer peer-DM summaries remain separate parity milestones.
+- A worker-process crash is isolated from Electron main and becomes an ordinary failed worker with its existing durable checkpoint available for resume.
+- Provider credentials necessarily exist in the model child's memory, but do not enter argv, environment, tool payloads, logs or process output.
+- The child cannot grant itself tool authority: the parent re-resolves the current tool definition and applies inherited permission, approval, hook and audit policy on every call.

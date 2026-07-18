@@ -3,6 +3,7 @@ import { ProviderSettingsPanel } from './settings/ProviderSettingsPanel';
 import { SkillSettingsPanel } from './settings/SkillSettingsPanel';
 import { WebSearchSettings } from './WebSearchSettings';
 import { PluginSettingsPanel } from './settings/PluginSettingsPanel';
+import { RemoteTriggerSettingsPanel } from './settings/RemoteTriggerSettingsPanel';
 
 export function SettingsView() {
   return (
@@ -20,6 +21,7 @@ export function SettingsView() {
         </div>
         <ProviderSettingsPanel />
         <WebSearchSettings />
+        <RemoteTriggerSettingsPanel />
         <SkillSettingsPanel />
         <PluginSettingsPanel />
         <McpSettingsPanel />

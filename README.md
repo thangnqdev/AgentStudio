@@ -78,29 +78,38 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 - Local tools are registered from one typed catalog, shared by the model schema and execution policy.
 - For OpenAI-compatible providers that stringify nested array/object arguments, AgentStudio performs one bounded schema-directed JSON decode and then applies the same strict validation; scalar strings are never coerced.
 - `glob` finds files recursively and `grep` returns bounded `path:line` evidence. Both skip dependency/build trees, do not follow symlinks, support cancellation, and remain subject to path-scoped permission rules.
+- `read_file` and the deferred `Read` alias return text slices, notebook cells, validated images, or rendered PDF pages. PDFs above 10 pages require an explicit range of at most 20 pages; page rendering uses `pdfinfo`/`pdftoppm` from Poppler with argument arrays, a filtered environment, temporary cleanup, and bounded aggregate output. Images/PDF pages are sent to the configured multimodal provider, so do not read unrelated private media.
+- Composer attachments are authorized only from a real local `File` selected or dropped by the user. Preload exchanges that selection for a one-hour opaque capability; main process pins the regular file's identity, size and modification time, rejects symlinks and changed/oversized files, and never trusts a renderer-declared path. Capabilities, local paths, preview URLs and attachment bytes are removed from persisted chat history as well as durable agent checkpoints. Both renderer projection and strict main validation enforce that boundary, so an expired attachment must be selected again instead of silently rereading a path after restart.
 - Read-only tools run automatically. In `workspace-write`, file writes and shell commands require explicit per-action approval and remain workspace-scoped/sandboxed. In `danger-full-access`, tools run automatically by default, commands are unsandboxed, and absolute file paths are allowed; explicit central `ask`/`deny` rules still take precedence.
 - Tool audit records persist locally as JSONL with a hashed workspace identifier. File contents and tool arguments are not written to that audit log.
 - `apply_patch` performs one exact, unambiguous replacement so edits do not need to resend a complete file.
 - Foreground and background command output is returned to the configured model provider. Do not run commands that print credentials or unrelated private data; the filtered child environment reduces accidental leakage but cannot sanitize files a permitted command deliberately reads.
+- Typing `/` in the composer opens a keyboard-navigable command palette. `/model` and `/permissions` open dedicated pickers backed by persisted settings; `/resume` (alias `/continue`) searches up to 100 paused/failed agent tasks in the current workspace by normalized title, error text or task ID and resumes the selected durable checkpoint. `/rename` opens a focused dialog and persists a custom title that later messages do not overwrite; `/context` renders estimated used/remaining model context as a bounded grid; `/status` summarizes the active app/provider/model/permission/workspace/Git state; `/hooks` lists sanitized metadata for the effective declarative hooks; `/compact` replaces older local history with a deterministic summary while retaining recent original messages. `/config`, `/agents`, `/mcp`, `/tasks`, `/knowledge`, `/traces`, `/capabilities`, `/clear`, and `/new` execute local UI/thread actions. `/plan` inserts an explicit Plan Mode request for review before sending.
+- Manual `/compact` is main-owned and provider-free. Renderer projection excludes attachment bytes, preview URLs and authorization capabilities; main validates unique message IDs under a 1,000-message/12-million-text-character boundary and refuses a result unless at least one old message is removed and the approximate context is smaller. An optional 2,000-character preservation note is retained verbatim in the bounded local-derived summary rather than triggering a model rewrite. The renderer applies only the returned summary plus keep-ID set, and only if the active thread and exact message-array snapshot are unchanged; the inserted summary is historical `agent` content, never a renderer-authored `system` message.
+- Manual compaction boundary: [`docs/adr/0021-bounded-manual-context-compaction.md`](docs/adr/0021-bounded-manual-context-compaction.md).
+- The deferred `Config` tool can read or update only the active model, fallback model, and default permission mode. Reads never expose provider URLs or credentials; every mutation is validated, persisted, blocked during Plan Mode, requires explicit local approval even in `danger-full-access`, and synchronizes the active agent runtime with the renderer.
 
 ### Provider & Model Configuration
 
 - **Lưu provider** persists the connection and a newline/comma-separated manual model list without requiring a network request.
 - **Lưu & quét model** explicitly queries the provider catalog. A scan failure no longer prevents users from saving a manual provider configuration.
 - When the renderer is opened outside Electron or preload fails, the app shows a dedicated bridge diagnostic instead of reporting the issue as a provider/model error.
+- OpenAI-compatible streaming uses a bounded SSE decoder that accepts optional `data:` spacing, arbitrary transport chunks and an unterminated final frame. Content-array/cumulative deltas and fragmented or index-less tool calls are normalized under explicit content/tool-count/argument limits. Usage accepts standard `prompt_tokens_details.cached_tokens` plus compatible `cache_read_input_tokens`/`cache_creation_input_tokens`; normalized cache hit/write counts persist in model-call traces without recording prompts or responses.
+- Provider stream boundary: [`docs/adr/0020-bounded-openai-stream-normalization.md`](docs/adr/0020-bounded-openai-stream-normalization.md).
 
 ### Permission Rules
 
 - Workspace rules live in `.agentstudio/permissions.json` and may only tighten policy with `ask` or `deny`.
 - User rules live under Electron `userData/permissions/rules.json` and may use `allow`, `ask`, or `deny`.
 - Precedence is `deny` → `ask` → `allow`; `deny` also overrides `danger-full-access`, while no rule can weaken `read-only`.
-- Rules require `effect` and `toolGlob`; optional constraints are `risk`, `pathGlob`, and `commandPrefix`. Globs support `*` and `?`.
+- Rules require `effect` and `toolGlob`; optional constraints are `risk`, `pathGlob`, `domainGlob`, and `commandPrefix`. `domainGlob` matches the normalized hostname of tools with a URL argument. Globs support `*` and `?`.
 
 ```json
 {
   "rules": [
     { "id": "deny-delete", "effect": "deny", "toolGlob": "run_command", "commandPrefix": "rm " },
-    { "id": "ask-secrets", "effect": "ask", "toolGlob": "read_file", "pathGlob": "config/*" }
+    { "id": "ask-secrets", "effect": "ask", "toolGlob": "read_file", "pathGlob": "config/*" },
+    { "id": "allow-docs-fetch", "effect": "allow", "toolGlob": "WebFetch", "domainGlob": "docs.example.com" }
   ]
 }
 ```
@@ -119,10 +128,12 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 
 ### Declarative Lifecycle Hooks
 
-- Workspace hooks live in `.agentstudio/hooks.json`. AgentStudio executes `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `TaskCreated`, and `TaskCompleted`; unsupported lifecycle events are rejected instead of silently appearing active.
+- Workspace hooks live in `.agentstudio/hooks.json`. AgentStudio executes `InstructionsLoaded`, `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `PermissionDenied`, renderer `Notification`, `TaskCreated`, `TaskCompleted`, `SubagentStart`, `SubagentStop`, `TeammateIdle`, `Elicitation`/`ElicitationResult`, `WorktreeCreate`, `WorktreeRemove`, worktree-root `CwdChanged`, `ConfigChange`, successful local `FileChanged`, `PreCompact`/`PostCompact`, `Stop`, `StopFailure`, and `SessionEnd`; unsupported lifecycle events such as CLI-only `Setup` are rejected instead of silently appearing active.
 - Hook actions are deliberately capability-free: `add_context`, `deny_tool`, `require_approval`, `block_task`, and `audit`. `block_task` is valid only for task lifecycle events and rolls back creation/completion. There is no hook action that grants a permission, executes a shell command, invokes a model, or sends an HTTP request.
 - `PreToolUse` restrictions are translated into workspace permission rules, so they also apply to read-only subagents. A malformed hook file fails closed before tool execution.
+- Instruction-load, permission, notification, subagent, teammate-idle, elicitation, worktree, cwd-change, config-change, file-change, compaction and session-stop/end events are audit-only. Tool/notification-kind/agent/teammate/interaction-kind/branch/setting/path matchers may select permission, notification, subagent, teammate, elicitation, worktree, cwd, config and file-change events, but these hooks cannot modify arguments, grant authority, change an approval decision, alter a completed mutation, stop a model response, or inject context. `Notification` currently fires only after a background-command completion toast is actually sent to an attached renderer, matches `background-command:<status>`, and keeps the workspace wrapper in main. `Elicitation`/`ElicitationResult` bracket only `AskUserQuestion`, match the constant `questions`, and never expose question or answer text to hook audit. `TeammateIdle` runs only after the authenticated team idle envelope has been delivered and matches the persisted teammate name. `CwdChanged` fires after a durable `EnterWorktree` switch and after `ExitWorktree` returns to the original root; one-off command working directories are not persistent session changes. `FileChanged` receives a workspace-relative path after a successful `Write`/`Edit`/`NotebookEdit`; shell/MCP/external mutations are not inferred. The same best-effort composite sink still notifies LSP even if hook dispatch fails. Compaction dispatch brackets successful conversation rebuilding in root and child-worker loops plus effective main-owned `/compact`; a child may request only the two bounded compaction event names while the parent supplies workspace/request/task identity. Hook failures do not change the model context.
 - Hook files are bounded, cannot be symlinks, and are read only from the current workspace. Applied hook identities and labels are written to a private JSONL audit file without hook context, tool arguments, output, or the raw workspace path.
+- The read-only `/hooks` panel exposes only normalized hook ID/event/matcher/action-type metadata. Context bodies, denial/approval reasons and audit labels remain in the main process.
 
 ```json
 {
@@ -160,7 +171,8 @@ The current JSON store remains appropriate for small knowledge bases. Move to a 
 ### Declarative Plugins
 
 - AgentStudio discovers local plugin bundles from Electron `userData/plugins/*` and `.agentstudio/plugins/*`. Each bundle uses the familiar `.claude-plugin/plugin.json` manifest location.
-- A plugin receives a content-bound identity derived from its root, manifest, and hook files. It must be explicitly trusted and enabled in **Settings → Declarative Plugins**; changing any active hook content produces a new untrusted identity.
+- Declarative hooks and stdio language servers are supported. LSP config may live in `.lsp.json` or `manifest.lspServers`; commands are spawned with argument arrays and a filtered environment. Repository LSP config is never executed unless its plugin's exact content hash is explicitly trusted and enabled.
+- A plugin receives a content-bound identity derived from its root, manifest, hook files, and LSP files. It must be explicitly trusted and enabled in **Settings → Declarative Plugins**; changing any active source produces a new untrusted identity.
 - The catalog reports `skills`, `agents`, `commands`, and `mcpServers` declared by a manifest, but this phase activates only declarative hooks. Other components remain visible as unsupported instead of being executed through a side door.
 - Persisted Claude-style command, prompt-model, HTTP, and agent hooks are rejected. Existing skill, agent-profile, and MCP trust gates remain authoritative.
 
@@ -192,10 +204,13 @@ The external hook file may use `{ "hooks": { ... } }` or AgentStudio's versioned
 ### Background Command Supervisor
 
 - `run_command` accepts `run_in_background=true` and immediately returns a session-scoped task ID. The model can use `task_output` with blocking or polling semantics, and `task_stop` to terminate a running process tree.
+- Deferred reference aliases (`Bash`, `PowerShell`, `TaskOutput`, `TaskStop`, `AgentOutputTool`, `BashOutputTool`, and `KillShell`) share this supervisor. Alias names are normalized before permission and lifecycle-hook matching, so compatibility does not create a policy bypass.
+- `PowerShell` selects a real `pwsh`/Windows PowerShell executable. It currently requires `danger-full-access`; workspace-write fails closed because the POSIX sandbox profile cannot safely expose the complete PowerShell runtime.
 - Foreground and background commands use the same OS-specific sandbox specification and filtered environment. Starting/stopping remains execute risk; reading task output is read risk.
 - Output streams to private Electron `userData` storage instead of model memory or the workspace. Files are owner-only and no-follow opened, retrieval returns a bounded tail, and timeout/output limits terminate runaway commands with explicit status evidence.
-- Tasks survive follow-up turns in the same chat for the current app lifetime. Bounded historical tool results are reconstructed into later model requests so the model can reuse the exact task ID; this also means earlier command output can be sent to the configured provider again. A different chat cannot guess/read/stop tasks, and app shutdown terminates retained process trees.
-- Architecture decision and remaining durability boundary: [`docs/adr/0010-background-command-supervisor.md`](docs/adr/0010-background-command-supervisor.md).
+- Tasks survive follow-up turns and desktop-app restarts. Each command runs below a detached, bounded sidecar that atomically checkpoints status and heartbeat beside its private output. A new app process can recover `TaskOutput` and can stop the same process tree through a 256-bit file capability; it never authorizes termination from a persisted PID. Bounded historical tool results let the model reuse the exact task ID, which also means earlier command output can be sent to the configured provider again. A different chat cannot guess/read/stop tasks.
+- Normal app shutdown deliberately leaves these bounded sidecars running until command completion, explicit stop, the ten-minute timeout, or the 5GB output guard. State records include the command and description in owner-only Electron `userData`. Newly terminal commands are claimed once and injected as escaped, bounded, untrusted runtime context at the root model's next step or the next user turn; `TaskOutput` remains available for explicit retrieval. An open renderer also receives a separate one-shot toast with status/exit code and a shortcut to the owning chat, without exposing raw command output. AgentStudio does not wake a closed desktop process solely to show that toast.
+- Architecture decision and durability boundary: [`docs/adr/0010-background-command-supervisor.md`](docs/adr/0010-background-command-supervisor.md).
 
 ### Structured Questions & Plan Mode
 
@@ -252,7 +267,19 @@ Check assumptions, identify concrete failure modes, and clearly label uncertaint
 - Teammates share task ownership and dependency state. Starting an unowned task auto-claims it; assigning an owner persists a mailbox notification and wakes that teammate.
 - Private team files use hashed scope identities, atomic owner-only writes, and bounded validation. IPC exposes roster/count/summary metadata, never full mailbox content.
 - The chat UI restores and streams team roster state across turns and application restarts. Interrupted workers recover as idle/paused instead of being shown as active.
-- Architecture decision and remaining transport boundary: [`docs/adr/0014-persistent-agent-team-runtime.md`](docs/adr/0014-persistent-agent-team-runtime.md).
+- A collapsible multi-agent control center combines the team roster, standalone subagents, live status totals, pending approvals, current tools, results, errors, and preserved worktrees in one place. Selecting an agent opens its task and activity inspector, while the Activity and Mailbox tabs provide a newest-first coordination feed across the whole scope.
+- The control center prioritizes agents waiting for approval, supports allow/deny and stop actions through the existing typed application hooks, and adapts from a side-by-side desktop layout to a stacked narrow-window view.
+- Team messages use an authenticated private local socket/pipe protocol with durable claim/ACK/retry storage, correlated permission/sandbox/plan controls, and scoped replay-resistant credentials.
+- Production worker model/conversation loops run in filtered child processes. Bootstrap credentials use a private inherited FD; tools, approvals, hooks, audit, checkpoints and trace persistence remain in Electron main through bounded strict RPC, so a child cannot increase its inherited authority.
+- Architecture decision and remaining process boundary: [`docs/adr/0014-persistent-agent-team-runtime.md`](docs/adr/0014-persistent-agent-team-runtime.md).
+
+### Scheduled and Remote Triggers
+
+- Exact deferred `CronCreate`, `CronDelete`, and `CronList` tools support strict five-field local schedules, one-shot or recurring jobs, private durable lead schedules, teammate session schedules, bounded ownership, cross-process claim locking, and mailbox retry on failed delivery.
+- Durable jobs catch up when the relevant chat/worker scope is active again. AgentStudio does not install an OS service or wake a closed application.
+- Exact `RemoteTrigger` is absent until explicitly enabled in Settings. It calls only the configured HTTPS (or loopback HTTP) API, keeps the bearer token encrypted in the main process, redacts it if a hostile endpoint echoes it, rejects redirects, and bounds requests to 20 seconds and responses to 100,000 bytes.
+- Remote calls remain `network` risk and therefore still pass central permission, approval, hook, audit and tracing controls.
+- Architecture decision and security boundary: [`docs/adr/0016-scheduled-and-remote-trigger-boundary.md`](docs/adr/0016-scheduled-and-remote-trigger-boundary.md).
 
 ### MCP Servers
 
@@ -261,6 +288,9 @@ Check assumptions, identify concrete failure modes, and clearly label uncertaint
 - Streamable HTTP requires HTTPS except on localhost. Static bearer tokens and OAuth 2 client-credentials authentication are supported; secrets use Electron `safeStorage` when available.
 - Server tool metadata and output are marked untrusted. Each server receives a local default risk classification, and all MCP calls pass through the same approval and audit pipeline as local tools.
 - Lifecycle controls include start, stop, auto-start, connection status, error reporting, pagination-aware tool discovery, request timeout, and shutdown cleanup.
+- A server in `needs-auth` state exposes an explicit **Xác thực** action in Settings. Main process starts the PKCE loopback flow, validates and opens only HTTPS/loopback authorization URLs, then the panel polls local status until the server reconnects.
+- A connected MCP server whose configured name normalizes to `ide` may send the reference-compatible `selection_changed` and `at_mentioned` notifications. AgentStudio snapshots the newest selection for each root request and consumes at-mentions once on the next request. Both accept only files inside the current workspace and apply normal `read_file` rules without an approval side channel. Selection text is escaped/capped at 2,000 characters; at-mentioned regular files are no-follow read with the shared 200 KB input bound, requested line range, per-item/aggregate context caps, and an untrusted-data label. Other MCP servers cannot inject IDE context.
+- IDE selection design and trust boundary: [`docs/adr/0019-mcp-ide-selection-context.md`](docs/adr/0019-mcp-ide-selection-context.md).
 
 ### Deferred Tool Search
 

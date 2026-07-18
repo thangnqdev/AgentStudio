@@ -17,6 +17,26 @@ describe('AgentConversationBuilder', () => {
     expect(messages).toHaveLength(8);
   });
 
+  it('audits successful compaction around message formatting', async () => {
+    const events: string[] = [];
+    const messages = Array.from({ length: 8 }, (_, index) => ({
+      id: String(index), sender: (index % 2 ? 'agent' : 'user') as 'agent' | 'user', content: `message-${index} ${'x'.repeat(1_000)}`,
+    }));
+    const formatter = { format: async (recent: typeof messages) => {
+      events.push('format');
+      return recent.map((message) => ({ role: 'user' as const, content: message.content }));
+    } };
+    const hooks = { dispatch: async (input: { event: string; requestId?: string; taskId?: string }) => {
+      events.push(`${input.event}:${input.requestId}:${input.taskId}`);
+      return { matchedHookIds: [], contexts: [], auditLabels: [] };
+    } };
+    await new AgentConversationBuilder(formatter, hooks).build({
+      messages, inputContextTokens: 1_000, workspaceRoot: '/workspace', requestId: 'request-1', taskId: 'task-1',
+      settings: { baseUrl: '', apiKey: '', model: 'model', permissionMode: 'workspace-write' },
+    });
+    expect(events).toEqual(['PreCompact:request-1:task-1', 'format', 'PostCompact:request-1:task-1']);
+  });
+
   it('restores historical tool output so follow-up turns retain task identities', async () => {
     const messages = [{
       id: 'agent-history', sender: 'agent' as const, content: 'Started.',

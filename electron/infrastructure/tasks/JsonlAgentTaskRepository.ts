@@ -55,7 +55,7 @@ export class JsonlAgentTaskRepository implements IAgentTaskRepository {
     return [...(await this.readUnlocked()).values()]
       .filter((task) => task.workspaceRoot === workspaceRoot && (task.status === 'paused' || task.status === 'failed'))
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-      .slice(0, 12)
+      .slice(0, 100)
       .map(summarizeAgentTask);
   }
 

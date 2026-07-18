@@ -46,13 +46,24 @@ describe('DeterministicAgentScenarioRunner', () => {
     expect(observed.completedSteps).toBe(6);
     expect(observed.toolCalls).toEqual([
       { toolName: 'ToolSearch', outcome: 'succeeded' },
-      { toolName: 'task_create', outcome: 'succeeded' },
-      { toolName: 'task_create', outcome: 'succeeded' },
-      { toolName: 'task_update', outcome: 'succeeded' },
-      { toolName: 'task_update', outcome: 'succeeded' },
-      { toolName: 'task_list', outcome: 'succeeded' },
+      { toolName: 'TaskCreate', outcome: 'succeeded' },
+      { toolName: 'TaskCreate', outcome: 'succeeded' },
+      { toolName: 'TaskUpdate', outcome: 'succeeded' },
+      { toolName: 'TaskUpdate', outcome: 'succeeded' },
+      { toolName: 'TaskList', outcome: 'succeeded' },
     ]);
     expect(observed.changedFiles).toEqual([]);
+    expect(observed.policyViolationCodes).toEqual([]);
+  });
+
+  it('uses the exact unified TaskOutput contract for a background command', async () => {
+    const observed = await new DeterministicAgentScenarioRunner().run(fixture('background-command-lifecycle'), DEFAULT_OPTIMIZATION_CONFIG);
+    expect(observed.taskStatus).toBe('completed');
+    expect(observed.toolCalls).toEqual([
+      { toolName: 'ToolSearch', outcome: 'succeeded' },
+      { toolName: 'run_command', outcome: 'succeeded' },
+      { toolName: 'TaskOutput', outcome: 'succeeded' },
+    ]);
     expect(observed.policyViolationCodes).toEqual([]);
   });
 
@@ -70,13 +81,38 @@ describe('DeterministicAgentScenarioRunner', () => {
   it('runs TeamCreate and promotes a named Agent into the shared team runtime', async () => {
     const observed = await new DeterministicAgentScenarioRunner().run(fixture('team-agent-coordination'), DEFAULT_OPTIMIZATION_CONFIG);
     expect(observed.taskStatus).toBe('completed');
-    expect(observed.toolCalls).toEqual([
+    expect(observed.toolCalls.slice(0, 2)).toEqual([
       { toolName: 'ToolSearch', outcome: 'succeeded' },
       { toolName: 'TeamCreate', outcome: 'succeeded' },
-      { toolName: 'read_file', outcome: 'succeeded' },
+    ]);
+    expect(observed.toolCalls.slice(2).sort((left, right) => left.toolName.localeCompare(right.toolName))).toEqual([
       { toolName: 'Agent', outcome: 'succeeded' },
+      { toolName: 'read_file', outcome: 'succeeded' },
     ]);
     expect(observed.changedFiles).toEqual([]);
+    expect(observed.policyViolationCodes).toEqual([]);
+  });
+
+  it('loads and executes the deferred WebFetch contract in read-only mode', async () => {
+    const observed = await new DeterministicAgentScenarioRunner().run(fixture('deferred-web-fetch'), DEFAULT_OPTIMIZATION_CONFIG);
+    expect(observed.taskStatus).toBe('completed');
+    expect(observed.toolCalls).toEqual([
+      { toolName: 'ToolSearch', outcome: 'succeeded' },
+      { toolName: 'WebFetch', outcome: 'succeeded' },
+    ]);
+    expect(observed.changedFiles).toEqual([]);
+    expect(observed.policyViolationCodes).toEqual([]);
+  });
+
+  it('reads and edits one notebook cell through the exact deferred tool contract', async () => {
+    const observed = await new DeterministicAgentScenarioRunner().run(fixture('notebook-cell-edit'), DEFAULT_OPTIMIZATION_CONFIG);
+    expect(observed.taskStatus).toBe('completed');
+    expect(observed.toolCalls).toEqual([
+      { toolName: 'ToolSearch', outcome: 'succeeded' },
+      { toolName: 'read_file', outcome: 'succeeded' },
+      { toolName: 'NotebookEdit', outcome: 'succeeded' },
+    ]);
+    expect(observed.changedFiles).toEqual(['analysis.ipynb']);
     expect(observed.policyViolationCodes).toEqual([]);
   });
 

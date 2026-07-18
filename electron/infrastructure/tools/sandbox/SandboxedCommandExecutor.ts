@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import type { ToolResult, PermissionMode } from '../../../domain/entities/agent.js';
 import { buildSafeProcessEnvironment, terminateProcessTree } from './ProcessTree.js';
 import { resolveSandboxCommand } from './SandboxCommandSpec.js';
+import type { CommandShell } from '../../../domain/entities/backgroundCommand.js';
 
 export { buildSeatbeltProfile } from './SandboxCommandSpec.js';
 
@@ -80,8 +81,9 @@ export async function runSandboxedCommand(
   permissionMode: PermissionMode,
   timeoutMs: number,
   signal?: AbortSignal,
+  shell?: CommandShell,
 ): Promise<ToolResult> {
-  const resolution = await resolveSandboxCommand(command, workspaceRoot, permissionMode);
+  const resolution = await resolveSandboxCommand(command, workspaceRoot, permissionMode, shell);
   if (!resolution.ok) return { ok: false, output: resolution.error };
   const { executable, args, cwd } = resolution.spec;
   return spawnAndCollect(executable, args, cwd, timeoutMs, SIGKILL_GRACE_PERIOD_MS, signal);

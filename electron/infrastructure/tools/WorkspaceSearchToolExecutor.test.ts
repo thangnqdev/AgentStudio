@@ -44,4 +44,27 @@ describe('WorkspaceSearchToolExecutor', () => {
     const controller = new AbortController(); controller.abort();
     await expect(executor.glob({ pattern: '**/*' }, root, 'read-only', controller.signal)).rejects.toThrow('stopped');
   });
+
+  it('supports reference-style file, count, context and pagination modes', async () => {
+    const root = await workspace();
+    const executor = new WorkspaceSearchToolExecutor();
+    await expect(executor.grep({ pattern: 'goal', outputMode: 'files_with_matches', typeGlob: '**/*.ts' }, root, 'read-only'))
+      .resolves.toMatchObject({ output: expect.stringContaining('src/alpha.ts') });
+    await expect(executor.grep({ pattern: 'goal', outputMode: 'count' }, root, 'read-only'))
+      .resolves.toMatchObject({ output: expect.stringContaining('src/alpha.ts:1') });
+    const content = await executor.grep({ pattern: 'goal', outputMode: 'content', contextAfter: 1, offset: 1, maxResults: 1 }, root, 'read-only');
+    expect(content.output.split('\n')[0]).toContain('src/alpha.ts:2:');
+  });
+
+  it('matches bounded cross-line expressions only when multiline is enabled', async () => {
+    const root = await workspace();
+    const executor = new WorkspaceSearchToolExecutor();
+    const singleLine = await executor.grep({ pattern: 'goal.*other', regex: true }, root, 'read-only');
+    expect(singleLine.output).toBe('(no matches)');
+    const multiline = await executor.grep({
+      pattern: 'goal.*other', regex: true, multiline: true, outputMode: 'content',
+    }, root, 'read-only');
+    expect(multiline.output).toContain('src/alpha.ts:1:');
+    expect(multiline.output).toContain('src/alpha.ts:2:');
+  });
 });

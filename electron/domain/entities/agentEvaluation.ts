@@ -46,6 +46,13 @@ export type RuntimeEvaluationResponse = {
   content?: string;
   toolCalls?: Array<{ name: string; args: Record<string, unknown> }>;
 };
+export type RuntimeEvaluationWebPage = {
+  url: string;
+  content: string;
+  contentType?: string;
+  code?: number;
+  codeText?: string;
+};
 export type GoldenRuntimeTaskDefinition = Omit<GoldenTaskFixture, 'observed'> & {
   runtime: {
     prompt: string;
@@ -57,6 +64,7 @@ export type GoldenRuntimeTaskDefinition = Omit<GoldenTaskFixture, 'observed'> & 
     knowledge?: { store: KnowledgeStore; query: string; limit: number };
     knowledgeContext?: string;
     interactions?: AgentInteractionResponse[];
+    webPages?: RuntimeEvaluationWebPage[];
   };
 };
 export type GoldenRuntimeSuiteDefinition = Omit<GoldenTaskSuite, 'fixtures'> & {

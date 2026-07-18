@@ -10,8 +10,9 @@ type StoredServer = Omit<McpServerRecord, 'credentials' | 'hasCredentials'> & {
   plainCredentials?: string;
 };
 
+let repositoryMutationQueue = Promise.resolve();
+
 export class JsonMcpServerRepository implements IMcpServerRepository {
-  private queue = Promise.resolve();
   async loadAll(): Promise<McpServerRecord[]> {
     try {
       const parsed = JSON.parse(await fs.readFile(this.getPath(), 'utf8')) as unknown;
@@ -31,6 +32,17 @@ export class JsonMcpServerRepository implements IMcpServerRepository {
 
   async remove(serverId: string) {
     await this.mutate((servers) => servers.filter((server) => server.id !== serverId));
+  }
+
+  async updateCredentialsSecurely(serverId: string, update: (credentials: McpCredentials) => McpCredentials) {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('Encrypted MCP credential storage is unavailable.');
+    await this.mutate((servers) => {
+      const index = servers.findIndex((server) => server.id === serverId);
+      if (index < 0) throw new Error('MCP server does not exist.');
+      const record = this.toRecord(servers[index]);
+      servers[index] = this.toStored({ ...record, credentials: update(record.credentials), hasCredentials: true });
+      return servers;
+    });
   }
 
   private async loadStored(): Promise<StoredServer[]> {
@@ -77,8 +89,8 @@ export class JsonMcpServerRepository implements IMcpServerRepository {
   }
 
   private async mutate(mutation: (servers: StoredServer[]) => StoredServer[]) {
-    const operation = this.queue.then(async () => this.write(mutation(await this.loadStored())));
-    this.queue = operation.catch(() => undefined);
+    const operation = repositoryMutationQueue.then(async () => this.write(mutation(await this.loadStored())));
+    repositoryMutationQueue = operation.catch(() => undefined);
     await operation;
   }
 

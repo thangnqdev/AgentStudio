@@ -4,6 +4,11 @@ import { ToolPermissionPolicy } from './application/services/ToolPermissionPolic
 import { FilePermissionRuleSource } from './infrastructure/permissions/FilePermissionRuleSource.js';
 import { resolveSafeWorkspacePath } from './infrastructure/security/resolveSafePath.js';
 import { lifecycleHookPermissionRuleSource } from './hookRuntime.js';
+import { WebFetchPermissionPolicy } from './application/services/WebFetchPermissionPolicy.js';
+import { FileUserPermissionRuleWriter } from './infrastructure/permissions/FileUserPermissionRuleWriter.js';
+import { ConfigToolPermissionPolicy } from './application/services/ConfigToolPermissionPolicy.js';
+
+const userRulePath = () => path.join(app.getPath('userData'), 'permissions', 'rules.json');
 
 const workspaceRules = new FilePermissionRuleSource({
   source: 'workspace',
@@ -14,7 +19,13 @@ const workspaceRules = new FilePermissionRuleSource({
 const userRules = new FilePermissionRuleSource({
   source: 'user',
   allowedEffects: ['allow', 'ask', 'deny'],
-  resolvePath: () => path.join(app.getPath('userData'), 'permissions', 'rules.json'),
+  resolvePath: userRulePath,
 });
 
-export const toolPermissionPolicy = new ToolPermissionPolicy([workspaceRules, lifecycleHookPermissionRuleSource, userRules]);
+export const userPermissionRuleWriter = new FileUserPermissionRuleWriter(userRulePath);
+
+export const toolPermissionPolicy = new ConfigToolPermissionPolicy(
+  new WebFetchPermissionPolicy(
+    new ToolPermissionPolicy([workspaceRules, lifecycleHookPermissionRuleSource, userRules]),
+  ),
+);

@@ -6,7 +6,7 @@ import { ManageMcpServers } from './ManageMcpServers.js';
 function createHarness(initial: McpServerRecord[] = []) {
   let records = [...initial];
   const gateway: IMcpConnectionGateway = {
-    start: vi.fn(async () => undefined), stop: vi.fn(async () => undefined), stopAll: vi.fn(async () => undefined),
+    start: vi.fn(async () => undefined), stop: vi.fn(async () => undefined), forget: vi.fn(async () => undefined), stopAll: vi.fn(async () => undefined),
     list: vi.fn(async () => []), execute: vi.fn(async () => ({ ok: false, output: '' })),
     getStatus: (config) => ({ ...config, state: 'stopped', toolCount: 0 }),
   };
@@ -35,5 +35,16 @@ describe('ManageMcpServers', () => {
     expect(records()[0].credentials.environment).toEqual({ TOKEN: 'secret' });
     await manager.save({ id: existing.id, name: 'renamed', transport: existing.transport, clearCredentials: true }, '/workspace');
     expect(records()[0].credentials).toEqual({ bearerToken: undefined, oauthClientId: undefined, oauthClientSecret: undefined, oauthScope: undefined, environment: {} });
+  });
+
+  it('keeps exact server names unambiguous and forgets removed runtime state', async () => {
+    const existing: McpServerRecord = {
+      id: 'server-1', name: 'docs', transport: { type: 'stdio', command: 'node', args: ['server.js'] },
+      autoStart: false, defaultRisk: 'read', hasCredentials: false, credentials: {},
+    };
+    const { manager, gateway } = createHarness([existing]);
+    await expect(manager.save({ name: 'docs', transport: existing.transport }, '/workspace')).rejects.toThrow('already exists');
+    await manager.remove(existing.id);
+    expect(gateway.forget).toHaveBeenCalledWith(existing.id);
   });
 });

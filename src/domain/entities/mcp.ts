@@ -1,5 +1,11 @@
 export type McpToolRisk = 'read' | 'write' | 'execute' | 'network';
 
+export type McpAuthOutput = {
+  status: 'auth_url' | 'unsupported' | 'error';
+  authUrl?: string;
+  message: string;
+};
+
 export type McpServerTransport =
   | { type: 'stdio'; command: string; args: string[] }
   | { type: 'http'; url: string };
@@ -11,7 +17,7 @@ export type McpServerStatus = {
   autoStart: boolean;
   defaultRisk: McpToolRisk;
   hasCredentials: boolean;
-  state: 'stopped' | 'starting' | 'connected' | 'error';
+  state: 'stopped' | 'starting' | 'connected' | 'needs-auth' | 'error';
   toolCount: number;
   error?: string;
 };

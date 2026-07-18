@@ -1,20 +1,10 @@
 import type { IAiProvider } from '../../domain/ports/IAiProvider.js';
-import type { AgentProviderSettings, AssistantResponse, ChatMessage, ModelTokenUsage, ToolCall } from '../../domain/entities/agent.js';
+import type { AgentProviderSettings, AssistantResponse, ChatMessage } from '../../domain/entities/agent.js';
 import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import { getResponseTokenLimit } from '../../domain/entities/tokenBudget.js';
 import type { AgentToolDefinition } from '../../domain/entities/tool.js';
 import { createProviderHttpError, createProviderTransportError } from './OpenAIProviderErrors.js';
-
-type StreamingToolCall = {
-  index: number;
-  id: string;
-  type?: string;
-  function: {
-    name: string;
-    arguments: string;
-  };
-};
-
+import { OpenAiChatStreamAccumulator, SseDataDecoder } from './openAiStreamProtocol.js';
 
 function toProviderToolDefinitions(tools: AgentToolDefinition[]) {
   return tools.map((tool) => ({
@@ -64,11 +54,13 @@ export class OpenAIProvider implements IAiProvider {
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
-    const toolCalls = new Map<number, StreamingToolCall>();
-    let content = '';
-    let buffer = '';
-    let finishReason = '';
-    let usage: ModelTokenUsage | undefined;
+    const sse = new SseDataDecoder();
+    const accumulator = new OpenAiChatStreamAccumulator();
+    const consume = (data: string) => {
+      const result = accumulator.consumeData(data);
+      if (result.contentDelta) eventSink.emitChunk(requestId, result.contentDelta);
+      return result.done;
+    };
 
     while (true) {
       if (signal?.aborted) throw new Error('Agent session stopped.');
@@ -78,56 +70,18 @@ export class OpenAIProvider implements IAiProvider {
         throw createProviderTransportError(error);
       });
       if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data: ')) continue;
-        if (trimmed === 'data: [DONE]') {
-          return {
-            role: 'assistant' as const,
-            content,
-            tool_calls: this.normalizeStreamingToolCalls(toolCalls),
-            finishReason,
-            ...(usage ? { usage } : {}),
-          };
-        }
-
-        const chunk = this.parseSseJson(trimmed.slice(6));
-        if (!chunk) continue;
-
-        usage = this.readUsage(chunk) ?? usage;
-        finishReason = this.readChoiceFinishReason(chunk) || finishReason;
-        const delta = this.readChoiceDelta(chunk);
-        if (!delta) continue;
-
-        const contentDelta = delta.content;
-        if (typeof contentDelta === 'string' && contentDelta) {
-          content += contentDelta;
-          eventSink.emitChunk(requestId, contentDelta);
-        }
-
-        const toolCallDeltas = delta.tool_calls;
-        if (Array.isArray(toolCallDeltas)) {
-          this.mergeToolCallDeltas(toolCalls, toolCallDeltas);
-        }
+      for (const data of sse.push(decoder.decode(value, { stream: true }))) {
+        if (consume(data)) return accumulator.result();
       }
     }
 
-    const normalizedToolCalls = this.normalizeStreamingToolCalls(toolCalls);
-    if (!content && normalizedToolCalls.length === 0) {
+    for (const data of [...sse.push(decoder.decode()), ...sse.flush()]) {
+      if (consume(data)) return accumulator.result();
+    }
+    if (!accumulator.hasOutput()) {
       throw createProviderTransportError(new Error('Provider stream closed before returning any content.'));
     }
-    return {
-      role: 'assistant' as const,
-      content,
-      tool_calls: normalizedToolCalls,
-      finishReason: finishReason || 'stream_closed',
-      ...(usage ? { usage } : {}),
-    };
+    return accumulator.result('stream_closed');
   }
 
   private async fetchCompletion(
@@ -146,8 +100,7 @@ export class OpenAIProvider implements IAiProvider {
         body: JSON.stringify({
           model: settings.model,
           messages,
-          tools: toProviderToolDefinitions(tools),
-          tool_choice: 'auto',
+          ...(tools.length > 0 ? { tools: toProviderToolDefinitions(tools), tool_choice: 'auto' } : {}),
           stream: true,
           ...(includeUsage ? { stream_options: { include_usage: true } } : {}),
           max_tokens: getResponseTokenLimit(settings.contextWindow),
@@ -162,95 +115,4 @@ export class OpenAIProvider implements IAiProvider {
   private buildEndpoint(baseUrl: string, endpoint: string) {
     return new URL(endpoint, `${baseUrl.replace(/\/$/, '')}/`).toString();
   }
-
-
-
-  private parseSseJson(raw: string): unknown | null {
-    try {
-      return JSON.parse(raw) as unknown;
-    } catch {
-      return null;
-    }
-  }
-
-  private isObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null;
-  }
-
-  private readChoiceDelta(chunk: unknown): Record<string, unknown> | null {
-    if (!this.isObject(chunk) || !Array.isArray(chunk.choices)) return null;
-    const choice = chunk.choices[0];
-    if (!this.isObject(choice) || !this.isObject(choice.delta)) return null;
-    return choice.delta;
-  }
-
-  private readChoiceFinishReason(chunk: unknown): string {
-    if (!this.isObject(chunk) || !Array.isArray(chunk.choices)) return '';
-    const choice = chunk.choices[0];
-    if (!this.isObject(choice)) return '';
-    return typeof choice.finish_reason === 'string' ? choice.finish_reason : '';
-  }
-
-  private readUsage(chunk: unknown): ModelTokenUsage | undefined {
-    if (!this.isObject(chunk) || !this.isObject(chunk.usage)) return undefined;
-    const inputTokens = readTokenCount(chunk.usage.prompt_tokens);
-    const outputTokens = readTokenCount(chunk.usage.completion_tokens);
-    if (inputTokens === undefined || outputTokens === undefined) return undefined;
-    const totalTokens = Math.max(readTokenCount(chunk.usage.total_tokens) ?? 0, inputTokens + outputTokens);
-    const details = this.isObject(chunk.usage.prompt_tokens_details) ? chunk.usage.prompt_tokens_details : undefined;
-    const rawCachedInputTokens = details ? readTokenCount(details.cached_tokens) : undefined;
-    const cachedInputTokens = rawCachedInputTokens !== undefined && rawCachedInputTokens <= inputTokens ? rawCachedInputTokens : undefined;
-    return { inputTokens, outputTokens, totalTokens, ...(cachedInputTokens !== undefined ? { cachedInputTokens } : {}) };
-  }
-
-  private mergeToolCallDeltas(toolCalls: Map<number, StreamingToolCall>, deltas: unknown[]) {
-    for (const rawDelta of deltas) {
-      if (!this.isObject(rawDelta)) continue;
-
-      const index = typeof rawDelta.index === 'number' ? rawDelta.index : toolCalls.size;
-      const existing = toolCalls.get(index) ?? {
-        index,
-        id: '',
-        function: {
-          name: '',
-          arguments: '',
-        },
-      };
-
-      if (typeof rawDelta.id === 'string') {
-        existing.id = rawDelta.id;
-      }
-      if (typeof rawDelta.type === 'string') {
-        existing.type = rawDelta.type;
-      }
-      if (this.isObject(rawDelta.function)) {
-        if (typeof rawDelta.function.name === 'string') {
-          existing.function.name += rawDelta.function.name;
-        }
-        if (typeof rawDelta.function.arguments === 'string') {
-          existing.function.arguments += rawDelta.function.arguments;
-        }
-      }
-
-      toolCalls.set(index, existing);
-    }
-  }
-
-  private normalizeStreamingToolCalls(toolCalls: Map<number, StreamingToolCall>): ToolCall[] {
-    return [...toolCalls.values()]
-      .sort((left, right) => left.index - right.index)
-      .filter((toolCall) => toolCall.function.name)
-      .map((toolCall) => ({
-        id: toolCall.id || `tool-${toolCall.index}`,
-        type: toolCall.type || 'function',
-        function: {
-          name: toolCall.function.name,
-          arguments: toolCall.function.arguments,
-        },
-      }));
-  }
-}
-
-function readTokenCount(value: unknown) {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }

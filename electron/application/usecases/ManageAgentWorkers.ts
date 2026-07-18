@@ -105,13 +105,17 @@ export class ManageAgentWorkers {
   }
 
   respondToApproval(agentId: string, actionId: string, approved: boolean) {
-    if (!this.active.has(agentId)) return false;
     this.approvals.respond(agentId, actionId, approved);
     return true;
   }
 
   async list(parentScopeId: string) {
     return (await this.repository.list(parentScopeId)).map(summarizeAgentWorker);
+  }
+
+  async findInScope(parentScopeId: string, agentId: string) {
+    const worker = await this.repository.get(agentId);
+    return worker?.parentScopeId === parentScopeId ? structuredClone(worker) : undefined;
   }
 
   async drainParentMessages(parentScopeId: string): Promise<Message[]> {

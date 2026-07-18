@@ -9,6 +9,7 @@ import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 import type { IToolPermissionPolicy } from '../../domain/ports/IToolPermissionPolicy.js';
 import type { ILifecycleHookDispatcher } from '../../domain/ports/ILifecycleHookDispatcher.js';
 import type { IAgentWorkspaceScope } from '../../domain/ports/IAgentWorkspaceScope.js';
+import type { IAgentAmbientContextSource } from '../../domain/ports/IAgentAmbientContextSource.js';
 import type { AgentTaskCheckpoint } from '../../domain/entities/agentTask.js';
 import { createAgentRunState, transitionAgentRun } from '../../domain/entities/agentRunState.js';
 import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
@@ -29,6 +30,9 @@ import { OUTPUT_CONTINUATION_PROMPT, shouldContinueModelOutput } from '../servic
 import { readAssistantContent } from '../services/assistantMessage.js';
 import { buildAgentSystemPrompt } from '../services/agentSystemPrompt.js';
 import { loadToolCatalogSnapshot } from '../services/toolCatalogSnapshot.js';
+import { synchronizeSystemPrompt } from '../services/agentSystemMessage.js';
+import { estimateConversationTokens } from '../services/conversationTokenEstimate.js';
+import type { AgentTaskRun } from './AgentTaskRun.js';
 
 export class RunAgentSession {
   private readonly modelRequester: ResilientModelRequester;
@@ -36,6 +40,7 @@ export class RunAgentSession {
   private readonly toolBatchRunner: AgentToolBatchRunner;
   private readonly toolCatalog: IToolCatalog;
   private readonly tracer: IAgentTracer;
+  private readonly ambientContext?: IAgentAmbientContextSource;
 
   constructor(
     provider: IAiProvider,
@@ -47,12 +52,17 @@ export class RunAgentSession {
     tracer: IAgentTracer,
     permissionPolicy?: IToolPermissionPolicy,
     hooks?: ILifecycleHookDispatcher,
+    ambientContext?: IAgentAmbientContextSource,
+    toolCallRunner?: Pick<AgentToolCallRunner, 'run'>,
   ) {
     this.modelRequester = new ResilientModelRequester(provider);
     this.toolCatalog = toolCatalog;
-    this.conversationBuilder = new AgentConversationBuilder(attachmentFormatter);
+    this.conversationBuilder = new AgentConversationBuilder(attachmentFormatter, hooks);
     this.tracer = tracer;
-    this.toolBatchRunner = new AgentToolBatchRunner(new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger, tracer, permissionPolicy, hooks));
+    this.ambientContext = ambientContext;
+    this.toolBatchRunner = new AgentToolBatchRunner(
+      toolCallRunner ?? new AgentToolCallRunner(toolExecutor, approvalGateway, auditLogger, tracer, permissionPolicy, hooks),
+    );
   }
 
   async execute(
@@ -87,7 +97,7 @@ export class RunAgentSession {
 
     const rebuildConversation = async () => {
       const rebuilt = await this.conversationBuilder.build({
-        messages: currentMessages, inputContextTokens, workspaceRoot: currentWorkspaceRoot(), settings, knowledgeContext, skillContext,
+        messages: currentMessages, inputContextTokens, workspaceRoot: currentWorkspaceRoot(), settings, knowledgeContext, skillContext, requestId, taskId: task?.id,
       });
       conversation = rebuilt.conversation;
       if (rebuilt.compactionNotice) currentMessages.push(rebuilt.compactionNotice);
@@ -105,9 +115,12 @@ export class RunAgentSession {
 
       const step = runState.completedSteps;
       const tools = await loadToolCatalogSnapshot(this.toolCatalog, currentWorkspaceRoot());
-      synchronizeSystemPrompt(conversation, buildAgentSystemPrompt(
-        currentWorkspaceRoot(), settings.permissionMode, knowledgeContext, skillContext,
-      ));
+      const ambient = tools.byName.has('run_command')
+        ? await this.ambientContext?.drain(currentWorkspaceRoot(), { requestId, permissionMode: settings.permissionMode })
+        : '';
+      synchronizeSystemPrompt(conversation, [
+        buildAgentSystemPrompt(currentWorkspaceRoot(), settings.permissionMode, knowledgeContext, skillContext), ambient,
+      ].filter(Boolean).join('\n\n'));
       runState = transitionAgentRun(runState, { type: 'request_model' });
       const modelStartedAt = new Date().toISOString();
       let assistantMessage: Awaited<ReturnType<IAiProvider['requestAssistantMessage']>>;
@@ -172,6 +185,9 @@ export class RunAgentSession {
         conversation.push(result.toolMessage);
         stepContent += result.stepContent;
       }
+      for (const result of toolResults) {
+        if (result.supplementalMessages?.length) conversation.push(...result.supplementalMessages);
+      }
 
       currentMessages.push({
         id: `step-${step}`,
@@ -183,8 +199,9 @@ export class RunAgentSession {
       conversation.push(...pendingMessages.map((message) => ({ role: 'user' as const, content: message.content })));
       runState = transitionAgentRun(runState, { type: 'tools_completed' });
 
-      const roughConversationTokens = conversation.reduce((acc, msg) => acc + Math.ceil(JSON.stringify(msg).length / 4), 0);
-      if (roughConversationTokens > inputContextTokens) {
+      const roughConversationTokens = estimateConversationTokens(conversation);
+      const hasFreshSupplementalMessages = toolResults.some((result) => result.supplementalMessages?.length);
+      if (roughConversationTokens > inputContextTokens && !hasFreshSupplementalMessages) {
         await rebuildConversation();
       }
       await this.checkpoint(task, 'running', runState.completedSteps, currentMessages, conversation);
@@ -222,27 +239,9 @@ export class RunAgentSession {
     });
   }
 
-  private async recordModelSpan(task: AgentTaskRun | undefined, requestId: string, step: number, startedAt: string, model: string, status: 'succeeded' | 'failed', finishReason?: string, usage?: { inputTokens: number; outputTokens: number; totalTokens: number; cachedInputTokens?: number }) {
+  private async recordModelSpan(task: AgentTaskRun | undefined, requestId: string, step: number, startedAt: string, model: string, status: 'succeeded' | 'failed', finishReason?: string, usage?: { inputTokens: number; outputTokens: number; totalTokens: number; cachedInputTokens?: number; cacheCreationInputTokens?: number }) {
     if (!task) return;
     await this.tracer.recordSpan({ kind: 'model_call', traceId: task.traceId, taskId: task.id, requestId, step, startedAt, endedAt: new Date().toISOString(), status, model, finishReason, usage }).catch(() => undefined);
   }
 
 }
-
-function synchronizeSystemPrompt(conversation: ChatMessage[], content: string) {
-  const systemMessage: ChatMessage = { role: 'system', content };
-  if (conversation[0]?.role === 'system') conversation[0] = systemMessage;
-  else conversation.unshift(systemMessage);
-}
-
-export type AgentTaskRun = {
-  id: string;
-  traceId: string;
-  workspaceRoot: string;
-  completedSteps: number;
-  messages: Message[];
-  conversation: ChatMessage[];
-  knowledgeContext?: string;
-  onCheckpoint?: (checkpoint: AgentTaskCheckpoint) => Promise<void>;
-  drainMessages?: () => Promise<Message[]>;
-};

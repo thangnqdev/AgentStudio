@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FileSystemToolExecutor } from './FileSystemToolExecutor.js';
 
 const temporaryDirectories: string[] = [];
@@ -67,5 +67,50 @@ describe('FileSystemToolExecutor.applyPatch', () => {
     const result = await new FileSystemToolExecutor().writeFile({ path: 'large.txt', content: 'x'.repeat(200_001) }, workspace, 'workspace-write');
     expect(result).toMatchObject({ ok: false, output: expect.stringContaining('Content too large') });
     await expect(fs.access(path.join(workspace, 'large.txt'))).rejects.toThrow();
+  });
+
+  it('notifies the language-service sink only after a successful write', async () => {
+    const workspace = await createWorkspace('before');
+    const fileChanged = vi.fn(async () => undefined);
+    const executor = new FileSystemToolExecutor({ fileChanged });
+    await executor.writeFile({ path: 'sample.txt', content: 'after' }, workspace, 'workspace-write');
+    expect(fileChanged).toHaveBeenCalledWith(await fs.realpath(path.join(workspace, 'sample.txt')), workspace);
+  });
+
+  it('supports bounded one-based line slices for the Read compatibility alias', async () => {
+    const workspace = await createWorkspace('one\ntwo\nthree\nfour\n');
+    await expect(new FileSystemToolExecutor().readFile(
+      { path: 'sample.txt', offset: 2, limit: 2 }, workspace, 'workspace-write',
+    )).resolves.toEqual({ ok: true, output: 'two\nthree\n' });
+  });
+
+  it('routes supported media through the bounded multimodal reader before the text size cap', async () => {
+    const workspace = await createWorkspace('text');
+    const imagePath = path.join(workspace, 'diagram.png');
+    await fs.writeFile(imagePath, Buffer.alloc(250_000, 1));
+    const read = vi.fn(async () => ({
+      ok: true, output: 'Image read.', supplementalMessages: [{ role: 'user' as const, content: [] }],
+    }));
+    const executor = new FileSystemToolExecutor(undefined, { supports: (candidate) => candidate.endsWith('.png'), read });
+    await expect(executor.readFile({ path: 'diagram.png' }, workspace, 'workspace-write')).resolves.toMatchObject({
+      ok: true, supplementalMessages: [{ role: 'user' }],
+    });
+    expect(read).toHaveBeenCalledWith(await fs.realpath(imagePath), undefined, undefined);
+  });
+
+  it('rejects PDF page ranges for text files', async () => {
+    const workspace = await createWorkspace('text');
+    await expect(new FileSystemToolExecutor().readFile(
+      { path: 'sample.txt', pages: '1-2' }, workspace, 'workspace-write',
+    )).resolves.toEqual({ ok: false, output: expect.stringContaining('only supported for PDF') });
+  });
+
+  it('replaces every exact occurrence only when replaceAll is explicit', async () => {
+    const workspace = await createWorkspace('same\nsame\n');
+    const result = await new FileSystemToolExecutor().applyPatch(
+      { path: 'sample.txt', oldText: 'same', newText: 'changed', replaceAll: true }, workspace, 'workspace-write',
+    );
+    expect(result.ok).toBe(true);
+    expect(await fs.readFile(path.join(workspace, 'sample.txt'), 'utf8')).toBe('changed\nchanged\n');
   });
 });

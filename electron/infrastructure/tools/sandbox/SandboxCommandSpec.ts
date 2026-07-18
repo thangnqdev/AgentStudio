@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { PermissionMode } from '../../../domain/entities/agent.js';
+import type { CommandShell } from '../../../domain/entities/backgroundCommand.js';
 
 export type SandboxCommandSpec = {
   executable: string;
@@ -32,9 +33,19 @@ export async function resolveSandboxCommand(
   command: string,
   workspaceRoot: string,
   permissionMode: PermissionMode,
+  shell?: CommandShell,
 ): Promise<SandboxCommandResolution> {
   if (permissionMode === 'read-only') {
     return { ok: false, error: 'Command execution is blocked in read-only mode.' };
+  }
+  if (shell === 'powershell') {
+    if (permissionMode !== 'danger-full-access') {
+      return { ok: false, error: 'Native PowerShell execution is unavailable in workspace-write mode because the current sandbox cannot safely expose its runtime.' };
+    }
+    const executable = await findPowerShellExecutable();
+    return executable
+      ? success(executable, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command], workspaceRoot)
+      : { ok: false, error: 'PowerShell executable was not found. Install pwsh or use the Bash tool.' };
   }
   if (permissionMode === 'danger-full-access') {
     return process.platform === 'win32'
@@ -87,6 +98,21 @@ async function executableOnPath(name: string) {
     if (entry && await exists(path.join(entry, name))) return true;
   }
   return false;
+}
+
+async function findPowerShellExecutable() {
+  const names = process.platform === 'win32' ? ['pwsh.exe', 'powershell.exe'] : ['pwsh'];
+  for (const name of names) {
+    for (const entry of (process.env.PATH || '').split(path.delimiter)) {
+      const candidate = entry ? path.join(entry, name) : '';
+      if (candidate && await exists(candidate)) return candidate;
+    }
+  }
+  if (process.platform === 'win32' && process.env.SystemRoot) {
+    const builtIn = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    if (await exists(builtIn)) return builtIn;
+  }
+  return undefined;
 }
 
 async function buildLinuxSandboxArgs(workspaceRoot: string, command: string) {

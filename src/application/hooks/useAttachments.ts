@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import type { Attachment } from '../../domain/entities/message';
-import { AgentBridge } from '../../infrastructure/ipc/agentStudioBridge';
+import { AttachmentBridge } from '../../infrastructure/ipc/attachmentBridge';
 
 export type PendingAttachment = Attachment & {
   error?: string;
@@ -45,18 +45,22 @@ export function useAttachments() {
       const type = file.type.startsWith('image/') ? 'image' :
         file.type.startsWith('audio/') ? 'audio' :
           file.type.startsWith('video/') ? 'video' : 'text';
-      const filePath = AgentBridge.getFilePath(file) || '';
+      const previewUrl = type === 'image' || type === 'audio' || type === 'video'
+        ? URL.createObjectURL(file)
+        : undefined;
+      const result = await AttachmentBridge.authorize(file).catch((error) => ({
+        success: false as const,
+        error: error instanceof Error ? error.message : 'Không thể cấp quyền đọc tệp.',
+      }));
+      if (!result.success) {
+        return {
+          id: crypto.randomUUID(), name: file.name, type, mimeType: file.type, size: file.size,
+          previewUrl, error: result.error,
+        };
+      }
       return {
-        id: crypto.randomUUID(),
-        name: file.name,
-        type,
-        filePath,
-        mimeType: file.type,
-        size: file.size,
-        previewUrl: type === 'image' || type === 'audio' || type === 'video'
-          ? URL.createObjectURL(file)
-          : undefined,
-        error: filePath ? undefined : 'Không lấy được đường dẫn tệp.',
+        ...result.data,
+        previewUrl,
       };
     }));
 

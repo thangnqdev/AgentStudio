@@ -13,6 +13,11 @@ describe('evaluateToolPolicy', () => {
     expect(evaluateToolPolicy(tool('web_search', 'network'), 'read-only').allowed).toBe(false);
     expect(evaluateToolPolicy(tool('web_search', 'network'), 'workspace-write')).toEqual({ allowed: true, requiresApproval: true });
   });
+
+  it('permits explicitly read-only network tools while retaining network approval', () => {
+    expect(evaluateToolPolicy({ ...tool('WebFetch', 'network'), readOnly: true }, 'read-only'))
+      .toEqual({ allowed: true, requiresApproval: true });
+  });
 });
 
 function tool(name: string, risk: ToolRisk): AgentToolDefinition {

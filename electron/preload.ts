@@ -49,6 +49,16 @@ type AgentWorkerEventPayload = {
 type AgentWorkerEventListener = (payload: AgentWorkerEventPayload) => void;
 type AgentTeamEventPayload = { scopeId: string; team: Record<string, unknown> | null };
 type AgentTeamEventListener = (payload: AgentTeamEventPayload) => void;
+type BackgroundCommandNoticePayload = {
+  id: string;
+  scopeId: string;
+  description: string;
+  status: 'completed' | 'failed' | 'stopped';
+  endedAt: string;
+  exitCode: number | null;
+  error?: string;
+};
+type BackgroundCommandNoticeListener = (payload: BackgroundCommandNoticePayload) => void;
 
 type TerminalEventPayload = {
   terminalId: string;
@@ -65,6 +75,16 @@ type AppUpdateSnapshot = {
   message?: string;
 };
 type AppUpdateEventListener = (payload: AppUpdateSnapshot) => void;
+type SettingsChangedPayload = {
+  providers: Array<{ id: string; name: string; baseUrl: string; models: Array<{ id: string; contextWindow?: number }>; hasApiKey: boolean }>;
+  activeProviderId: string | null;
+  activeModelId: string | null;
+  fallbackModelId: string | null;
+  permissionMode: 'read-only' | 'workspace-write' | 'danger-full-access';
+  workspacePath: string;
+};
+type SettingsChangedListener = (payload: SettingsChangedPayload) => void;
+type AttachmentType = 'text' | 'image' | 'audio' | 'video';
 
 type EventChannel = 'ai:chat:chunk' | 'ai:chat:done' | 'ai:chat:error' | 'ai:chat:action' | 'ai:chat:task-status' | 'ai:chat:interaction' | 'ai:chat:plan-mode' | 'ai:chat:worktree';
 
@@ -96,6 +116,12 @@ function subscribeAppUpdate(listener: AppUpdateEventListener) {
   return () => ipcRenderer.off('update:status', handler);
 }
 
+function subscribeSettingsChanged(listener: SettingsChangedListener) {
+  const handler = (_event: Electron.IpcRendererEvent, payload: SettingsChangedPayload) => listener(payload);
+  ipcRenderer.on('settings:changed', handler);
+  return () => ipcRenderer.off('settings:changed', handler);
+}
+
 function subscribeAgentWorkers(listener: AgentWorkerEventListener) {
   const handler = (_event: Electron.IpcRendererEvent, payload: AgentWorkerEventPayload) => listener(payload);
   ipcRenderer.on('ai:agent-worker:event', handler);
@@ -106,6 +132,19 @@ function subscribeAgentTeams(listener: AgentTeamEventListener) {
   const handler = (_event: Electron.IpcRendererEvent, payload: AgentTeamEventPayload) => listener(payload);
   ipcRenderer.on('ai:agent-team:event', handler);
   return () => ipcRenderer.off('ai:agent-team:event', handler);
+}
+
+function subscribeBackgroundCommands(listener: BackgroundCommandNoticeListener) {
+  const handler = (_event: Electron.IpcRendererEvent, payload: BackgroundCommandNoticePayload) => listener(payload);
+  ipcRenderer.on('ai:background-command:event', handler);
+  return () => ipcRenderer.off('ai:background-command:event', handler);
+}
+
+function attachmentType(file: File): AttachmentType {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('audio/')) return 'audio';
+  if (file.type.startsWith('video/')) return 'video';
+  return 'text';
 }
 
 contextBridge.exposeInMainWorld('agentStudio', {
@@ -132,14 +171,28 @@ contextBridge.exposeInMainWorld('agentStudio', {
   setActiveModel: (modelId: string) => ipcRenderer.invoke('settings:set-active-model', modelId),
   setFallbackModel: (modelId: string) => ipcRenderer.invoke('settings:set-fallback-model', modelId),
   setPermissionMode: (mode: string) => ipcRenderer.invoke('settings:set-permission-mode', mode),
+  onSettingsChanged: (listener: SettingsChangedListener) => subscribeSettingsChanged(listener),
   loadWebSearchSettings: () => ipcRenderer.invoke('web-search:load-settings'),
   saveWebSearchSettings: (payload: unknown) => ipcRenderer.invoke('web-search:save-settings', payload),
+  loadRemoteTriggerSettings: () => ipcRenderer.invoke('remote-trigger:load-settings'),
+  saveRemoteTriggerSettings: (payload: unknown) => ipcRenderer.invoke('remote-trigger:save-settings', payload),
   getCurrentWorkspace: () => ipcRenderer.invoke('workspace:get-current'),
   selectWorkspace: () => ipcRenderer.invoke('workspace:select-directory'),
   writeWorkspaceFile: (payload: unknown) => ipcRenderer.invoke('workspace:write-file', payload),
-  getFilePath: (file: unknown) => webUtils.getPathForFile(file as File),
-  loadChatHistory: (workspacePath: string) => ipcRenderer.invoke('chat:load-workspace', workspacePath),
+  authorizeAttachment: (file: unknown) => {
+    const selectedFile = file as File;
+    return ipcRenderer.invoke('attachments:authorize', {
+      filePath: webUtils.getPathForFile(selectedFile),
+      name: selectedFile.name,
+      type: attachmentType(selectedFile),
+      mimeType: selectedFile.type,
+      reportedSize: selectedFile.size,
+    });
+  },
+  loadChatHistory: () => ipcRenderer.invoke('chat:load-workspace'),
   saveChatHistory: (payload: unknown) => ipcRenderer.invoke('chat:save-workspace', payload),
+  listLifecycleHooks: () => ipcRenderer.invoke('lifecycle-hooks:list'),
+  compactConversation: (payload: unknown) => ipcRenderer.invoke('chat:compact', payload),
   getGitBranch: () => ipcRenderer.invoke('git:get-branch'),
   listKnowledge: () => ipcRenderer.invoke('knowledge:list'),
   selectAndImportKnowledge: () => ipcRenderer.invoke('knowledge:select-and-import'),
@@ -160,6 +213,7 @@ contextBridge.exposeInMainWorld('agentStudio', {
   removeMcpServer: (serverId: string) => ipcRenderer.invoke('mcp:remove', serverId),
   startMcpServer: (serverId: string) => ipcRenderer.invoke('mcp:start', serverId),
   stopMcpServer: (serverId: string) => ipcRenderer.invoke('mcp:stop', serverId),
+  authenticateMcpServer: (serverId: string) => ipcRenderer.invoke('mcp:authenticate', serverId),
 
   startChat: (payload: unknown) => ipcRenderer.send('ai:chat:start', payload),
   stopChat: (requestId: string) => ipcRenderer.send('ai:chat:stop', { requestId }),
@@ -180,6 +234,7 @@ contextBridge.exposeInMainWorld('agentStudio', {
   onAgentWorkerEvent: (listener: AgentWorkerEventListener) => subscribeAgentWorkers(listener),
   getAgentTeam: (scopeId: string) => ipcRenderer.invoke('agent:teams:get', scopeId),
   onAgentTeamEvent: (listener: AgentTeamEventListener) => subscribeAgentTeams(listener),
+  onBackgroundCommandNotice: (listener: BackgroundCommandNoticeListener) => subscribeBackgroundCommands(listener),
   listResumableAgentTasks: () => ipcRenderer.invoke('agent:tasks:list-resumable'),
   forkAgentTask: (taskId: string) => ipcRenderer.invoke('agent:tasks:fork', { taskId }),
   listAgentTraces: (limit?: number) => ipcRenderer.invoke('traces:list', limit),

@@ -7,6 +7,8 @@ import { normalizeLifecycleHookDocument, type LifecycleHookDefinition } from '..
 import type { PluginComponent, PluginDescriptor, PluginOrigin } from '../../domain/entities/plugin.js';
 import type { IPluginCatalog } from '../../domain/ports/IPluginCatalog.js';
 import { isInsidePath, resolveSafeWorkspacePath } from '../security/resolveSafePath.js';
+import type { LspServerConfiguration } from '../../domain/entities/lspServer.js';
+import { loadPluginLspConfigurations } from './pluginLspConfiguration.js';
 
 const MAX_PLUGIN_MANIFEST_BYTES = 128 * 1024;
 const MAX_PLUGINS_PER_ROOT = 50;
@@ -16,13 +18,15 @@ const DEFAULT_HOOKS_PATH = 'hooks/hooks.json';
 
 type PluginRoot = { root: string; origin: PluginOrigin };
 type HookSource = { path?: string; payload: unknown; content: string };
-type LoadedCandidate = { descriptor: PluginDescriptor; hooks: LifecycleHookDefinition[] };
+type LoadedCandidate = { descriptor: PluginDescriptor; hooks: LifecycleHookDefinition[]; lspServers: LspServerConfiguration[] };
 
 export class FileSystemPluginCatalog implements IPluginCatalog {
   private readonly configuredRoots?: PluginRoot[];
+  private readonly configuredPluginDataRoot?: string;
 
-  constructor(configuredRoots?: PluginRoot[]) {
+  constructor(configuredRoots?: PluginRoot[], configuredPluginDataRoot?: string) {
     this.configuredRoots = configuredRoots;
+    this.configuredPluginDataRoot = configuredPluginDataRoot;
   }
 
   async discover(workspaceRoot: string) {
@@ -40,6 +44,14 @@ export class FileSystemPluginCatalog implements IPluginCatalog {
       throw new Error('Plugin content changed after trust was granted. Review and trust it again.');
     }
     return loaded.hooks;
+  }
+
+  async readLspServers(plugin: PluginDescriptor) {
+    const loaded = await this.loadCandidate(plugin.rootPath, plugin.origin);
+    if (loaded.descriptor.contentHash !== plugin.contentHash || loaded.descriptor.id !== plugin.id) {
+      throw new Error('Plugin content changed after trust was granted. Review and trust it again.');
+    }
+    return loaded.lspServers;
   }
 
   private async scanRoot(root: string, origin: PluginOrigin) {
@@ -70,10 +82,14 @@ export class FileSystemPluginCatalog implements IPluginCatalog {
     const hookSources = await readHookSources(pluginRoot, manifest.hooks);
     const hooks = hookSources.flatMap((source) => normalizeHookPayload(source.payload));
     assertUniqueHookIds(hooks);
-    const components = await detectComponents(pluginRoot, manifest.raw, hookSources.length > 0);
+    const lsp = await loadPluginLspConfigurations(
+      pluginRoot, manifest.name, manifest.raw.lspServers, this.pluginDataRoot(pluginRoot),
+    );
+    const components = await detectComponents(pluginRoot, manifest.raw, hookSources.length > 0, lsp.configurations.length > 0);
     const contentHash = createHash('sha256')
       .update(manifestDocument.content)
       .update(hookSources.map((source) => `\0${source.path ?? 'inline'}\0${source.content}`).join(''))
+      .update(lsp.hashContent)
       .digest('hex');
     const descriptor: PluginDescriptor = {
       id: createHash('sha256').update(`${pluginRoot}\0${contentHash}`).digest('hex').slice(0, 20),
@@ -85,9 +101,15 @@ export class FileSystemPluginCatalog implements IPluginCatalog {
       manifestPath: manifestFile,
       contentHash,
       components,
-      unsupportedComponents: components.filter((component) => component !== 'hooks'),
+      unsupportedComponents: components.filter((component) => component !== 'hooks' && component !== 'lspServers'),
     };
-    return { descriptor, hooks };
+    return { descriptor, hooks, lspServers: lsp.configurations };
+  }
+
+  private pluginDataRoot(pluginRoot: string) {
+    if (this.configuredPluginDataRoot) return this.configuredPluginDataRoot;
+    if (this.configuredRoots) return path.join(path.dirname(pluginRoot), '.agentstudio-plugin-data');
+    return path.join(app.getPath('userData'), 'plugin-data');
   }
 }
 
@@ -123,13 +145,14 @@ function normalizeHookPayload(payload: unknown) {
   return normalizeLifecycleHookDocument({ version: 1, hooks: payload });
 }
 
-async function detectComponents(pluginRoot: string, manifest: Record<string, unknown>, hasHooks: boolean) {
+async function detectComponents(pluginRoot: string, manifest: Record<string, unknown>, hasHooks: boolean, hasLspServers: boolean) {
   const components: PluginComponent[] = [];
   if (hasHooks) components.push('hooks');
   if (manifest.skills !== undefined || await hasDirectory(pluginRoot, 'skills')) components.push('skills');
   if (manifest.agents !== undefined || await hasDirectory(pluginRoot, 'agents')) components.push('agents');
   if (manifest.commands !== undefined || await hasDirectory(pluginRoot, 'commands')) components.push('commands');
   if (manifest.mcpServers !== undefined) components.push('mcpServers');
+  if (hasLspServers) components.push('lspServers');
   return components;
 }
 

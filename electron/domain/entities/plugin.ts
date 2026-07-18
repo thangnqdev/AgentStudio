@@ -1,5 +1,5 @@
 export type PluginOrigin = 'user' | 'workspace';
-export type PluginComponent = 'hooks' | 'skills' | 'agents' | 'commands' | 'mcpServers';
+export type PluginComponent = 'hooks' | 'skills' | 'agents' | 'commands' | 'mcpServers' | 'lspServers';
 
 export type PluginDescriptor = {
   id: string;

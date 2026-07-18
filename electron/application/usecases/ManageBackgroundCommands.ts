@@ -24,6 +24,7 @@ export class ManageBackgroundCommands {
       timeoutMs: request.timeoutMs,
       workspaceRoot: context.workspaceRoot,
       permissionMode: context.permissionMode,
+      ...(request.shell ? { shell: request.shell } : {}),
     });
   }
 

@@ -15,10 +15,12 @@ const VERSION = 1;
 const MAX_WORKER_FILE_BYTES = 25_000_000;
 const MAX_QUEUED_MESSAGES = 100;
 const MAX_NOTIFICATIONS = 200;
+const MESSAGE_CLAIM_LEASE_MS = 60_000;
 const WORKER_STATUSES: AgentWorkerStatus[] = ['running', 'paused', 'completed', 'failed', 'killed'];
 const PERMISSION_MODES: PermissionMode[] = ['read-only', 'workspace-write', 'danger-full-access'];
 
-type WorkerEnvelope = { version: typeof VERSION; worker: AgentWorkerRecord; queuedMessages: Message[] };
+type QueuedMessage = { message: Message; claimedAt?: string };
+type WorkerEnvelope = { version: typeof VERSION; worker: AgentWorkerRecord; queuedMessages: QueuedMessage[] };
 type NotificationEnvelope = { version: typeof VERSION; notifications: AgentWorkerNotification[] };
 
 export class PrivateAgentWorkerRepository implements IAgentWorkerRepository {
@@ -62,7 +64,9 @@ export class PrivateAgentWorkerRepository implements IAgentWorkerRepository {
       const envelope = await this.requireWorker(checkpoint.id);
       const worker = { ...envelope.worker, ...structuredClone(checkpoint) };
       validateWorker(worker, checkpoint.id);
-      await this.writeWorker({ ...envelope, worker });
+      const persistedMessageIds = new Set(worker.messages.map((message) => message.id));
+      const queuedMessages = envelope.queuedMessages.filter((item) => !item.claimedAt || !persistedMessageIds.has(item.message.id));
+      await this.writeWorker({ ...envelope, worker, queuedMessages });
     });
   }
 
@@ -71,7 +75,7 @@ export class PrivateAgentWorkerRepository implements IAgentWorkerRepository {
       validateMessage(message);
       const envelope = await this.requireWorker(agentId);
       if (envelope.queuedMessages.length >= MAX_QUEUED_MESSAGES) throw new Error('Agent message queue is full.');
-      envelope.queuedMessages.push(structuredClone(message));
+      envelope.queuedMessages.push({ message: structuredClone(message) });
       await this.writeWorker(envelope);
     });
   }
@@ -79,8 +83,14 @@ export class PrivateAgentWorkerRepository implements IAgentWorkerRepository {
   drainMessages(agentId: string) {
     return this.exclusive(`worker:${agentId}`, async () => {
       const envelope = await this.requireWorker(agentId);
-      const messages = structuredClone(envelope.queuedMessages);
-      if (messages.length) await this.writeWorker({ ...envelope, queuedMessages: [] });
+      const now = new Date();
+      const messages = envelope.queuedMessages.filter((item) => (
+        envelope.worker.status !== 'running' || claimAvailable(item, now)
+      )).map((item) => {
+        item.claimedAt = now.toISOString();
+        return structuredClone(item.message);
+      });
+      if (messages.length) await this.writeWorker(envelope);
       return messages;
     });
   }
@@ -117,7 +127,10 @@ export class PrivateAgentWorkerRepository implements IAgentWorkerRepository {
         ...envelope.worker, status: 'paused', updatedAt: new Date().toISOString(),
         error: 'Application closed before this agent completed.',
       };
-      await this.saveCheckpoint(worker);
+      await this.writeWorker({
+        ...envelope, worker,
+        queuedMessages: envelope.queuedMessages.map(({ message }) => ({ message })),
+      });
       recovered.push(worker);
     }
     return recovered;
@@ -141,7 +154,7 @@ export class PrivateAgentWorkerRepository implements IAgentWorkerRepository {
     const value = JSON.parse(await fs.readFile(target, 'utf8')) as unknown;
     if (!isObject(value) || value.version !== VERSION || !Array.isArray(value.queuedMessages)) throw new Error('Persisted agent worker is invalid.');
     const worker = validateWorker(value.worker, expectedId);
-    const queuedMessages = value.queuedMessages.map(validateMessage);
+    const queuedMessages = value.queuedMessages.map(validateQueuedMessage);
     if (queuedMessages.length > MAX_QUEUED_MESSAGES) throw new Error('Persisted agent message queue is invalid.');
     return { version: VERSION, worker, queuedMessages } satisfies WorkerEnvelope;
   }
@@ -199,6 +212,21 @@ function validateWorker(value: unknown, expectedId?: string): AgentWorkerRecord 
 function validateMessage(value: unknown): Message {
   if (!isObject(value) || typeof value.id !== 'string' || !['user', 'agent', 'system'].includes(String(value.sender)) || typeof value.content !== 'string' || value.content.length > 100_000) throw new Error('Persisted agent message is invalid.');
   return structuredClone(value as Message);
+}
+
+function validateQueuedMessage(value: unknown): QueuedMessage {
+  if (isObject(value) && 'message' in value) {
+    const message = validateMessage(value.message);
+    if (value.claimedAt !== undefined && (typeof value.claimedAt !== 'string' || !Number.isFinite(Date.parse(value.claimedAt)))) {
+      throw new Error('Persisted agent message claim is invalid.');
+    }
+    return { message, ...(typeof value.claimedAt === 'string' ? { claimedAt: value.claimedAt } : {}) };
+  }
+  return { message: validateMessage(value) };
+}
+
+function claimAvailable(item: QueuedMessage, now: Date) {
+  return !item.claimedAt || now.getTime() - Date.parse(item.claimedAt) >= MESSAGE_CLAIM_LEASE_MS;
 }
 
 function validateNotification(value: unknown, scopeId: string): AgentWorkerNotification {

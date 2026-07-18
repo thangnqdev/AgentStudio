@@ -66,6 +66,35 @@ describe('permission rules', () => {
     expect(evaluateToolPermission(tool('glob', 'read'), 'workspace-write', { pattern: 'src/**/*.ts' }, rules).allowed).toBe(true);
   });
 
+  it('applies canonical rules and path constraints to compatibility aliases', () => {
+    expect(evaluateToolPermission(tool('Bash', 'execute'), 'danger-full-access', { command: 'rm item' }, [
+      { ...rule('deny-shell', 'deny', 'user', 'run_command'), commandPrefix: 'rm' },
+    ])).toMatchObject({ allowed: false, matchedRule: { id: 'deny-shell' } });
+    expect(evaluateToolPermission(tool('Read', 'read'), 'danger-full-access', { file_path: 'config/secret.json' }, [
+      { ...rule('ask-config', 'ask', 'user', 'read_file'), pathGlob: 'config/*' },
+    ])).toMatchObject({ allowed: true, requiresApproval: true, matchedRule: { id: 'ask-config' } });
+    expect(evaluateToolPermission(tool('KillShell', 'execute'), 'danger-full-access', { shell_id: 'bg-1' }, [
+      rule('deny-stop', 'deny', 'user', 'TaskStop'),
+    ])).toMatchObject({ allowed: false, matchedRule: { id: 'deny-stop' } });
+  });
+
+  it('scopes network rules to normalized URL hostnames', () => {
+    const webFetch = { ...tool('WebFetch', 'network'), readOnly: true };
+    const rules: PermissionRule[] = [
+      { ...rule('allow-example', 'allow', 'user', 'WebFetch'), domainGlob: '*.example.com' },
+    ];
+    expect(evaluateToolPermission(webFetch, 'workspace-write', { url: 'https://DOCS.EXAMPLE.com/page' }, rules))
+      .toMatchObject({ allowed: true, requiresApproval: false, matchedRule: { id: 'allow-example' } });
+    expect(evaluateToolPermission(webFetch, 'workspace-write', { url: 'https://example.net/page' }, rules))
+      .toMatchObject({ allowed: true, requiresApproval: true });
+  });
+
+  it('normalizes bounded domain constraints from persisted rules', () => {
+    expect(normalizePermissionRules([
+      { effect: 'ask', toolGlob: 'WebFetch', domainGlob: '*.example.com' },
+    ], 'workspace', ['deny', 'ask'])[0]).toMatchObject({ domainGlob: '*.example.com' });
+  });
+
   it('rejects workspace allow rules and malformed input', () => {
     expect(() => normalizePermissionRules([{ effect: 'allow', toolGlob: '*' }], 'workspace', ['deny', 'ask'])).toThrow('invalid effect');
     expect(() => normalizePermissionRules({ rules: [{ effect: 'deny' }] }, 'workspace', ['deny', 'ask'])).toThrow('requires toolGlob');

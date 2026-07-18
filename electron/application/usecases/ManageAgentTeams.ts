@@ -1,5 +1,6 @@
 import type { PermissionMode } from '../../domain/entities/agent.js';
 import type { AgentTeamMessage, AgentTeamRecord } from '../../domain/entities/agentTeam.js';
+import type { AgentTeamProtocolPayload } from '../../domain/entities/agentTeamProtocol.js';
 import {
   MAX_AGENT_TEAM_MEMBERS,
   MAX_AGENT_TEAM_MESSAGES,
@@ -14,6 +15,8 @@ import type { IAgentTeamRepository } from '../../domain/ports/IAgentTeamReposito
 import type { CreateAgentTeamInput } from '../services/agentTeamInput.js';
 import type { ManageAgentWorkItems } from './ManageAgentWorkItems.js';
 import type { AgentWorkerExecution, AgentWorkerParentContext, ManageAgentWorkers } from './ManageAgentWorkers.js';
+import type { AgentTeamProtocolRouter } from '../services/AgentTeamProtocolRouter.js';
+import { protocolMessageToWorkerRequest, toAgentTeamProtocolPayload } from '../services/agentTeamProtocolMapping.js';
 
 export type AgentTeamContext = {
   scopeId: string;
@@ -30,6 +33,7 @@ export class ManageAgentTeams {
   private readonly workItems: ManageAgentWorkItems;
   private readonly events: IAgentTeamEventSink;
   private readonly now: () => string;
+  private readonly protocol?: AgentTeamProtocolRouter;
 
   constructor(
     repository: IAgentTeamRepository,
@@ -37,8 +41,9 @@ export class ManageAgentTeams {
     workItems: ManageAgentWorkItems,
     events: IAgentTeamEventSink = { emitTeam: () => undefined },
     now = () => new Date().toISOString(),
+    protocol?: AgentTeamProtocolRouter,
   ) {
-    this.repository = repository; this.workers = workers; this.workItems = workItems; this.events = events; this.now = now;
+    this.repository = repository; this.workers = workers; this.workItems = workItems; this.events = events; this.now = now; this.protocol = protocol;
   }
 
   get(scopeId: string) { return this.repository.getByScope(scopeId); }
@@ -145,14 +150,17 @@ export class ManageAgentTeams {
       await this.deliver(team, sender, item.owner, {
         to: item.owner, summary: `Task ${item.id} assigned by ${sender}`,
         message: `You are assigned task #${item.id}: ${item.subject}\n${item.description}`,
-      }, context, execution);
+      }, context, execution, {
+        type: 'task_assignment', taskId: item.id, subject: item.subject,
+        description: item.description, assignedBy: sender, timestamp: this.now(),
+      });
       const latest = team.mailbox.at(-1);
       if (latest?.to === item.owner) latest.kind = 'task_assignment';
       await this.save(team);
     });
   }
 
-  private async deliver(team: AgentTeamRecord, sender: string, target: string, request: SendMessageRequest, context: AgentTeamContext, execution: AgentWorkerExecution) {
+  private async deliver(team: AgentTeamRecord, sender: string, target: string, request: SendMessageRequest, context: AgentTeamContext, execution: AgentWorkerExecution, protocolPayload?: AgentTeamProtocolPayload) {
     let message = request.message;
     let kind: AgentTeamMessage['kind'] = 'message';
     if (typeof message !== 'string' && message.type === 'shutdown_request') {
@@ -181,14 +189,28 @@ export class ManageAgentTeams {
       await this.repository.save(team);
     }
     const delivery = target === TEAM_LEAD_NAME ? 'parent' : target;
-    const outcomes = await this.workers.send({ ...request, to: delivery, message }, this.workerParent(context), execution);
+    let outcomes: string[] = [];
+    const createdAt = this.now();
+    if (this.protocol) {
+      const protocolMessage = {
+        version: 1 as const, id: crypto.randomUUID(), teamId: team.id, from: sender, to: target, createdAt,
+        ...(request.summary ? { summary: request.summary } : {}),
+        payload: protocolPayload ?? toAgentTeamProtocolPayload(message, { sender, timestamp: createdAt }),
+      };
+      await this.protocol.dispatch(protocolMessage, async (claimed) => {
+        const workerRequest = protocolMessageToWorkerRequest(claimed);
+        outcomes = await this.workers.send({ ...workerRequest, to: delivery }, this.workerParent(context), execution);
+      });
+    } else {
+      outcomes = await this.workers.send({ ...request, to: delivery, message }, this.workerParent(context), execution);
+    }
     if (team.mailbox.length >= MAX_AGENT_TEAM_MESSAGES) team.mailbox.shift();
     team.mailbox.push({
       id: crypto.randomUUID(), from: sender, to: target, kind,
       content: typeof message === 'string' ? message : JSON.stringify(message),
-      ...(request.summary ? { summary: request.summary } : {}), createdAt: this.now(), deliveredAt: this.now(),
+      ...(request.summary ? { summary: request.summary } : {}), createdAt, ...(outcomes.length ? { deliveredAt: this.now() } : {}),
     });
-    return outcomes.join(', ');
+    return outcomes.join(', ') || `${target}: queued`;
   }
 
   private workerParent(context: AgentTeamContext): AgentWorkerParentContext {

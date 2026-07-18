@@ -36,29 +36,53 @@ export class WorkspaceSearchToolExecutor {
   ): Promise<ToolResult> {
     const pattern = readPattern(args.pattern, 'Search pattern');
     const fileGlob = readString(args.glob) || '**/*';
+    const typeGlob = readString(args.typeGlob) || '**/*';
     validateGlob(fileGlob);
-    const matcher = buildMatcher(pattern, args.regex === true, args.caseSensitive === true);
-    const maxResults = boundedInteger(args.maxResults, 200, 1, 500);
+    validateGlob(typeGlob);
+    const regex = args.regex === true;
+    const caseSensitive = args.caseSensitive === true;
+    const multiline = args.multiline === true;
+    if (regex) assertSafeRegex(pattern);
+    const outputMode = readOutputMode(args.outputMode);
+    const requestedLimit = boundedInteger(args.maxResults, 200, 0, 500);
+    const maxResults = requestedLimit === 0 ? 500 : requestedLimit;
+    const offset = boundedInteger(args.offset, 0, 0, 10_000);
+    const contextBefore = boundedInteger(args.contextBefore, 0, 0, 100);
+    const contextAfter = boundedInteger(args.contextAfter, 0, 0, 100);
+    const lineNumbers = args.lineNumbers !== false;
     const root = await resolveSearchRoot(readString(args.path) || '.', workspaceRoot, permissionMode);
     const files = (await collectFiles(root, workspaceRoot, signal))
-      .filter((file) => path.posix.matchesGlob(file.matchPath, fileGlob));
+      .filter((file) => path.posix.matchesGlob(file.matchPath, fileGlob) && path.posix.matchesGlob(file.matchPath, typeGlob));
     const results: string[] = [];
 
+    search:
     for (const file of files) {
       throwIfStopped(signal);
       const stat = await fs.stat(file.absolutePath);
       if (stat.size > MAX_FILE_BYTES) continue;
       const content = await fs.readFile(file.absolutePath, { encoding: 'utf8', signal });
       if (content.includes('\0')) continue;
-      for (const [index, line] of content.split(/\r?\n/).entries()) {
-        if (!matcher(line)) continue;
-        results.push(`${file.displayPath}:${index + 1}: ${truncateLine(line)}`);
-        if (results.length >= maxResults) {
-          return { ok: true, output: `${results.join('\n')}\n[results truncated at ${maxResults}]` };
+      const lines = content.split(/\r?\n/);
+      const matches = findMatches(content, lines, pattern, regex, caseSensitive, multiline);
+      if (!matches.lineIndices.length) continue;
+      if (outputMode === 'files_with_matches') results.push(file.displayPath);
+      else if (outputMode === 'count') results.push(`${file.displayPath}:${matches.count}`);
+      else {
+        const selected = new Set<number>();
+        for (const index of matches.lineIndices) {
+          for (let line = Math.max(0, index - contextBefore); line <= Math.min(lines.length - 1, index + contextAfter); line += 1) selected.add(line);
+        }
+        for (const index of [...selected].sort((left, right) => left - right)) {
+          const prefix = lineNumbers ? `${file.displayPath}:${index + 1}: ` : `${file.displayPath}: `;
+          results.push(`${prefix}${truncateLine(lines[index]!)}`);
+          if (results.length > offset + maxResults) break search;
         }
       }
+      if (results.length > offset + maxResults) break;
     }
-    return { ok: true, output: results.join('\n') || '(no matches)' };
+    const selected = results.slice(offset, offset + maxResults);
+    const truncated = results.length > offset + maxResults || requestedLimit === 0 && results.length > maxResults;
+    return { ok: true, output: `${selected.join('\n') || '(no matches)'}${truncated ? `\n[results truncated at ${maxResults}]` : ''}` };
   }
 }
 
@@ -110,15 +134,54 @@ function describeFile(absolutePath: string, searchRoot: string, workspaceRoot: s
   } satisfies SearchFile;
 }
 
-function buildMatcher(pattern: string, regex: boolean, caseSensitive: boolean) {
+function findMatches(content: string, lines: string[], pattern: string, regex: boolean, caseSensitive: boolean, multiline: boolean) {
+  if (!multiline) {
+    const matcher = buildLineMatcher(pattern, regex, caseSensitive);
+    const lineIndices = lines.flatMap((line, index) => matcher(line) ? [index] : []);
+    return { count: lineIndices.length, lineIndices };
+  }
+  const source = regex ? pattern : escapeRegex(pattern);
+  const expression = new RegExp(source, `${caseSensitive ? '' : 'i'}gs`);
+  const starts = lineStarts(content);
+  const selected = new Set<number>();
+  let count = 0;
+  for (const match of content.matchAll(expression)) {
+    const start = match.index;
+    const end = start + Math.max(match[0].length - 1, 0);
+    const firstLine = lineIndexAt(starts, start);
+    const lastLine = lineIndexAt(starts, end);
+    for (let line = firstLine; line <= lastLine; line += 1) selected.add(line);
+    count += 1;
+    if (count >= 10_000) break;
+  }
+  return { count, lineIndices: [...selected] };
+}
+
+function buildLineMatcher(pattern: string, regex: boolean, caseSensitive: boolean) {
   if (!regex) {
     const needle = caseSensitive ? pattern : pattern.toLocaleLowerCase();
     return (line: string) => (caseSensitive ? line : line.toLocaleLowerCase()).includes(needle);
   }
-  assertSafeRegex(pattern);
   const expression = new RegExp(pattern, caseSensitive ? '' : 'i');
   return (line: string) => expression.test(line);
 }
+
+function lineStarts(content: string) {
+  const starts = [0];
+  for (let index = 0; index < content.length; index += 1) if (content[index] === '\n') starts.push(index + 1);
+  return starts;
+}
+
+function lineIndexAt(starts: number[], position: number) {
+  let low = 0; let high = starts.length;
+  while (low + 1 < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (starts[middle]! <= position) low = middle; else high = middle;
+  }
+  return low;
+}
+
+function escapeRegex(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function assertSafeRegex(pattern: string) {
   if (/\\[1-9]|\(\?<?[=!]|\([^)]*[|+*{][^)]*\)[+*{]|\.\*.*\.\*/.test(pattern)) {
@@ -140,9 +203,17 @@ function readPattern(value: unknown, label: string) {
 }
 
 function readString(value: unknown) { return typeof value === 'string' ? value.trim() : ''; }
+function readOutputMode(value: unknown) {
+  if (value === undefined) return 'content' as const;
+  if (value === 'content' || value === 'files_with_matches' || value === 'count') return value;
+  throw new Error('Grep output mode is invalid.');
+}
 function boundedInteger(value: unknown, fallback: number, minimum: number, maximum: number) {
-  const parsed = typeof value === 'number' && Number.isInteger(value) ? value : fallback;
-  return Math.min(Math.max(parsed, minimum), maximum);
+  if (value === undefined) return fallback;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`Search range value must be an integer between ${minimum} and ${maximum}.`);
+  }
+  return value;
 }
 function formatPaths(files: SearchFile[], limit: number) {
   const selected = files.slice(0, limit).map((file) => file.displayPath);

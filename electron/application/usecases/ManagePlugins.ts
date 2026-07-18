@@ -32,8 +32,13 @@ export class ManagePlugins {
     const preferences = await this.preferences.load();
     if (enabled && !preferences.trustedPluginIds.includes(pluginId)) throw new Error('Trust the plugin before enabling it.');
     if (enabled) {
-      if (!plugin.components.includes('hooks')) throw new Error('This plugin has no supported declarative hooks.');
-      await this.catalog.readHooks(plugin);
+      if (!plugin.components.some((component) => component === 'hooks' || component === 'lspServers')) {
+        throw new Error('This plugin has no supported declarative hooks or LSP servers.');
+      }
+      await Promise.all([
+        plugin.components.includes('hooks') ? this.catalog.readHooks(plugin) : Promise.resolve([]),
+        plugin.components.includes('lspServers') ? this.catalog.readLspServers(plugin) : Promise.resolve([]),
+      ]);
     }
     preferences.enabledPluginIds = updateSet(preferences.enabledPluginIds, pluginId, enabled);
     await this.preferences.save(preferences);
@@ -41,9 +46,14 @@ export class ManagePlugins {
   }
 
   async listLifecycleHooks(workspaceRoot: string) {
-    const active = (await this.list(workspaceRoot)).filter((plugin) => plugin.enabled && plugin.trusted);
+    const active = (await this.list(workspaceRoot)).filter((plugin) => plugin.enabled && plugin.trusted && plugin.components.includes('hooks'));
     const loaded = await Promise.all(active.map(async (plugin) => ({ plugin, hooks: await this.catalog.readHooks(plugin) })));
     return loaded.flatMap(({ plugin, hooks }) => hooks.map((hook) => ({ ...hook, id: `plugin:${plugin.id}:${hook.id}` })));
+  }
+
+  async listLspServers(workspaceRoot: string) {
+    const active = (await this.list(workspaceRoot)).filter((plugin) => plugin.enabled && plugin.trusted && plugin.components.includes('lspServers'));
+    return (await Promise.all(active.map((plugin) => this.catalog.readLspServers(plugin)))).flat();
   }
 
   private async ensureExists(workspaceRoot: string, pluginId: string): Promise<PluginDescriptor> {

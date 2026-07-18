@@ -22,7 +22,10 @@ describe('OpenAIProvider usage', () => {
     vi.stubGlobal('fetch', fetchMock);
     const response = await new OpenAIProvider().requestAssistantMessage(settings(), [], [], sink(), 'request-1');
     expect(response.usage).toEqual({ inputTokens: 12, outputTokens: 3, totalTokens: 15, cachedInputTokens: 4 });
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ stream_options: { include_usage: true } });
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body).toMatchObject({ stream_options: { include_usage: true } });
+    expect(body).not.toHaveProperty('tools');
+    expect(body).not.toHaveProperty('tool_choice');
   });
 
   it('retries once without stream_options when a compatible provider rejects it', async () => {

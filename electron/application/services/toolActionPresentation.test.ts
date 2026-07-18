@@ -6,6 +6,12 @@ describe('summarizeToolArguments', () => {
     expect(summarizeToolArguments('write_file', { path: 'src/secret.ts', content: 'very secret value' })).toBe('path=src/secret.ts (17 bytes)');
   });
 
+  it('shows security-relevant arguments for exact compatibility aliases', () => {
+    expect(summarizeToolArguments('Bash', { command: 'npm test', description: 'verify' })).toBe('npm test');
+    expect(summarizeToolArguments('Write', { file_path: 'src/a.ts', content: 'secret' })).toBe('path=src/a.ts (6 bytes)');
+    expect(summarizeToolArguments('Read', { file_path: 'config.json' })).toBe('path=config.json');
+  });
+
   it('does not expose delegated prompts in the approval summary', () => {
     const summary = summarizeToolArguments('delegate_task', { role: 'review', agentId: 'profile-1', prompt: 'private investigation details' });
     expect(summary).toBe('role=review agentId=profile-1 (29 prompt characters)');

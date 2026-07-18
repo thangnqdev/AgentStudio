@@ -1,5 +1,6 @@
 import { AgentBridge } from '../../infrastructure/ipc/agentStudioBridge';
 import { useAppStore } from '../../store/useAppStore';
+import { projectChatHistory } from '../services/chatHistoryProjection';
 
 /**
  * Hook adapter cho các thao tác cửa sổ Electron (minimize, maximize, close).
@@ -27,18 +28,16 @@ export function useWindowControls() {
 
   const selectWorkspace = async (): Promise<{ canceled: boolean; path: string } | null> => {
     if (!AgentBridge.isAvailable) throw new Error('Electron bridge is not available.');
-    const workspace = await AgentBridge.selectWorkspace();
-    if (workspace.canceled) return { canceled: true, path: '' };
-
-    // Persist current chat history before switching workspace
     const currentState = useAppStore.getState();
     if (currentState.settings.workspacePath && currentState.settings.workspacePath !== 'chưa có dự án') {
       await AgentBridge.saveChatHistory({
-        workspacePath: currentState.settings.workspacePath,
-        threads: currentState.threads,
+        threads: projectChatHistory(currentState.threads),
         activeThreadId: currentState.activeThreadId,
       });
     }
+
+    const workspace = await AgentBridge.selectWorkspace();
+    if (workspace.canceled) return { canceled: true, path: '' };
 
     setProjectPath(workspace.path);
     setSettings({ workspacePath: workspace.path });

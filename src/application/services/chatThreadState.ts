@@ -21,11 +21,14 @@ export function syncActiveThread(
 ): ActiveChatState {
   const activeThreadId = state.activeThreadId ?? dependencies.createId();
   const existingThread = state.threads.find((thread) => thread.id === activeThreadId);
-  const title = deriveThreadTitle(messages, existingThread?.title ?? 'Chat mới');
+  const title = existingThread?.customTitle
+    ? existingThread.title
+    : deriveThreadTitle(messages, existingThread?.title ?? 'Chat mới');
   const timestamp = dependencies.now();
   const updatedThread: ChatThread = {
     id: activeThreadId,
     title,
+    ...(existingThread?.customTitle ? { customTitle: true } : {}),
     messages,
     createdAt: existingThread?.createdAt ?? timestamp,
     updatedAt: timestamp,

@@ -1,4 +1,4 @@
-export type PluginComponent = 'hooks' | 'skills' | 'agents' | 'commands' | 'mcpServers';
+export type PluginComponent = 'hooks' | 'skills' | 'agents' | 'commands' | 'mcpServers' | 'lspServers';
 
 export type PluginStatus = {
   id: string;

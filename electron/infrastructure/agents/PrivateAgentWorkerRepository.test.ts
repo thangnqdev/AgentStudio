@@ -32,6 +32,30 @@ describe('PrivateAgentWorkerRepository', () => {
     expect(recovered[0]).toMatchObject({ status: 'paused', error: 'Application closed before this agent completed.' });
     expect((await repository.get('agent-1'))?.messages[0].content).toBe('Do work');
   });
+
+  it('acks claimed mail only after it reaches a durable checkpoint', async () => {
+    const repository = new PrivateAgentWorkerRepository(directory);
+    const record = worker();
+    const message = { id: 'message-ack', sender: 'user' as const, content: 'Persist me' };
+    await repository.create(record); await repository.enqueueMessage(record.id, message);
+    expect(await repository.drainMessages(record.id)).toEqual([message]);
+    expect(await repository.drainMessages(record.id)).toEqual([]);
+    await repository.saveCheckpoint({
+      id: record.id, status: 'running', updatedAt: record.updatedAt, completedSteps: 1,
+      messages: [...record.messages, message], conversation: [{ role: 'user', content: message.content }],
+    });
+    expect(await repository.drainMessages(record.id)).toEqual([]);
+  });
+
+  it('releases unacked mail claims during interrupted-process recovery', async () => {
+    const repository = new PrivateAgentWorkerRepository(directory);
+    const record = worker();
+    const message = { id: 'message-recover', sender: 'user' as const, content: 'Redeliver me' };
+    await repository.create(record); await repository.enqueueMessage(record.id, message);
+    expect(await repository.drainMessages(record.id)).toEqual([message]);
+    await repository.recoverInterrupted();
+    expect(await repository.drainMessages(record.id)).toEqual([message]);
+  });
 });
 
 function worker(): AgentWorkerRecord {

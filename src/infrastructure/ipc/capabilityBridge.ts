@@ -17,4 +17,5 @@ export const CapabilityBridge = {
   removeMcpServer: (serverId: string) => bridge().removeMcpServer(serverId),
   startMcpServer: (serverId: string) => bridge().startMcpServer(serverId),
   stopMcpServer: (serverId: string) => bridge().stopMcpServer(serverId),
+  authenticateMcpServer: (serverId: string) => bridge().authenticateMcpServer(serverId),
 };

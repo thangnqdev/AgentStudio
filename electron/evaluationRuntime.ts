@@ -6,11 +6,14 @@ import { DeterministicAgentScenarioRunner } from './infrastructure/evaluation/De
 import { JsonlAgentEvaluationReportRepository } from './infrastructure/evaluation/JsonlAgentEvaluationReportRepository.js';
 import { agentTraceService } from './agentRuntime.js';
 import { optimizerRepository } from './optimizerRuntime.js';
+import { backgroundCommandProcessHost } from './backgroundCommandRuntime.js';
 
 export const agentEvaluationRegression = new RunAgentEvaluationRegression(
   createDefaultAgentEvaluators(), new JsonlAgentEvaluationReportRepository(), agentTraceService,
 );
-const goldenAgentRuntimeSuiteBuilder = new BuildGoldenAgentRuntimeSuite(new DeterministicAgentScenarioRunner());
+const goldenAgentRuntimeSuiteBuilder = new BuildGoldenAgentRuntimeSuite(
+  new DeterministicAgentScenarioRunner(backgroundCommandProcessHost),
+);
 
 export async function runGoldenAgentRuntimeEvaluation(candidateId?: string) {
   const state = await optimizerRepository.load();

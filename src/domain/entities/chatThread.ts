@@ -3,9 +3,15 @@ import type { Message } from './message';
 export interface ChatThread {
   id: string;
   title: string;
+  customTitle?: boolean;
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export function normalizeThreadTitle(value: string) {
+  const title = value.replace(/\s+/g, ' ').trim();
+  return title ? title.slice(0, 96) : '';
 }
 
 export function createBlankThread(title = 'Chat mới'): ChatThread {

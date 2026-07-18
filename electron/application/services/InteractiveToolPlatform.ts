@@ -4,6 +4,7 @@ import type { IAgentEventSink } from '../../domain/ports/IAgentEventSink.js';
 import type { IToolCatalog } from '../../domain/ports/IToolCatalog.js';
 import type { IToolExecutor } from '../../domain/ports/IToolExecutor.js';
 import type { IUserInteractionGateway } from '../../domain/ports/IUserInteractionGateway.js';
+import type { ILifecycleHookDispatcher } from '../../domain/ports/ILifecycleHookDispatcher.js';
 import type { ManageAgentPlanMode } from '../usecases/ManageAgentPlanMode.js';
 import { parseAskUserQuestionInput, parseEnterPlanModeInput, parseExitPlanModeInput } from './agentInteractionInput.js';
 import {
@@ -21,6 +22,7 @@ export class InteractiveToolPlatform implements IToolCatalog, IToolExecutor {
   private readonly eventSink: IAgentEventSink;
   private readonly context: { scopeId: string; requestId: string };
   private readonly idFactory: () => string;
+  private readonly hooks?: ILifecycleHookDispatcher;
 
   constructor(
     baseCatalog: IToolCatalog,
@@ -30,6 +32,7 @@ export class InteractiveToolPlatform implements IToolCatalog, IToolExecutor {
     eventSink: IAgentEventSink,
     context: { scopeId: string; requestId: string },
     idFactory: () => string = () => `interaction-${crypto.randomUUID()}`,
+    hooks?: ILifecycleHookDispatcher,
   ) {
     this.baseCatalog = baseCatalog;
     this.baseExecutor = baseExecutor;
@@ -38,6 +41,7 @@ export class InteractiveToolPlatform implements IToolCatalog, IToolExecutor {
     this.eventSink = eventSink;
     this.context = context;
     this.idFactory = idFactory;
+    this.hooks = hooks;
   }
 
   async list(workspaceRoot: string) {
@@ -57,7 +61,7 @@ export class InteractiveToolPlatform implements IToolCatalog, IToolExecutor {
       return this.baseExecutor.execute(toolName, args, workspaceRoot, permissionMode, signal);
     }
     try {
-      if (toolName === ASK_USER_QUESTION_TOOL_NAME) return await this.askQuestions(args, signal);
+      if (toolName === ASK_USER_QUESTION_TOOL_NAME) return await this.askQuestions(args, workspaceRoot, signal);
       if (toolName === ENTER_PLAN_MODE_TOOL_NAME) return await this.enterPlanMode(args, signal);
       return await this.exitPlanMode(args, signal);
     } catch (error) {
@@ -65,9 +69,11 @@ export class InteractiveToolPlatform implements IToolCatalog, IToolExecutor {
     }
   }
 
-  private async askQuestions(args: Record<string, unknown>, signal?: AbortSignal) {
+  private async askQuestions(args: Record<string, unknown>, workspaceRoot: string, signal?: AbortSignal) {
     const { questions } = parseAskUserQuestionInput(args);
+    await this.dispatchElicitation('Elicitation', workspaceRoot);
     const response = await this.request({ kind: 'questions', title: 'Agent cần bạn quyết định', questions }, signal);
+    await this.dispatchElicitation('ElicitationResult', workspaceRoot);
     if (!response.accepted) return { ok: false, output: 'User declined to answer the questions.' };
     const { answers, annotations } = validateQuestionResponse(questions, response);
     const details = Object.entries(answers).map(([question, answer]) => `"${question}"="${answer}"`).join(', ');
@@ -112,6 +118,12 @@ export class InteractiveToolPlatform implements IToolCatalog, IToolExecutor {
     const pending = this.interactions.waitForResponse(this.context.requestId, id, signal);
     this.eventSink.emitInteraction(this.context.requestId, { id, ...input });
     return pending;
+  }
+
+  private async dispatchElicitation(event: 'Elicitation' | 'ElicitationResult', workspaceRoot: string) {
+    await this.hooks?.dispatch({
+      event, workspaceRoot, matchValue: 'questions', requestId: this.context.requestId, taskId: this.context.scopeId,
+    }).catch(() => undefined);
   }
 }
 

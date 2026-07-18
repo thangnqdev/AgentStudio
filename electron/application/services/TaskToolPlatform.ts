@@ -11,7 +11,10 @@ import {
   parseUpdateAgentWorkItemInput,
 } from './agentWorkItemInput.js';
 
-export const TASK_TOOL_NAMES = ['task_create', 'task_get', 'task_list', 'task_update'] as const;
+export const TASK_TOOL_NAMES = [
+  'TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate',
+  'task_create', 'task_get', 'task_list', 'task_update',
+] as const;
 
 const TASK_TOOL_DEFINITIONS: AgentToolDefinition[] = [
   {
@@ -61,7 +64,12 @@ const TASK_TOOL_DEFINITIONS: AgentToolDefinition[] = [
 ];
 
 export function getTaskToolDefinitions() {
-  return TASK_TOOL_DEFINITIONS.map((tool) => structuredClone(tool));
+  return TASK_TOOL_DEFINITIONS.flatMap((tool) => {
+    const exactName = ({
+      task_create: 'TaskCreate', task_get: 'TaskGet', task_list: 'TaskList', task_update: 'TaskUpdate',
+    } as Record<string, string>)[tool.name]!;
+    return [{ ...structuredClone(tool), name: exactName }, structuredClone(tool)];
+  });
 }
 
 export class TaskToolPlatform implements IToolCatalog, IToolExecutor {
@@ -104,21 +112,22 @@ export class TaskToolPlatform implements IToolCatalog, IToolExecutor {
     }
     if (signal?.aborted) return { ok: false, output: 'Agent session stopped.' };
     try {
+      const operation = normalizeTaskToolName(toolName);
       const taskListId = await this.resolveTaskListId();
       const hookContext = {
         workspaceRoot, requestId: this.requestId,
         ...(this.actorName ? { actorName: this.actorName } : {}),
         ...(this.onOwnerChanged ? { onOwnerChanged: this.onOwnerChanged } : {}),
       };
-      if (toolName === 'task_create') {
+      if (operation === 'task_create') {
         const item = await this.manager.create(taskListId, parseCreateAgentWorkItemInput(args), hookContext);
         return { ok: true, output: `Task #${item.id} created successfully: ${item.subject}` };
       }
-      if (toolName === 'task_get') {
+      if (operation === 'task_get') {
         const item = await this.manager.get(taskListId, parseTaskIdInput(args));
         return { ok: true, output: formatTask(item) };
       }
-      if (toolName === 'task_list') {
+      if (operation === 'task_list') {
         assertEmptyTaskInput(args);
         return { ok: true, output: formatTaskList(await this.manager.list(taskListId)) };
       }
@@ -130,6 +139,10 @@ export class TaskToolPlatform implements IToolCatalog, IToolExecutor {
       return { ok: false, output: error instanceof Error ? error.message : 'Task operation failed.' };
     }
   }
+}
+
+function normalizeTaskToolName(toolName: string) {
+  return ({ TaskCreate: 'task_create', TaskGet: 'task_get', TaskList: 'task_list', TaskUpdate: 'task_update' } as Record<string, string>)[toolName] ?? toolName;
 }
 
 function formatTask(item: Awaited<ReturnType<ManageAgentWorkItems['get']>>) {

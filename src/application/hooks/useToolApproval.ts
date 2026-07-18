@@ -2,8 +2,8 @@ import { AgentBridge } from '../../infrastructure/ipc/agentStudioBridge';
 import type { AgentAction } from '../../domain/entities/message';
 
 export function useToolApproval() {
-  return (action: AgentAction, approved: boolean) => {
+  return (action: AgentAction, approved: boolean, rememberDomain = false) => {
     if (!AgentBridge.isAvailable) return;
-    AgentBridge.respondToToolApproval({ requestId: action.requestId, actionId: action.id, approved });
+    AgentBridge.respondToToolApproval({ requestId: action.requestId, actionId: action.id, approved, ...(rememberDomain ? { rememberDomain } : {}) });
   };
 }

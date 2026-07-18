@@ -5,6 +5,9 @@ import type { ToolResult, PermissionMode } from '../../domain/entities/agent.js'
 import { resolveSafeWorkspacePath } from '../security/resolveSafePath.js';
 
 import { MAX_FILE_BYTES } from '../../domain/entities/limits.js';
+import type { IWorkspaceFileChangeSink } from '../../domain/ports/IWorkspaceFileChangeSink.js';
+import type { IFileMediaReader } from '../../domain/ports/IFileMediaReader.js';
+import { LocalFileMediaReader } from './LocalFileMediaReader.js';
 
 function getString(value: unknown): string {
   return typeof value === 'string' ? value : '';
@@ -34,6 +37,14 @@ async function writeAtomically(filePath: string, content: string, mode = 0o644) 
  * Thực thi các tool thao tác file: list_files, read_file, write_file.
  */
 export class FileSystemToolExecutor {
+  private readonly changes?: IWorkspaceFileChangeSink;
+  private readonly media: IFileMediaReader;
+
+  constructor(changes?: IWorkspaceFileChangeSink, media: IFileMediaReader = new LocalFileMediaReader()) {
+    this.changes = changes;
+    this.media = media;
+  }
+
   async listFiles(
     args: Record<string, unknown>,
     workspaceRoot: string,
@@ -55,17 +66,31 @@ export class FileSystemToolExecutor {
     args: Record<string, unknown>,
     workspaceRoot: string,
     permissionMode: PermissionMode,
+    signal?: AbortSignal,
   ): Promise<ToolResult> {
     const filePath = await resolvePath(getString(args.path), workspaceRoot, permissionMode);
     const stat = await fs.stat(filePath);
     if (!stat.isFile()) {
       return { ok: false, output: 'Path is not a file.' };
     }
+    if (args.pages !== undefined && typeof args.pages !== 'string') {
+      return { ok: false, output: 'pages must be a PDF page range string.' };
+    }
+    if (this.media.supports(filePath)) {
+      return this.media.read(filePath, args.pages as string | undefined, signal);
+    }
+    if (args.pages !== undefined) {
+      return { ok: false, output: 'pages is only supported for PDF files.' };
+    }
     if (stat.size > MAX_FILE_BYTES) {
       return { ok: false, output: `File too large (${stat.size} bytes). Limit is ${MAX_FILE_BYTES} bytes.` };
     }
 
-    return { ok: true, output: await fs.readFile(filePath, 'utf8') };
+    const content = await fs.readFile(filePath, 'utf8');
+    if (args.offset === undefined && args.limit === undefined) return { ok: true, output: content };
+    const offset = boundedLineNumber(args.offset, 1, 1, Number.MAX_SAFE_INTEGER);
+    const limit = boundedLineNumber(args.limit, 2_000, 1, 10_000);
+    return { ok: true, output: content.split(/(?<=\n)/).slice(offset - 1, offset - 1 + limit).join('') };
   }
 
   async writeFile(
@@ -90,6 +115,7 @@ export class FileSystemToolExecutor {
     const existing = await fs.lstat(filePath).catch(() => null);
     if (existing?.isSymbolicLink()) return { ok: false, output: 'Symbolic links are not allowed in workspace paths.' };
     await writeAtomically(filePath, content, existing ? existing.mode & 0o777 : 0o644);
+    await this.changes?.fileChanged(filePath, workspaceRoot).catch(() => undefined);
     return {
       ok: true,
       output: `Wrote ${contentBytes} bytes to ${path.relative(workspaceRoot, filePath) || filePath}.`,
@@ -119,15 +145,27 @@ export class FileSystemToolExecutor {
     const content = await fs.readFile(filePath, 'utf8');
     const firstIndex = content.indexOf(oldText);
     if (firstIndex < 0) return { ok: false, output: 'oldText was not found; no changes were written.' };
-    if (content.indexOf(oldText, firstIndex + oldText.length) >= 0) {
+    const replaceAll = args.replaceAll === true;
+    if (!replaceAll && content.indexOf(oldText, firstIndex + oldText.length) >= 0) {
       return { ok: false, output: 'oldText occurs more than once; provide a more specific block.' };
     }
 
-    const nextContent = `${content.slice(0, firstIndex)}${newText}${content.slice(firstIndex + oldText.length)}`;
+    const nextContent = replaceAll
+      ? content.split(oldText).join(newText)
+      : `${content.slice(0, firstIndex)}${newText}${content.slice(firstIndex + oldText.length)}`;
     if (Buffer.byteLength(nextContent, 'utf8') > MAX_FILE_BYTES) {
       return { ok: false, output: `Patched file would exceed the ${MAX_FILE_BYTES}-byte limit.` };
     }
     await writeAtomically(filePath, nextContent, stat.mode & 0o777);
+    await this.changes?.fileChanged(filePath, workspaceRoot).catch(() => undefined);
     return { ok: true, output: `Patched ${path.relative(workspaceRoot, filePath) || filePath}.` };
   }
+}
+
+function boundedLineNumber(value: unknown, fallback: number, minimum: number, maximum: number) {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`Line range value must be an integer between ${minimum} and ${maximum}.`);
+  }
+  return value;
 }

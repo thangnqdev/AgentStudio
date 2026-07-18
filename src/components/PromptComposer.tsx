@@ -1,32 +1,73 @@
 import { useState, useRef, useEffect, useMemo, type KeyboardEvent } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import type { Attachment } from '../domain/entities/message';
-import type { PermissionMode } from '../domain/entities/settings';
 import { useProviderSettings } from '../application/hooks/useProviderSettings';
 import { useAgentChat } from '../application/hooks/useAgentChat';
 import { useAttachments } from '../application/hooks/useAttachments';
-import { estimateMessageTokens, formatContextWindow, calculateContextUsagePercent } from '../application/services/tokenEstimator';
-import { TokenProgressRing } from './chat/TokenProgressRing';
+import { estimateMessageTokens, calculateContextUsagePercent } from '../application/services/tokenEstimator';
 import { hasUsableAiConfiguration } from '../domain/services/aiConfiguration';
+import { findComposerCommands, type ComposerCommand } from '../application/services/composerCommands';
+import { ComposerAttachments } from './chat/ComposerAttachments';
+import { ComposerCommandPalette } from './chat/ComposerCommandPalette';
+import { ComposerPickerLayer, type ComposerPickerKind } from './chat/ComposerPickerLayer';
+import { ComposerSettingsFooter } from './chat/ComposerSettingsFooter';
 
 export function PromptComposer() {
   const [input, setInput] = useState('');
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [dismissedCommandInput, setDismissedCommandInput] = useState<string | null>(null);
+  const [activePicker, setActivePicker] = useState<ComposerPickerKind | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { attachedFiles, fileInputRef, handleFileClick, handleFileChange, removeFile, clearFiles } = useAttachments();
 
   const addMessage = useAppStore((s) => s.addMessage);
+  const activeTask = useAppStore((s) => s.activeTask);
+  const currentBranch = useAppStore((s) => s.currentBranch);
   const messages = useAppStore((s) => s.messages);
   const settings = useAppStore((s) => s.settings);
+  const setActiveView = useAppStore((s) => s.setActiveView);
+  const clearMessages = useAppStore((s) => s.clearMessages);
+  const createThread = useAppStore((s) => s.createThread);
+  const renameActiveThread = useAppStore((s) => s.renameActiveThread);
   const isAgentBusy = useAppStore((s) => s.messages.some((m) => m.sender === 'agent' && m.status === 'sending'));
   const hasAiConfiguration = hasUsableAiConfiguration(settings);
+  const activeProvider = settings.providers?.find((provider) => provider.id === settings.activeProviderId);
+  const models = activeProvider?.models || [];
   
-  const { startAgentResponse, stopAgentResponse } = useAgentChat();
+  const { startAgentResponse, stopAgentResponse, resumeAgentTask } = useAgentChat();
   const {
     setActiveModel: saveActiveModel,
     setFallbackModel: saveFallbackModel,
     setPermissionMode: savePermissionMode,
     settingsNotice,
   } = useProviderSettings();
+
+  const commands = useMemo(() => findComposerCommands(input), [input]);
+  const isCommandPaletteOpen = commands.length > 0 && dismissedCommandInput !== input && !isAgentBusy;
+
+  useEffect(() => setSelectedCommandIndex(0), [input]);
+
+  const selectCommand = (command: ComposerCommand) => {
+    setDismissedCommandInput(null);
+    if (command.action.kind === 'navigate') {
+      setInput('');
+      setActiveView(command.action.view);
+      if (command.action.anchorId) focusElement(command.action.anchorId, true);
+    } else if (command.action.kind === 'open-picker') {
+      setInput('');
+      if (command.action.picker === 'model' && models.length === 0) setActiveView('settings');
+      else setActivePicker(command.action.picker);
+    } else if (command.action.kind === 'clear-thread') {
+      setInput('');
+      clearMessages();
+    } else if (command.action.kind === 'new-thread') {
+      setInput('');
+      createThread();
+    } else {
+      setInput(command.action.value);
+      focusElement('prompt-input');
+    }
+  };
 
   // Auto-resize textarea as content grows
   useEffect(() => {
@@ -37,15 +78,19 @@ export function PromptComposer() {
   }, [input]);
 
   const handleSubmit = async () => {
+    if (isCommandPaletteOpen) {
+      selectCommand(commands[selectedCommandIndex] ?? commands[0]);
+      return;
+    }
     const trimmed = input.trim();
     const hasFileErrors = attachedFiles.some((file) => file.error);
     if (!hasAiConfiguration || (!trimmed && attachedFiles.length === 0) || hasFileErrors || isAgentBusy) return;
 
-    const messageAttachments: Attachment[] = attachedFiles.map(({ id, name, type, filePath, mimeType, size, previewUrl }) => ({
+    const messageAttachments: Attachment[] = attachedFiles.map(({ id, name, type, authorizationToken, mimeType, size, previewUrl }) => ({
       id,
       name,
       type,
-      filePath,
+      authorizationToken,
       mimeType,
       size,
       previewUrl,
@@ -75,6 +120,23 @@ export function PromptComposer() {
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) return;
 
+    if (isCommandPaletteOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      const direction = e.key === 'ArrowDown' ? 1 : -1;
+      setSelectedCommandIndex((current) => (current + direction + commands.length) % commands.length);
+      return;
+    }
+    if (isCommandPaletteOpen && (e.key === 'Enter' || e.key === 'Tab')) {
+      e.preventDefault();
+      selectCommand(commands[selectedCommandIndex] ?? commands[0]);
+      return;
+    }
+    if (isCommandPaletteOpen && e.key === 'Escape') {
+      e.preventDefault();
+      setDismissedCommandInput(input);
+      return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -83,8 +145,6 @@ export function PromptComposer() {
 
   const hasFileErrors = attachedFiles.some((file) => file.error);
   const canSubmit = hasAiConfiguration && (input.trim().length > 0 || attachedFiles.length > 0) && !hasFileErrors && !isAgentBusy;
-  const activeProvider = settings.providers?.find(p => p.id === settings.activeProviderId);
-  const models = activeProvider?.models || [];
   const activeModel = models.find((model) => model.id === settings.activeModelId);
   const activeContextWindow = activeModel?.contextWindow;
   const estimatedContextTokens = useMemo(() => {
@@ -105,7 +165,7 @@ export function PromptComposer() {
     await saveActiveModel(modelId);
   };
 
-  const handlePermissionModeChange = async (permissionMode: PermissionMode) => {
+  const handlePermissionModeChange = async (permissionMode: typeof settings.permissionMode) => {
     await savePermissionMode(permissionMode);
   };
 
@@ -113,11 +173,25 @@ export function PromptComposer() {
     await saveFallbackModel(modelId);
   };
 
+  const closePicker = () => {
+    setActivePicker(null);
+    focusElement('prompt-input');
+  };
+
   return (
     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-[800px] px-6">
       <div
-        className="bg-surface rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-outline-variant p-2 flex flex-col gap-2 transition-all focus-within:border-secondary/50 focus-within:shadow-[0_8px_30px_rgb(156,67,38,0.1)]"
+        className="relative bg-surface rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-outline-variant p-2 flex flex-col gap-2 transition-all focus-within:border-secondary/50 focus-within:shadow-[0_8px_30px_rgb(156,67,38,0.1)]"
       >
+        {isCommandPaletteOpen && <ComposerCommandPalette commands={commands} selectedIndex={selectedCommandIndex} onSelect={selectCommand} />}
+        <ComposerPickerLayer
+          active={activePicker} models={models} activeModelId={settings.activeModelId}
+          permissionMode={settings.permissionMode} currentThreadTitle={activeTask ?? 'Chat mới'}
+          estimatedTokens={estimatedContextTokens} contextWindow={activeContextWindow} contextUsagePercent={contextUsagePercent}
+          providerName={activeProvider?.name} fallbackModelId={settings.fallbackModelId} workspacePath={settings.workspacePath} currentBranch={currentBranch}
+          onModelSelect={handleModelChange} onPermissionSelect={handlePermissionModeChange}
+          onResume={resumeAgentTask} onRename={renameActiveThread} onClose={closePicker}
+        />
         <input
           type="file"
           multiple
@@ -126,40 +200,7 @@ export function PromptComposer() {
           onChange={handleFileChange}
         />
 
-        {/* Attached Files Tokens */}
-        {attachedFiles.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-2 pt-1">
-            {attachedFiles.map(file => (
-              <div
-                key={file.id}
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-code-base bg-surface-container text-on-surface-variant border border-outline-variant/50"
-              >
-                {file.error ? (
-                  <span className="material-symbols-outlined text-[12px] text-error">error</span>
-                ) : file.type === 'image' ? (
-                  <span className="material-symbols-outlined text-[12px]">image</span>
-                ) : file.type === 'audio' ? (
-                  <span className="material-symbols-outlined text-[12px]">audio_file</span>
-                ) : file.type === 'video' ? (
-                  <span className="material-symbols-outlined text-[12px]">video_file</span>
-                ) : (
-                  <span className="material-symbols-outlined text-[12px]">description</span>
-                )}
-                <span className={file.error ? 'opacity-50' : ''} title={file.error || file.filePath}>
-                  {file.name}
-                  {file.error && ' (Lỗi)'}
-                </span>
-                <button
-                  onClick={() => removeFile(file.id)}
-                  className="ml-1 hover:text-error transition-colors flex items-center justify-center"
-                  title="Xóa tệp"
-                >
-                  <span className="material-symbols-outlined text-[14px]">close</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <ComposerAttachments files={attachedFiles} onRemove={removeFile} />
 
         {/* Input row */}
         <div className="flex items-end gap-2">
@@ -170,7 +211,7 @@ export function PromptComposer() {
             placeholder="Yêu cầu AI xây dựng, giải thích hoặc refactor..."
             rows={1}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); setDismissedCommandInput(null); }}
             onKeyDown={handleKeyDown}
           />
 
@@ -203,60 +244,26 @@ export function PromptComposer() {
 
         {settingsNotice && <p className="px-2 text-[11px] text-error">{settingsNotice}</p>}
 
-        {/* Footer info: Hint + Model Select */}
-        <div className="flex justify-between items-center px-2 pb-1">
-          <p className="text-[10px] text-on-surface-variant/40 font-ui-body">
-            Enter để gửi · Shift+Enter để xuống dòng
-          </p>
-
-          <div className="flex items-center gap-2">
-            <select
-              value={settings.permissionMode}
-              onChange={(e) => handlePermissionModeChange(e.target.value as PermissionMode)}
-              className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[170px]"
-              title="Chế độ quyền agent"
-            >
-              <option value="read-only" className="bg-surface text-on-surface">read-only</option>
-              <option value="workspace-write" className="bg-surface text-on-surface">workspace-write</option>
-              <option value="danger-full-access" className="bg-surface text-on-surface">danger-full-access</option>
-            </select>
-
-            {activeContextWindow && contextUsagePercent !== null && (
-              <div title={`Local realtime estimate: khoảng ${estimatedContextTokens.toLocaleString()} / ${activeContextWindow.toLocaleString()} tokens (${contextUsagePercent}%).`}>
-                <TokenProgressRing percent={contextUsagePercent} />
-              </div>
-            )}
-
-            {models.length > 0 ? (
-              <>
-                <select
-                  value={settings.activeModelId || ''}
-                  onChange={(e) => handleModelChange(e.target.value)}
-                  className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[150px] truncate"
-                  title={`Chọn Model (${activeProvider?.name})${activeContextWindow ? ` · context ${formatContextWindow(activeContextWindow)}` : ''}`}
-                >
-                  {models.map(model => (
-                    <option key={model.id} value={model.id} className="bg-surface text-on-surface">
-                      {model.id}{model.contextWindow ? ` · ${formatContextWindow(model.contextWindow)}` : ''}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={settings.fallbackModelId || ''}
-                  onChange={(e) => handleFallbackModelChange(e.target.value)}
-                  className="text-[11px] bg-surface text-on-surface-variant/80 border border-outline-variant/30 outline-none cursor-pointer rounded px-2 py-0.5 hover:bg-surface-container transition-colors max-w-[130px] truncate"
-                  title="Model dự phòng khi model chính quá tải hoặc lỗi tạm thời"
-                >
-                  <option value="">Không fallback</option>
-                  {models.filter((model) => model.id !== settings.activeModelId).map((model) => (
-                    <option key={model.id} value={model.id} className="bg-surface text-on-surface">Fallback: {model.id}</option>
-                  ))}
-                </select>
-              </>
-            ) : null}
-          </div>
-        </div>
+        <ComposerSettingsFooter
+          settings={settings}
+          models={models}
+          providerName={activeProvider?.name}
+          contextWindow={activeContextWindow}
+          estimatedTokens={estimatedContextTokens}
+          usagePercent={contextUsagePercent}
+          onPermissionModeChange={(value) => void handlePermissionModeChange(value)}
+          onActiveModelChange={(value) => void handleModelChange(value)}
+          onFallbackModelChange={(value) => void handleFallbackModelChange(value)}
+        />
       </div>
     </div>
   );
+}
+
+function focusElement(id: string, scroll = false) {
+  window.setTimeout(() => {
+    const element = document.getElementById(id);
+    if (scroll) element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (element instanceof HTMLElement) element.focus();
+  }, 0);
 }

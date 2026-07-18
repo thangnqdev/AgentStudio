@@ -1,5 +1,6 @@
 import type { WebContents } from 'electron';
 import type { AgentTeamView } from '../../domain/entities/agentTeam.js';
+import type { AgentWorkerEvent } from '../../domain/entities/agentWorker.js';
 import type { IAgentTeamEventSink } from '../../domain/ports/IAgentTeamEventSink.js';
 
 export class ElectronAgentTeamEventHub implements IAgentTeamEventSink {
@@ -28,6 +29,12 @@ export class ElectronAgentTeamEventHub implements IAgentTeamEventSink {
   emitTeam(scopeId: string, team: AgentTeamView | null) {
     for (const sender of this.senders.get(scopeId)?.values() ?? []) {
       if (!sender.isDestroyed()) sender.send('ai:agent-team:event', { scopeId, team });
+    }
+  }
+
+  emitWorkerEvent(event: AgentWorkerEvent) {
+    for (const sender of this.senders.get(event.scopeId)?.values() ?? []) {
+      if (!sender.isDestroyed()) sender.send('ai:agent-worker:event', event);
     }
   }
 

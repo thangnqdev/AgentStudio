@@ -22,6 +22,15 @@ describe('ManageBackgroundCommands', () => {
     });
   });
 
+  it('forwards an explicitly selected native shell', async () => {
+    const supervisor = fakeSupervisor();
+    const manager = new ManageBackgroundCommands(supervisor);
+    await manager.start('thread-1', {
+      command: 'Get-ChildItem', description: 'List files', timeoutMs: 5_000, shell: 'powershell',
+    }, { workspaceRoot: '/workspace', permissionMode: 'danger-full-access' });
+    expect(supervisor.start).toHaveBeenCalledWith(expect.objectContaining({ shell: 'powershell' }));
+  });
+
   it('does not expose a task from another scope and rejects stopping terminal work', async () => {
     const supervisor = fakeSupervisor();
     vi.mocked(supervisor.output).mockResolvedValue(null);

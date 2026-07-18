@@ -2,6 +2,7 @@ import type { PermissionMode } from './agent.js';
 import { evaluateToolPolicy, type AgentToolDefinition, type ToolPolicyDecision, type ToolRisk } from './tool.js';
 import { matchCommandPrefix, normalizePermissionPath } from './permissionArgumentMatching.js';
 import { isWorkspaceSearch, matchesPermissionGlob, searchMayReachPathGlob } from './permissionGlobMatching.js';
+import { canonicalToolName } from './toolAliases.js';
 export { matchesPermissionGlob } from './permissionGlobMatching.js';
 export type PermissionRuleEffect = 'allow' | 'ask' | 'deny';
 export type PermissionRuleSource = 'policy' | 'workspace' | 'user' | 'session';
@@ -13,6 +14,7 @@ export type PermissionRule = {
   toolGlob: string;
   risk?: ToolRisk;
   pathGlob?: string;
+  domainGlob?: string;
   commandPrefix?: string;
 };
 
@@ -38,8 +40,9 @@ export function normalizePermissionRules(
     const id = readOptionalString(value.id) || `${source}-${index + 1}`;
     const risk = value.risk === undefined ? undefined : readEnum(value.risk, TOOL_RISKS, `Permission rule ${index + 1} has an invalid risk.`);
     const pathGlob = readOptionalString(value.pathGlob);
+    const domainGlob = readOptionalString(value.domainGlob);
     const commandPrefix = readOptionalString(value.commandPrefix);
-    return { id, effect, source, toolGlob, risk, pathGlob, commandPrefix };
+    return { id, effect, source, toolGlob, risk, pathGlob, domainGlob, commandPrefix };
   });
 }
 
@@ -66,16 +69,19 @@ export function evaluateToolPermission(
 }
 
 function matchesRule(rule: PermissionRule, tool: AgentToolDefinition, args: Record<string, unknown>) {
+  const canonicalName = canonicalToolName(tool.name);
   const toolMatches = matchesPermissionGlob(rule.toolGlob, tool.name)
-    || (isWorkspaceSearch(tool.name) && matchesPermissionGlob(rule.toolGlob, 'read_file'));
+    || matchesPermissionGlob(rule.toolGlob, canonicalName)
+    || (isWorkspaceSearch(canonicalName) && matchesPermissionGlob(rule.toolGlob, 'read_file'));
   if (!toolMatches) return false;
   if (rule.risk && rule.risk !== tool.risk) return false;
   if (rule.pathGlob) {
-    const pathMatches = isWorkspaceSearch(tool.name)
-      ? searchMayReachPathGlob(tool.name, args, rule.pathGlob)
+    const pathMatches = isWorkspaceSearch(canonicalName)
+      ? searchMayReachPathGlob(canonicalName, args, rule.pathGlob)
       : readPaths(args).some((value) => matchesPermissionGlob(rule.pathGlob!.replaceAll('\\', '/'), value));
     if (!pathMatches) return false;
   }
+  if (rule.domainGlob && !matchesPermissionGlob(rule.domainGlob.toLowerCase(), readDomain(args))) return false;
   if (rule.commandPrefix) {
     const commandMatch = matchCommandPrefix(readCommand(args), rule.commandPrefix);
     if (commandMatch === 'unmatched' || (commandMatch === 'ambiguous' && rule.effect === 'allow')) return false;
@@ -91,10 +97,11 @@ function compareRules(left: PermissionRule, right: PermissionRule) {
 }
 
 function ruleSpecificity(rule: PermissionRule) {
-  return Number(Boolean(rule.risk)) + Number(Boolean(rule.pathGlob)) + Number(Boolean(rule.commandPrefix));
+  return Number(Boolean(rule.risk)) + Number(Boolean(rule.pathGlob))
+    + Number(Boolean(rule.domainGlob)) + Number(Boolean(rule.commandPrefix));
 }
 function readPaths(args: Record<string, unknown>) {
-  return ['path', 'dir', 'filePath']
+  return ['path', 'dir', 'filePath', 'file_path']
     .map((key) => args[key])
     .filter((value): value is string => typeof value === 'string')
     .map(normalizePermissionPath);
@@ -102,6 +109,15 @@ function readPaths(args: Record<string, unknown>) {
 
 function readCommand(args: Record<string, unknown>) {
   return typeof args.command === 'string' ? args.command.trim() : '';
+}
+
+function readDomain(args: Record<string, unknown>) {
+  if (typeof args.url !== 'string') return '';
+  try {
+    return new URL(args.url).hostname.toLowerCase().replace(/\.$/, '');
+  } catch {
+    return '';
+  }
 }
 
 function readRuleArray(raw: unknown): unknown[] {

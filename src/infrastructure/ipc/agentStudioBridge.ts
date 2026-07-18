@@ -1,5 +1,4 @@
 import type { Message } from '../../domain/entities/message';
-import type { PermissionMode } from '../../domain/entities/settings';
 import type { AppUpdateSnapshot } from '../../domain/entities/appUpdate';
 
 // Ensure the types from electron.d.ts are available
@@ -70,51 +69,6 @@ export const AgentBridge = {
     return window.agentStudio.onAppUpdateStatus(listener);
   },
 
-  async loadSettings() {
-    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.loadSettings();
-  },
-
-  async importLegacySettings(settings: Parameters<NonNullable<Window['agentStudio']>['importLegacySettings']>[0]) {
-    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.importLegacySettings(settings);
-  },
-
-  async saveProviderAndScan(provider: Parameters<NonNullable<Window['agentStudio']>['saveProviderAndScan']>[0]) {
-    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.saveProviderAndScan(provider);
-  },
-
-  async saveProvider(provider: Parameters<NonNullable<Window['agentStudio']>['saveProvider']>[0]) {
-    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.saveProvider(provider);
-  },
-
-  async deleteProvider(providerId: string) {
-    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.deleteProvider(providerId);
-  },
-
-  async setActiveProvider(providerId: string) {
-    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.setActiveProvider(providerId);
-  },
-
-  async setActiveModel(modelId: string) {
-    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.setActiveModel(modelId);
-  },
-
-  async setFallbackModel(modelId: string) {
-    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.setFallbackModel(modelId);
-  },
-
-  async setPermissionMode(mode: PermissionMode) {
-    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.setPermissionMode(mode);
-  },
-
   async loadWebSearchSettings() {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     return window.agentStudio.loadWebSearchSettings();
@@ -140,14 +94,9 @@ export const AgentBridge = {
     return window.agentStudio.writeWorkspaceFile(payload);
   },
 
-  getFilePath(file: File) {
-    if (!window.agentStudio) return '';
-    return window.agentStudio.getFilePath(file);
-  },
-
-  async loadChatHistory(workspacePath: string) {
+  async loadChatHistory() {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
-    return window.agentStudio.loadChatHistory(workspacePath);
+    return window.agentStudio.loadChatHistory();
   },
 
   async saveChatHistory(payload: Parameters<NonNullable<Window['agentStudio']>['saveChatHistory']>[0]) {
@@ -195,7 +144,7 @@ export const AgentBridge = {
     window.agentStudio.stopChat(requestId);
   },
 
-  respondToToolApproval(payload: { requestId: string; actionId: string; approved: boolean }) {
+  respondToToolApproval(payload: { requestId: string; actionId: string; approved: boolean; rememberDomain?: boolean }) {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     window.agentStudio.respondToToolApproval(payload);
   },

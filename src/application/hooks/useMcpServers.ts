@@ -23,11 +23,20 @@ export function useMcpServers() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (!servers.some((server) => server.state === 'needs-auth')) return;
+    const interval = window.setInterval(() => { void refresh(); }, 2_000);
+    return () => window.clearInterval(interval);
+  }, [refresh, servers]);
   return {
     servers, error, loading, refresh,
     save: (payload: SaveMcpServerPayload) => run(() => CapabilityBridge.saveMcpServer(payload)),
     remove: (id: string) => run(() => CapabilityBridge.removeMcpServer(id)),
     start: (id: string) => run(() => CapabilityBridge.startMcpServer(id)),
     stop: (id: string) => run(() => CapabilityBridge.stopMcpServer(id)),
+    authenticate: async (id: string) => {
+      try { setError(''); unwrap(await CapabilityBridge.authenticateMcpServer(id)); }
+      catch (reason) { setError(reason instanceof Error ? reason.message : 'MCP authentication failed.'); throw reason; }
+    },
   };
 }
