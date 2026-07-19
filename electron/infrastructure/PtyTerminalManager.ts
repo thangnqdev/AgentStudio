@@ -2,6 +2,7 @@ import { spawn as spawnChild } from 'node:child_process';
 import { spawn as spawnPty } from 'node-pty';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { normalizePipeTerminalInput } from '../application/services/normalizeTerminalInput.js';
 
 export type TerminalProcess = {
   cols: number;
@@ -164,7 +165,7 @@ export class PtyTerminalManager {
         kill: () => terminal.kill(),
       };
     } catch (error) {
-      const fallbackArgs = process.platform === 'win32' ? [] : ['-i'];
+      const fallbackArgs = process.platform === 'win32' ? [] : ['-s'];
       const child = spawnChild(shell, fallbackArgs, {
         cwd,
         env: this.buildTerminalEnv(),
@@ -173,7 +174,7 @@ export class PtyTerminalManager {
       let currentCols = cols;
       let currentRows = rows;
 
-      onData(`\r\n[terminal] PTY không khả dụng, đang dùng shell pipe fallback: ${error instanceof Error ? error.message : String(error)}\r\n`);
+      onData(`\r\n[terminal] Đang chạy ở chế độ tương thích: ${error instanceof Error ? error.message : String(error)}\r\n`);
       child.stdout?.on('data', (data: Buffer) => onData(data.toString('utf8')));
       child.stderr?.on('data', (data: Buffer) => onData(data.toString('utf8')));
       child.on('exit', (exitCode, signal) => onExit(exitCode ?? undefined, signal ?? undefined));
@@ -186,7 +187,8 @@ export class PtyTerminalManager {
           return currentRows;
         },
         write: (data) => {
-          child.stdin?.write(data);
+          onData(data.replaceAll('\r', '\r\n'));
+          child.stdin?.write(normalizePipeTerminalInput(data));
         },
         resize: (nextCols, nextRows) => {
           currentCols = nextCols;

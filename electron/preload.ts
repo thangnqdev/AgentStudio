@@ -179,6 +179,8 @@ contextBridge.exposeInMainWorld('agentStudio', {
   getCurrentWorkspace: () => ipcRenderer.invoke('workspace:get-current'),
   selectWorkspace: () => ipcRenderer.invoke('workspace:select-directory'),
   writeWorkspaceFile: (payload: unknown) => ipcRenderer.invoke('workspace:write-file', payload),
+  listWorkspaceFiles: (payload: unknown) => ipcRenderer.invoke('workspace:list-files', payload),
+  readWorkspaceFile: (payload: unknown) => ipcRenderer.invoke('workspace:read-file', payload),
   authorizeAttachment: (file: unknown) => {
     const selectedFile = file as File;
     return ipcRenderer.invoke('attachments:authorize', {

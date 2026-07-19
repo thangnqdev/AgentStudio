@@ -12,6 +12,7 @@ import type { IAgentTracer } from '../../domain/ports/IAgentTracer.js';
 import type { IAgentWorkerEventSink } from '../../domain/ports/IAgentWorkerEventSink.js';
 import type { IAgentWorkerRepository } from '../../domain/ports/IAgentWorkerRepository.js';
 import type { IAgentWorkerRunner } from '../../domain/ports/IAgentWorkerRunner.js';
+import { AgentWorkerRunRegistry } from '../services/AgentWorkerRunRegistry.js';
 
 export type AgentWorkerExecution = { runner: IAgentWorkerRunner; events: IAgentWorkerEventSink };
 export type AgentWorkerParentContext = {
@@ -22,7 +23,6 @@ export type AgentWorkerParentContext = {
   depth: number;
 };
 
-type ActiveWorker = { controller: AbortController; promise: Promise<AgentWorkerRecord> };
 type AgentWorkerApprovalControl = {
   cancel(requestId: string): void;
   respond(requestId: string, actionId: string, approved: boolean): void;
@@ -32,7 +32,7 @@ export class ManageAgentWorkers {
   private readonly repository: IAgentWorkerRepository;
   private readonly tracer: IAgentTracer;
   private readonly approvals: AgentWorkerApprovalControl;
-  private readonly active = new Map<string, ActiveWorker>();
+  private readonly active = new AgentWorkerRunRegistry();
 
   constructor(repository: IAgentWorkerRepository, tracer: IAgentTracer, approvals: AgentWorkerApprovalControl = { cancel: () => undefined, respond: () => undefined }) {
     this.repository = repository;
@@ -125,6 +125,11 @@ export class ManageAgentWorkers {
     }));
   }
 
+  async waitForBackgroundResults(parentScopeId: string, signal?: AbortSignal) {
+    await this.active.waitForBackground(parentScopeId, signal);
+    return this.drainParentMessages(parentScopeId);
+  }
+
   async recoverInterrupted() {
     const recovered = await this.repository.recoverInterrupted();
     for (const worker of recovered) await this.tracer.updateTrace(worker.traceId, worker.id, 'paused').catch(() => undefined);
@@ -132,8 +137,7 @@ export class ManageAgentWorkers {
   }
 
   async stopAll() {
-    for (const active of this.active.values()) active.controller.abort('Application is shutting down.');
-    await Promise.allSettled([...this.active.values()].map((item) => item.promise));
+    await this.active.stopAll('Application is shutting down.');
   }
 
   private async resume(agentId: string, execution: AgentWorkerExecution) {
@@ -171,12 +175,9 @@ export class ManageAgentWorkers {
 
   private launch(worker: AgentWorkerRecord, execution: AgentWorkerExecution) {
     const controller = new AbortController();
-    const promise = this.run(worker, execution, controller).finally(() => {
-      this.approvals.cancel(worker.id);
-      this.active.delete(worker.id);
-    });
-    this.active.set(worker.id, { controller, promise });
-    return promise;
+    const promise = this.run(worker, execution, controller)
+      .finally(() => this.approvals.cancel(worker.id));
+    return this.active.track(worker, controller, promise);
   }
 
   private async run(worker: AgentWorkerRecord, execution: AgentWorkerExecution, controller: AbortController): Promise<AgentWorkerRecord> {

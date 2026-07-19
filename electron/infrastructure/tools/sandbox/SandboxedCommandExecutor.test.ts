@@ -18,7 +18,9 @@ describe('SandboxedCommandExecutor', () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-studio-command-')); directories.push(directory);
     const pidFile = path.join(directory, 'child.pid');
     const script = "require('node:fs').writeFileSync(process.argv[1], String(process.pid)); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);";
-    const result = await spawnAndCollect(process.execPath, ['-e', script, pidFile], directory, 100, 30);
+    const execution = spawnAndCollect(process.execPath, ['-e', script, pidFile], directory, 500, 30);
+    await waitForFile(pidFile);
+    const result = await execution;
     expect(result.ok).toBe(false);
     const pid = Number(await fs.readFile(pidFile, 'utf8'));
     await new Promise((resolve) => setTimeout(resolve, 80));

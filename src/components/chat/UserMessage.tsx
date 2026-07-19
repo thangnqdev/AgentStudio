@@ -10,7 +10,7 @@ export function UserMessage({ msg, onRegenerate }: { msg: Message; onRegenerate:
 
   return (
     <div className="group flex justify-end">
-      <div className="relative max-w-[72%] rounded-2xl bg-[#171514] px-4 py-3 text-white shadow-sm">
+      <div className="relative max-w-[80%] rounded-2xl bg-[#171514] px-3.5 py-2.5 text-white shadow-sm">
         <button
           onClick={handleEdit}
           className="absolute -left-9 top-2 w-7 h-7 rounded-full flex items-center justify-center text-on-surface-variant opacity-0 group-hover:opacity-100 hover:bg-surface-container-high transition"
@@ -20,7 +20,7 @@ export function UserMessage({ msg, onRegenerate }: { msg: Message; onRegenerate:
         </button>
 
         {msg.attachments && msg.attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="mb-2 flex flex-wrap gap-2">
             {msg.attachments.map(att => (
               <div key={att.id}>
                 {att.type === 'image' ? (
@@ -65,10 +65,10 @@ export function UserMessage({ msg, onRegenerate }: { msg: Message; onRegenerate:
           </div>
         )}
 
-        <div className="font-ui-body text-[15px] leading-relaxed whitespace-pre-wrap">
+        <div className="whitespace-pre-wrap font-ui-body text-[14px] leading-[1.5]">
           {msg.content}
         </div>
-        <span className="text-[10px] text-white/40 mt-1.5 block text-right">
+        <span className="mt-1 block text-right text-[9px] text-white/40">
           {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>

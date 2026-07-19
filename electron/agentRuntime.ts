@@ -284,7 +284,9 @@ export async function runAgentSession(
         onCheckpoint: (checkpoint) => agentTaskService.checkpoint(checkpoint),
         drainMessages: () => agentWorkerManager.drainParentMessages(taskScopeId),
       }
-      : undefined, toolPlatform);
+      : undefined, toolPlatform, {
+        waitForBackgroundResults: (waitSignal) => agentWorkerManager.waitForBackgroundResults(taskScopeId, waitSignal),
+      });
     if (task && result?.status) {
       eventSink.emitTaskStatus(payload.requestId || '', { taskId: task.id, status: result.status, completedSteps: result.completedSteps });
     }

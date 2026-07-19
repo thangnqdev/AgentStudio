@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { settingsRepo } from './JsonSettingsRepository.js';
 import { resolveSafePath } from './security/resolveSafePath.js';
 import { writePrivateFileAtomic } from './storage/privateFile.js';
+import type { IWorkspaceRootSource } from '../domain/ports/IWorkspaceRootSource.js';
 
 type ChatHistoryPayload = {
   workspacePath?: string;
@@ -12,7 +13,7 @@ type ChatHistoryPayload = {
   activeThreadId?: string | null;
 };
 
-export class WorkspaceManager {
+export class WorkspaceManager implements IWorkspaceRootSource {
   async getWorkspaceRoot() {
     const settings = await settingsRepo.loadStoredSettings();
     return settings.workspacePath || process.cwd();

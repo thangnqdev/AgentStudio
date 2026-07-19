@@ -25,8 +25,8 @@ export function CodeBlock({ language, code }: { language: string; code: string }
 
 
   return (
-    <div className="my-4 overflow-hidden rounded-xl border border-white/10 bg-[#0a0a0a] shadow-sm">
-      <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.03] px-4 py-2.5">
+    <div className="my-3 overflow-hidden rounded-lg border border-white/10 bg-[#0a0a0a] shadow-sm">
+      <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.03] px-3 py-2">
         <span className="font-code-base text-[11px] text-white/50 tracking-wider uppercase">{language || 'text'}</span>
         <div className="flex items-center gap-1.5">
           <button
@@ -46,7 +46,7 @@ export function CodeBlock({ language, code }: { language: string; code: string }
           </button>
         </div>
       </div>
-      <pre className="max-h-[500px] overflow-auto p-4 text-[13px] leading-[1.6] text-[#e4e4e7] font-code-base bg-[#0a0a0a]">
+      <pre className="max-h-[420px] overflow-auto bg-[#0a0a0a] p-3 font-code-base text-[12px] leading-[1.55] text-[#e4e4e7]">
         <code>{code}</code>
       </pre>
     </div>

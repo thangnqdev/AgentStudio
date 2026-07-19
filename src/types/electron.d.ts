@@ -21,6 +21,7 @@ import type { PublicRemoteTriggerSettings, SaveRemoteTriggerSettingsPayload } fr
 import type { BackgroundCommandNotice } from '../domain/entities/backgroundCommand';
 import type { LifecycleHookSummary } from '../domain/entities/lifecycleHook';
 import type { ManualCompactionPayload, ManualCompactionResult } from '../domain/entities/manualCompaction';
+import type { WorkspaceFileContent, WorkspaceFileEntry } from '../domain/entities/workspaceFile';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -214,6 +215,8 @@ declare global {
       getCurrentWorkspace: () => Promise<WorkspacePayload>;
       selectWorkspace: () => Promise<WorkspacePayload>;
       writeWorkspaceFile: (payload: WriteWorkspaceFilePayload) => Promise<{ success: true; path: string } | { success: false; error: string }>;
+      listWorkspaceFiles: (payload: { directory?: string }) => Promise<IpcResult<{ entries: WorkspaceFileEntry[] }>>;
+      readWorkspaceFile: (payload: { path: string }) => Promise<IpcResult<{ file: WorkspaceFileContent }>>;
       authorizeAttachment: (file: File) => Promise<IpcResult<AttachmentAuthorizationPayload>>;
       loadChatHistory: () => Promise<ChatHistoryPayload>;
       saveChatHistory: (payload: { threads: ChatThread[]; activeThreadId: string | null }) => Promise<{ ok: boolean }>;

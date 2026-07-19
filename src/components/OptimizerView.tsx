@@ -9,10 +9,10 @@ export function OptimizerView() {
     <main className="flex-1 min-h-0 overflow-y-auto p-8 bg-surface">
       <header className="flex justify-between gap-4 border-b border-outline-variant pb-5 mb-6">
         <div>
-          <p className="text-ui-label-caps uppercase text-secondary">Evaluation gated</p>
-          <h2 className="font-display-serif text-[30px] text-primary">Safe Optimizer</h2>
+          <p className="text-ui-label-caps uppercase text-secondary">Có kiểm chứng</p>
+          <h2 className="font-display-serif text-[30px] text-primary">Tối ưu an toàn</h2>
           <p className="text-[13px] text-on-surface-variant">
-            Candidate chỉ được promote khi benchmark mang đúng configuration digest và vượt baseline.
+            Chỉ áp dụng cấu hình mới khi kết quả kiểm tra tốt hơn cấu hình hiện tại.
           </p>
         </div>
         <div className="flex gap-2">
@@ -21,7 +21,7 @@ export function OptimizerView() {
             onClick={() => void optimizer.rollback()}
             className="settings-action"
           >
-            Rollback
+            Quay lại bản trước
           </button>
           <button disabled={optimizer.busy} onClick={() => void optimizer.refresh()} className="settings-action">
             Làm mới
@@ -32,13 +32,13 @@ export function OptimizerView() {
       {active && (
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 mb-5">
           <div className="flex justify-between">
-            <h3 className="font-semibold">Active revision {optimizer.state?.revision}</h3>
+            <h3 className="font-semibold">Cấu hình đang dùng · bản {optimizer.state?.revision}</h3>
             <button
               disabled={optimizer.busy || active.retrievalTopK >= 20}
               onClick={() => void optimizer.create({ retrievalTopK: active.retrievalTopK + 1 })}
               className="settings-action"
             >
-              Candidate top-K +1
+              Tạo phương án thử nghiệm
             </button>
           </div>
           <Config config={active} />
@@ -46,8 +46,7 @@ export function OptimizerView() {
       )}
 
       <p className="text-[11px] text-on-surface-variant mb-3">
-        Evaluate tự chạy golden suite một lần với active config và một lần với candidate config.
-        Report cũ không có runtime evidence sẽ bị từ chối.
+        AgentStudio tự so sánh phương án mới với cấu hình hiện tại trước khi cho phép áp dụng.
       </p>
       <div className="space-y-3">
         {optimizer.state?.candidates.map((candidate) => (
@@ -102,10 +101,10 @@ function Candidate({ candidate, busy, onEvaluate, onPromote }: {
         </div>
         <div className="flex gap-2">
           <button disabled={busy || candidate.status === 'promoted'} onClick={onEvaluate} className="settings-action">
-            {busy ? 'Đang chạy…' : 'Evaluate'}
+            {busy ? 'Đang kiểm tra…' : 'Kiểm tra'}
           </button>
           <button disabled={busy || candidate.status !== 'evaluated'} onClick={onPromote} className="settings-action">
-            Promote
+            Áp dụng
           </button>
         </div>
       </div>

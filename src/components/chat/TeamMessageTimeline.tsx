@@ -8,8 +8,8 @@ const KIND_LABEL: Record<AgentTeamView['recentMessages'][number]['kind'], string
 export function TeamMessageTimeline({ messages }: { messages: AgentTeamView['recentMessages'] }) {
   if (!messages.length) return null;
   return (
-    <div className="mt-3 border-t border-outline-variant/50 pt-2" aria-label="Team mailbox activity">
-      <p className="mb-1.5 text-[10px] font-ui-label-bold uppercase tracking-wide text-on-surface-variant">Mailbox gần đây</p>
+    <div className="mt-3 border-t border-outline-variant/50 pt-2" aria-label="Trao đổi giữa các agent">
+      <p className="mb-1.5 text-[10px] font-ui-label-bold uppercase tracking-wide text-on-surface-variant">Trao đổi gần đây</p>
       <div className="space-y-1.5">
         {messages.slice(-5).reverse().map((message) => (
           <div key={message.id} className="flex items-start gap-2 text-[10px] text-on-surface-variant">

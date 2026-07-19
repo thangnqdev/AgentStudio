@@ -51,6 +51,58 @@ describe('ManageAgentWorkers', () => {
     expect((await manager.drainParentMessages('scope'))[0]?.content).toContain('background result');
   });
 
+  it('waits for every background worker in the parent scope and returns all results', async () => {
+    const repository = new MemoryWorkerRepository();
+    const releases: Array<() => void> = [];
+    const runner: IAgentWorkerRunner = { run: async (worker) => {
+      await new Promise<void>((resolve) => { releases.push(resolve); });
+      return { status: 'completed', completedSteps: 1, result: `${worker.name} result` };
+    } };
+    const manager = createManager(repository);
+    await manager.spawn(
+      { description: 'Review UX', prompt: 'Review it', runInBackground: true, name: 'ux' },
+      parent('workspace-write'), execution(runner),
+    );
+    await manager.spawn(
+      { description: 'Review architecture', prompt: 'Review it', runInBackground: true, name: 'architecture' },
+      parent('workspace-write'), execution(runner),
+    );
+
+    let settled = false;
+    const resultsPromise = manager.waitForBackgroundResults('scope').then((results) => {
+      settled = true;
+      return results;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    releases[0]();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    releases[1]();
+
+    const results = await resultsPromise;
+    expect(results).toHaveLength(2);
+    expect(results.map((message) => message.content).join('\n')).toContain('ux result');
+    expect(results.map((message) => message.content).join('\n')).toContain('architecture result');
+  });
+
+  it('stops waiting promptly when the lead session is aborted', async () => {
+    const repository = new MemoryWorkerRepository();
+    const runner: IAgentWorkerRunner = { run: async (_worker, _callbacks, signal) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    }) };
+    const manager = createManager(repository);
+    await manager.spawn(
+      { description: 'Long review', prompt: 'Keep reviewing', runInBackground: true, name: 'reviewer' },
+      parent('workspace-write'), execution(runner),
+    );
+    const controller = new AbortController();
+    const waiting = manager.waitForBackgroundResults('scope', controller.signal);
+    controller.abort();
+    await expect(waiting).rejects.toThrow('stopped');
+    await manager.stopAll();
+  });
+
   it('resumes a completed transcript when SendMessage targets it', async () => {
     const repository = new MemoryWorkerRepository();
     const prompts: string[][] = [];

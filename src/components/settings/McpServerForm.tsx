@@ -67,7 +67,7 @@ export function McpServerForm({ server, onCancel, onSave }: Props) {
         <label className="flex items-center gap-2 text-[13px] pt-6"><input type="checkbox" checked={autoStart} onChange={(event) => setAutoStart(event.target.checked)} /> Tự khởi động</label>
       </div>
       {server?.hasCredentials && <label className="flex items-center gap-2 text-[12px] text-error"><input type="checkbox" checked={clearCredentials} onChange={(event) => setClearCredentials(event.target.checked)} /> Xóa credentials đã lưu khi bấm Lưu</label>}
-      <p className="text-[11px] text-on-surface-variant">Descriptions/output từ MCP là untrusted. `workspace-write` vẫn yêu cầu approval theo risk; `danger-full-access` chạy tự động.</p>
+      <p className="text-[11px] text-on-surface-variant">Nội dung từ máy chủ MCP được xem là nguồn bên ngoài. Ở chế độ “Chỉnh sửa trong dự án”, thao tác có rủi ro vẫn cần bạn cho phép; “Toàn quyền dự án” có thể chạy tự động.</p>
       <div className="flex gap-2"><button disabled={saving} onClick={() => void submit()} className="px-4 py-2 rounded bg-primary text-on-primary text-[13px]">{saving ? 'Đang lưu…' : 'Lưu server'}</button><button onClick={onCancel} className="px-4 py-2 rounded border border-outline-variant text-[13px]">Hủy</button></div>
     </div>
   );

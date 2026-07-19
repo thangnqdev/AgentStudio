@@ -1,45 +1,11 @@
 import { useAppStore } from '../../store/useAppStore';
 import type { Message } from '../../domain/entities/message';
 import { parseAgentContent } from '../../application/services/parseAgentContent';
+import { buildAgentMessageBlocks } from '../../application/services/agentMessagePresentation';
 import { ThinkStep } from './ThinkStep';
-import { ToolStep } from './ToolStep';
 import { CodeBlock } from './CodeBlock';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-
-function TextBlock({ text }: { text: string }) {
-  if (!text.trim()) return null;
-
-  return (
-    <div className="font-ui-body text-[15px] leading-[1.65] text-on-surface tracking-[0.01em]">
-      <ReactMarkdown 
-        remarkPlugins={[remarkGfm]}
-        components={{
-          p: ({node: _node, ...props}) => <p className="mb-4 last:mb-0" {...props} />,
-          ul: ({node: _node, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-1 marker:text-on-surface-variant/50" {...props} />,
-          ol: ({node: _node, ...props}) => <ol className="list-decimal pl-5 mb-4 space-y-1 marker:text-on-surface-variant/50" {...props} />,
-          li: ({node: _node, ...props}) => <li className="" {...props} />,
-          a: ({node: _node, ...props}) => <a className="text-primary hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
-          strong: ({node: _node, ...props}) => <strong className="font-semibold text-on-surface" {...props} />,
-          code: ({node: _node, className, children, ...props}) => {
-            const isInline = !className;
-            return isInline ? (
-              <code className="bg-surface-container-high text-primary px-1.5 py-0.5 rounded-md text-[13px] font-code-base border border-outline-variant/50" {...props}>{children}</code>
-            ) : (
-              <code className={className} {...props}>{children}</code>
-            );
-          },
-          table: ({node: _node, ...props}) => <div className="overflow-x-auto mb-4"><table className="w-full text-left border-collapse" {...props} /></div>,
-          th: ({node: _node, ...props}) => <th className="border-b border-outline-variant py-2 px-3 bg-surface-container font-semibold text-on-surface text-[14px]" {...props} />,
-          td: ({node: _node, ...props}) => <td className="border-b border-outline-variant/50 py-2 px-3 text-on-surface-variant" {...props} />,
-          blockquote: ({node: _node, ...props}) => <blockquote className="border-l-4 border-primary/50 pl-4 py-1 italic text-on-surface-variant bg-primary/[0.05] rounded-r-lg mb-4" {...props} />
-        }}
-      >
-        {text}
-      </ReactMarkdown>
-    </div>
-  );
-}
+import { AgentMarkdown } from './AgentMarkdown';
+import { ToolProgressGroup } from './ToolProgressGroup';
 
 export function AgentMessage({ msg }: { msg: Message }) {
   const activeActions = useAppStore((s) => s.agentActions);
@@ -48,21 +14,18 @@ export function AgentMessage({ msg }: { msg: Message }) {
 
   const parts = parseAgentContent(msg.content);
   const actionsToDisplay = msg.status === 'sending' ? activeActions : (msg.actions || []);
-  const actionsMap = new Map(actionsToDisplay.map(a => [a.id, a]));
+  const blocks = buildAgentMessageBlocks(parts, actionsToDisplay);
 
   return (
-    <div className="group flex py-4 px-3 hover:bg-surface-container-low/30 rounded-2xl transition-colors duration-300">
-      <div className="flex-1 min-w-0 pt-1">
-        {parts.map((part, index) => {
-          if (part.type === 'think') return <ThinkStep key={`think-${index}`} text={part.value} />;
-          if (part.type === 'tool') {
-            const action = part.action || actionsMap.get(part.actionId);
-            return action ? <ToolStep key={`tool-${index}`} action={action} /> : null;
-          }
-          if (part.type === 'code') return <CodeBlock key={`code-${index}`} language={part.language} code={part.value} />;
-          return <TextBlock key={`text-${index}`} text={part.value} />;
+    <div className="group flex rounded-xl px-1 py-2 transition-colors duration-200 hover:bg-surface-container-low/30">
+      <div className="min-w-0 flex-1">
+        {blocks.map((block, index) => {
+          if (block.type === 'think') return <ThinkStep key={`think-${index}`} text={block.value} />;
+          if (block.type === 'tool-group') return <ToolProgressGroup key={`tools-${index}`} actions={block.actions} />;
+          if (block.type === 'code') return <CodeBlock key={`code-${index}`} language={block.language} code={block.value} />;
+          return <AgentMarkdown key={`text-${index}`} text={block.value} />;
         })}
-        <span className="text-[11px] text-on-surface-variant/50 mt-3 block font-code-base opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="mt-2 block font-code-base text-[10px] text-on-surface-variant/45 opacity-0 transition-opacity group-hover:opacity-100">
           {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>

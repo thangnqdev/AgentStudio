@@ -10,9 +10,9 @@ import { ComposerStatusPanel } from './ComposerStatusPanel';
 export type ComposerPickerKind = 'model' | 'permission' | 'resume' | 'rename' | 'context' | 'status' | 'hooks' | 'compact';
 
 const PERMISSION_ITEMS: ComposerQuickPickerItem[] = [
-  { value: 'read-only', label: 'read-only', description: 'Chỉ khảo sát; không sửa file hoặc chạy lệnh.' },
-  { value: 'workspace-write', label: 'workspace-write', description: 'Cho phép sửa và chạy lệnh trong workspace sandbox.' },
-  { value: 'danger-full-access', label: 'danger-full-access', description: 'Toàn quyền trên máy; chỉ dùng cho workspace đáng tin cậy.' },
+  { value: 'read-only', label: 'Chỉ xem', description: 'Agent tìm hiểu và trả lời nhưng không thay đổi dự án.' },
+  { value: 'workspace-write', label: 'Chỉnh sửa trong dự án', description: 'Agent được sửa tệp và chạy công cụ bên trong dự án.' },
+  { value: 'danger-full-access', label: 'Toàn quyền dự án', description: 'Agent có thể thao tác rộng hơn; chỉ dùng với dự án đáng tin cậy.' },
 ];
 
 interface ComposerPickerLayerProps {

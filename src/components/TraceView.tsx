@@ -6,7 +6,7 @@ export function TraceView() {
   return (
     <div className="flex-1 overflow-hidden flex flex-col px-6 py-8">
       <header className="max-w-[1100px] w-full mx-auto flex items-start justify-between mb-6">
-        <div><p className="text-ui-label-caps uppercase text-secondary">Agent OS</p><h2 className="font-display-serif text-[30px] text-primary">Unified Observability</h2><p className="text-[13px] text-on-surface-variant">Sanitized local traces; prompts, tool payloads, retrieved content and credentials are never recorded.</p></div>
+        <div><p className="text-ui-label-caps uppercase text-secondary">Chẩn đoán cục bộ</p><h2 className="font-display-serif text-[30px] text-primary">Lịch sử hoạt động</h2><p className="text-[13px] text-on-surface-variant">Theo dõi các bước agent đã thực hiện. Nội dung nhạy cảm và thông tin đăng nhập không được ghi lại.</p></div>
         <button onClick={() => void refresh()} className="settings-action">Làm mới</button>
       </header>
       <div className="max-w-[1100px] w-full mx-auto min-h-0 flex-1 grid grid-cols-[340px_1fr] gap-4">

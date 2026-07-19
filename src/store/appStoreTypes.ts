@@ -5,20 +5,35 @@ import type { AgentAction, AgentThought, Message } from '../domain/entities/mess
 import type { AppSettings } from '../domain/entities/settings';
 import type { PendingAgentInteraction } from '../domain/entities/agentInteraction';
 import type { AgentWorktreeState } from '../domain/entities/agentWorktree';
+import type { OpenWorkspaceTabInput, WorkspaceSurface, WorkspaceTab } from '../domain/entities/workspaceTab';
+import type { OpenUtilityDockTabInput, UtilityDockTab } from '../domain/entities/utilityDock';
 
-export type ViewId = 'tasks' | 'knowledge' | 'observability' | 'evaluations' | 'workflows' | 'capabilities' | 'optimizer' | 'skill-learning' | 'agents' | 'settings';
+export type ViewId = WorkspaceSurface;
 
 export interface UiSlice {
   projectPath: string | null;
   currentBranch: string | null;
   activeView: ViewId;
   isSidebarOpen: boolean;
-  isTerminalOpen: boolean;
+  isUtilityDockOpen: boolean;
+  utilityDockWidth: number;
+  utilityDockTabs: UtilityDockTab[];
+  activeUtilityDockTabId: string;
+  workspaceTabs: WorkspaceTab[];
+  activeWorkspaceTabId: string | null;
   setProjectPath: (path: string) => void;
   setCurrentBranch: (branch: string | null) => void;
   setActiveView: (view: ViewId) => void;
   setSidebarOpen: (open: boolean) => void;
-  setTerminalOpen: (open: boolean) => void;
+  setUtilityDockOpen: (open: boolean) => void;
+  toggleUtilityDock: () => void;
+  setUtilityDockWidth: (width: number) => void;
+  openUtilityDockTab: (input: OpenUtilityDockTabInput) => string;
+  activateUtilityDockTab: (tabId: string) => void;
+  closeUtilityDockTab: (tabId: string) => string;
+  openWorkspaceTab: (input: OpenWorkspaceTabInput) => string;
+  activateWorkspaceTab: (tabId: string) => void;
+  closeWorkspaceTab: (tabId: string) => string | null;
 }
 
 export interface ChatSlice {

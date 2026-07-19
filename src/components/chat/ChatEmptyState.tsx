@@ -1,13 +1,10 @@
 export function ChatEmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center py-24 gap-4">
-      <div className="w-16 h-16 rounded-full bg-primary-container flex items-center justify-center mb-2">
-        <span className="material-symbols-outlined text-[32px] text-on-primary-container">smart_toy</span>
+    <div className="flex min-h-[420px] flex-col items-center justify-center px-8 pb-24 pt-16 text-center">
+      <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-2xl border border-black/[0.08] bg-white shadow-sm">
+        <span className="material-symbols-outlined text-[20px] text-[#9a9a9a]">deployed_code</span>
       </div>
-      <h3 className="font-display-serif text-summary-title text-primary">Sẵn sàng làm việc</h3>
-      <p className="font-ui-body text-ui-body text-on-surface-variant max-w-sm">
-        Hãy mô tả những gì bạn muốn xây dựng, giải thích hoặc refactor. Kéo thả file vào đây để thêm ngữ cảnh.
-      </p>
+      <h3 className="max-w-[620px] text-[22px] font-medium tracking-[-0.03em] text-[#252525]">Chúng ta nên xây dựng gì trong AgentStudio?</h3>
     </div>
   );
 }

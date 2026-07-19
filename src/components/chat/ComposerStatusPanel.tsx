@@ -1,5 +1,6 @@
 import { useAppVersion } from '../../application/hooks/useAppVersion';
 import type { PermissionMode } from '../../domain/entities/settings';
+import { permissionModeLabel } from '../../application/services/agentDisplay';
 
 interface ComposerStatusPanelProps {
   providerName?: string;
@@ -15,12 +16,12 @@ export function ComposerStatusPanel(props: ComposerStatusPanelProps) {
   const version = useAppVersion();
   const rows = [
     ['AgentStudio', version ? `v${version}` : 'đang đọc phiên bản'],
-    ['Provider', props.providerName ?? 'chưa cấu hình'],
+    ['Nhà cung cấp', props.providerName ?? 'chưa cấu hình'],
     ['Model', props.activeModelId ?? 'chưa chọn'],
-    ['Fallback', props.fallbackModelId ?? 'không bật'],
-    ['Quyền', props.permissionMode],
-    ['Workspace', props.workspacePath || 'chưa chọn'],
-    ['Git branch', props.currentBranch ?? 'không có Git'],
+    ['Dự phòng', props.fallbackModelId ?? 'không dùng'],
+    ['Quyền', permissionModeLabel(props.permissionMode)],
+    ['Dự án', props.workspacePath || 'chưa chọn'],
+    ['Nhánh Git', props.currentBranch ?? 'không có Git'],
   ];
   return (
     <div className="absolute inset-x-0 bottom-full z-20 mb-2 rounded-xl border border-outline-variant bg-surface p-4 shadow-xl">

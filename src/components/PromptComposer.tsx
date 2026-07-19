@@ -179,9 +179,9 @@ export function PromptComposer() {
   };
 
   return (
-    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-[800px] px-6">
+    <div className="absolute bottom-4 left-1/2 w-full max-w-[720px] -translate-x-1/2 px-5">
       <div
-        className="relative bg-surface rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-outline-variant p-2 flex flex-col gap-2 transition-all focus-within:border-secondary/50 focus-within:shadow-[0_8px_30px_rgb(156,67,38,0.1)]"
+        className="relative flex flex-col gap-1.5 rounded-2xl border border-black/[0.09] bg-white p-2 shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all focus-within:border-black/20 focus-within:shadow-[0_10px_36px_rgba(0,0,0,0.10)]"
       >
         {isCommandPaletteOpen && <ComposerCommandPalette commands={commands} selectedIndex={selectedCommandIndex} onSelect={selectCommand} />}
         <ComposerPickerLayer
@@ -207,8 +207,8 @@ export function PromptComposer() {
           <textarea
             ref={textareaRef}
             id="prompt-input"
-            className="w-full bg-transparent border-none focus:ring-0 resize-none font-ui-body text-[15px] text-on-surface placeholder:text-on-surface-variant/50 py-2 px-2 max-h-32 outline-none"
-            placeholder="Yêu cầu AI xây dựng, giải thích hoặc refactor..."
+            className="w-full max-h-32 resize-none border-none bg-transparent px-2 py-2 font-ui-body text-[14px] text-[#2d2d2d] outline-none placeholder:text-[#aaa] focus:ring-0"
+            placeholder="Làm bất cứ điều gì"
             rows={1}
             value={input}
             onChange={(e) => { setInput(e.target.value); setDismissedCommandInput(null); }}
@@ -218,10 +218,10 @@ export function PromptComposer() {
           <div className="flex items-center gap-1 pb-1 pr-1">
             <button
               onClick={handleFileClick}
-              className="p-2 text-on-surface-variant hover:text-primary transition-colors rounded-lg hover:bg-surface-container"
+              className="rounded-lg p-2 text-[#888] transition-colors hover:bg-black/[0.04] hover:text-[#222]"
               title="Đính kèm tệp"
             >
-              <span className="material-symbols-outlined text-[20px]">attach_file</span>
+              <span className="material-symbols-outlined text-[20px]">add</span>
             </button>
 
             <button

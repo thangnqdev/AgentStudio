@@ -1,151 +1,104 @@
-import { useAppStore, type ViewId } from '../store/useAppStore';
+import type { CSSProperties } from 'react';
 import { useAppVersion } from '../application/hooks/useAppVersion';
+import { useWorkspaceTabs } from '../application/hooks/useWorkspaceTabs';
+import type { WorkspaceSurface } from '../domain/entities/workspaceTab';
+import { useAppStore } from '../store/useAppStore';
+import { MacTrafficLights } from './MacTrafficLights';
 
-interface NavItem {
-  id: ViewId;
-  label: string;
-  icon: string;
-}
+type SidebarItem = { surface: WorkspaceSurface; label: string; icon: string };
 
-const NAV_ITEMS: NavItem[] = [
-  { id: 'tasks', label: 'Tác vụ hiện tại', icon: 'bolt' },
-  { id: 'knowledge', label: 'Cơ sở tri thức', icon: 'menu_book' },
-  { id: 'observability', label: 'Quan sát agent', icon: 'monitoring' },
-  { id: 'evaluations', label: 'Đánh giá agent', icon: 'fact_check' },
-  { id: 'workflows', label: 'Workflows', icon: 'account_tree' },
-  { id: 'capabilities', label: 'Capabilities', icon: 'extension' },
-  { id: 'optimizer', label: 'Safe Optimizer', icon: 'tune' },
-  { id: 'skill-learning', label: 'Skill Learning', icon: 'school' },
-  { id: 'agents', label: 'Agent Profiles', icon: 'smart_toy' },
+const PRIMARY_ITEMS: SidebarItem[] = [
+  { surface: 'knowledge', label: 'Cơ sở tri thức', icon: 'menu_book' },
+  { surface: 'evaluations', label: 'Đánh giá agent', icon: 'fact_check' },
+  { surface: 'workflows', label: 'Tự động hóa', icon: 'account_tree' },
+  { surface: 'capabilities', label: 'Công cụ & kết nối', icon: 'extension' },
 ];
+
+const TOOL_ITEMS: SidebarItem[] = [
+  { surface: 'observability', label: 'Lịch sử hoạt động', icon: 'monitoring' },
+  { surface: 'optimizer', label: 'Tối ưu an toàn', icon: 'tune' },
+  { surface: 'skill-learning', label: 'Kỹ năng đã học', icon: 'school' },
+  { surface: 'agents', label: 'Hồ sơ agent', icon: 'smart_toy' },
+];
+
+const dragStyle = { WebkitAppRegion: 'drag' } as CSSProperties;
 
 export function Sidebar() {
   const appVersion = useAppVersion();
-  const activeView = useAppStore((s) => s.activeView);
-  const setActiveView = useAppStore((s) => s.setActiveView);
-  const threads = useAppStore((s) => s.threads);
-  const activeThreadId = useAppStore((s) => s.activeThreadId);
-  const createThread = useAppStore((s) => s.createThread);
-  const switchThread = useAppStore((s) => s.switchThread);
-  const deleteThread = useAppStore((s) => s.deleteThread);
-
-  const isSidebarOpen = useAppStore((s) => s.isSidebarOpen);
+  const activeView = useAppStore((state) => state.activeView);
+  const isSidebarOpen = useAppStore((state) => state.isSidebarOpen);
+  const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
+  const projectPath = useAppStore((state) => state.projectPath);
+  const threads = useAppStore((state) => state.threads);
+  const activeThreadId = useAppStore((state) => state.activeThreadId);
+  const deleteThread = useAppStore((state) => state.deleteThread);
+  const { createTask, openSurface, openTask } = useWorkspaceTabs();
 
   return (
-    <nav className={`flex flex-col pb-6 h-full border-outline-variant bg-surface-container-low/95 backdrop-blur-xl transition-all duration-200 ease-in-out shrink-0 overflow-hidden ${isSidebarOpen ? 'w-[260px] px-4 border-r' : 'w-0 px-0 border-r-0'}`}>
-
-      {/* Header Info */}
-      <div className="flex items-center gap-3 px-2 mb-6 mt-4">
-        <div className="w-8 h-8 rounded bg-primary-container text-on-primary flex items-center justify-center font-display-serif text-sm">
-          A
-        </div>
-        <div>
-          <h1 className="font-display-serif text-summary-title text-primary leading-tight">Agent Studio</h1>
-          <p className="text-on-surface-variant font-ui-label-caps text-ui-label-caps">
-            {appVersion ? `v${appVersion}` : 'Desktop Agent'}
-          </p>
-        </div>
-      </div>
-
-
-
-      <div className="mb-2 px-2 font-ui-label-caps text-ui-label-caps text-on-surface-variant uppercase tracking-wider">
-        Điều hướng chính
-      </div>
-
-      {/* Nav Items */}
-      <ul className="space-y-1 mb-5">
-        {NAV_ITEMS.map((item) => {
-          const isActive = activeView === item.id;
-          return (
-            <li key={item.id}>
-              <button
-                id={`nav-${item.id}`}
-                onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors font-ui-body text-ui-body text-left
-                  ${isActive
-                    ? 'bg-secondary/5 text-primary border-l-2 border-secondary font-semibold'
-                    : 'text-on-surface-variant hover:bg-surface-container-highest border-l-2 border-transparent'
-                  }`}
-              >
-                <span
-                  className="material-symbols-outlined text-[18px]"
-                  style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
-                >
-                  {item.icon}
-                </span>
-                {item.label}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-
-      <div className="mb-2 px-2 flex items-center justify-between">
-        <span className="font-ui-label-caps text-ui-label-caps text-on-surface-variant uppercase tracking-wider">
-          Lịch sử chat
-        </span>
-        <button
-          onClick={() => createThread()}
-          className="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant"
-          title="Tạo chat mới"
-        >
-          <span className="material-symbols-outlined text-[16px]">add</span>
+    <nav className={`flex h-full shrink-0 flex-col overflow-hidden border-r border-black/[0.08] bg-[#f3f4f5] transition-[width] duration-200 ${isSidebarOpen ? 'w-[264px]' : 'w-0 border-r-0'}`}>
+      <div className="flex h-9 shrink-0 items-center" style={dragStyle}><MacTrafficLights /></div>
+      <div className="flex items-center px-3 pb-2">
+        <button type="button" className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-black/[0.04]">
+          <span className="truncate text-[13px] font-semibold text-[#333]">AgentStudio</span>
+          <span className="material-symbols-outlined text-[13px] text-[#888]">expand_more</span>
+        </button>
+        <button type="button" onClick={() => setSidebarOpen(false)} className="flex h-7 w-7 items-center justify-center rounded-md text-[#888] hover:bg-black/[0.05]" title="Đóng thanh bên">
+          <span className="material-symbols-outlined text-[16px]">left_panel_close</span>
         </button>
       </div>
 
-      <div className="space-y-1 overflow-y-auto pr-1 mb-4">
-        {threads.map((thread) => {
-          const isActive = thread.id === activeThreadId;
-          return (
-            <div key={thread.id} className="group flex items-center gap-1">
-              <button
-                onClick={() => switchThread(thread.id)}
-                className={`min-w-0 flex-1 text-left px-3 py-2 rounded-lg transition-colors ${isActive ? 'bg-surface-container-high text-primary font-semibold' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
-                title={thread.title}
-              >
-                <div className="truncate text-[13px] font-ui-body">{thread.title}</div>
-                <div className="text-[10px] text-on-surface-variant/50">
-                  {thread.messages.length} tin nhắn
-                </div>
-              </button>
-              {threads.length > 1 && (
-                <button
-                  onClick={() => deleteThread(thread.id)}
-                  className="w-7 h-7 rounded hidden group-hover:flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-error/10"
-                  title="Xóa chat"
-                >
-                  <span className="material-symbols-outlined text-[15px]">delete</span>
-                </button>
-              )}
-            </div>
-          );
-        })}
+      <div className="px-2">
+        <SidebarButton label="Tác vụ mới" icon="edit_square" onClick={() => createTask()} />
+        {PRIMARY_ITEMS.map((item) => <SidebarNavItem key={item.surface} item={item} active={activeView === item.surface} onOpen={openSurface} />)}
       </div>
 
-      {/* Bottom actions */}
-      <div className="mt-auto px-2">
-
-
-        <div className="border-t border-outline-variant pt-4 space-y-1">
-          <button
-            onClick={() => setActiveView('settings')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors font-ui-body text-ui-body ${activeView === 'settings' ? 'bg-surface-container-high text-primary font-semibold' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
-          >
-            <span
-              className="material-symbols-outlined text-[18px]"
-              style={activeView === 'settings' ? { fontVariationSettings: "'FILL' 1" } : {}}
-            >
-              settings
-            </span>
-            Cài đặt
-          </button>
-          <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors font-ui-body text-ui-body">
-            <span className="material-symbols-outlined text-[18px]">help_outline</span>
-            Hỗ trợ
-          </button>
+      <div className="mt-5 flex min-h-0 flex-1 flex-col">
+        <div className="flex items-center justify-between px-3 text-[10px] font-medium text-[#999]">
+          <span>Dự án</span>
+          <button type="button" onClick={() => createTask()} className="flex h-5 w-5 items-center justify-center rounded hover:bg-black/[0.05]" title="Tác vụ mới"><span className="material-symbols-outlined text-[14px]">add</span></button>
         </div>
+        <div className="mt-2 flex items-center gap-2 px-3 text-[11px] font-medium text-[#666]">
+          <span className="material-symbols-outlined text-[14px]">folder</span>
+          <span className="truncate">{basename(projectPath) || 'Workspace'}</span>
+        </div>
+        <div className="mt-1 flex-1 overflow-y-auto px-2 pb-3">
+          {threads.map((thread) => (
+            <div key={thread.id} className="group flex items-center">
+              <button type="button" onClick={() => openTask(thread.id, thread.title)} className={`min-w-0 flex-1 truncate rounded-md px-3 py-1.5 text-left text-[11px] ${thread.id === activeThreadId && activeView === 'tasks' ? 'bg-black/[0.055] text-[#303030]' : 'text-[#666] hover:bg-black/[0.04]'}`} title={thread.title}>{thread.title}</button>
+              {threads.length > 1 && (
+                <button type="button" onClick={() => deleteThread(thread.id)} className="hidden h-6 w-6 items-center justify-center rounded text-[#999] hover:bg-black/[0.05] hover:text-error group-hover:flex" title="Xóa tác vụ"><span className="material-symbols-outlined text-[13px]">close</span></button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-black/[0.06] px-2 py-2">
+        <details className="group mb-1">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-[#777] hover:bg-black/[0.04]">
+            <span className="material-symbols-outlined text-[15px]">more_horiz</span><span>Công cụ khác</span>
+          </summary>
+          <div className="pb-1 pl-2">{TOOL_ITEMS.map((item) => <SidebarNavItem key={item.surface} item={item} active={activeView === item.surface} onOpen={openSurface} />)}</div>
+        </details>
+        <SidebarButton label="Cài đặt" icon="settings" active={activeView === 'settings'} onClick={() => openSurface('settings')} />
+        <div className="flex items-center justify-between px-2 pt-2 text-[9px] text-[#aaa]"><span>AgentStudio</span><span>{appVersion ? `v${appVersion}` : ''}</span></div>
       </div>
     </nav>
   );
+}
+
+function SidebarNavItem({ item, active, onOpen }: { item: SidebarItem; active: boolean; onOpen: (surface: WorkspaceSurface) => string }) {
+  return <SidebarButton label={item.label} icon={item.icon} active={active} onClick={() => onOpen(item.surface)} />;
+}
+
+function SidebarButton({ label, icon, active = false, onClick }: { label: string; icon: string; active?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[11px] ${active ? 'bg-black/[0.055] font-medium text-[#303030]' : 'text-[#5f5f5f] hover:bg-black/[0.04]'}`}>
+      <span className="material-symbols-outlined text-[15px]">{icon}</span><span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+function basename(filePath: string | null): string {
+  return filePath?.split(/[\\/]/).filter(Boolean).pop() ?? '';
 }

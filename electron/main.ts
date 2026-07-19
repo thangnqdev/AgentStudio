@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { registerAppIpc } from './ipc/registerAppIpc.js';
 import { registerSettingsIpc } from './ipc/registerSettingsIpc.js';
 import { registerWorkspaceIpc } from './ipc/registerWorkspaceIpc.js';
+import { registerWorkspaceBrowserIpc } from './ipc/registerWorkspaceBrowserIpc.js';
 import { registerGitIpc } from './ipc/registerGitIpc.js';
 import { registerTerminalIpc } from './ipc/registerTerminalIpc.js';
 import { registerAgentIpc } from './ipc/registerAgentIpc.js';
@@ -92,6 +93,7 @@ function registerIpcHandlers() {
   registerAppIpc(win);
   registerSettingsIpc(providerSettings);
   registerWorkspaceIpc(win);
+  registerWorkspaceBrowserIpc();
   registerGitIpc();
   registerTerminalIpc();
   registerKnowledgeIpc(win);

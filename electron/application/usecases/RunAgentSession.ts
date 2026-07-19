@@ -10,14 +10,12 @@ import type { IToolPermissionPolicy } from '../../domain/ports/IToolPermissionPo
 import type { ILifecycleHookDispatcher } from '../../domain/ports/ILifecycleHookDispatcher.js';
 import type { IAgentWorkspaceScope } from '../../domain/ports/IAgentWorkspaceScope.js';
 import type { IAgentAmbientContextSource } from '../../domain/ports/IAgentAmbientContextSource.js';
-import type { AgentTaskCheckpoint } from '../../domain/entities/agentTask.js';
 import { createAgentRunState, transitionAgentRun } from '../../domain/entities/agentRunState.js';
 import { getInputContextTokenBudget } from '../../domain/entities/tokenBudget.js';
 import type {
   AgentStartPayload,
   AgentProviderSettings,
   ChatMessage,
-  Message,
 } from '../../domain/entities/agent.js';
 
 import { MAX_AGENT_STEPS_PER_RUN, MAX_AGENT_TASK_STEPS } from '../../domain/entities/limits.js';
@@ -32,6 +30,9 @@ import { buildAgentSystemPrompt } from '../services/agentSystemPrompt.js';
 import { loadToolCatalogSnapshot } from '../services/toolCatalogSnapshot.js';
 import { synchronizeSystemPrompt } from '../services/agentSystemMessage.js';
 import { estimateConversationTokens } from '../services/conversationTokenEstimate.js';
+import { buildAgentCollaborationContinuation } from '../services/agentCollaborationContinuation.js';
+import { checkpointAgentTask, recordAgentModelSpan } from '../services/AgentSessionProgress.js';
+import type { AgentCollaborationRun } from './AgentCollaborationRun.js';
 import type { AgentTaskRun } from './AgentTaskRun.js';
 
 export class RunAgentSession {
@@ -75,6 +76,7 @@ export class RunAgentSession {
     signal?: AbortSignal,
     task?: AgentTaskRun,
     workspaceScope?: IAgentWorkspaceScope,
+    collaboration?: AgentCollaborationRun,
   ) {
     const requestId = typeof payload.requestId === 'string' ? payload.requestId : '';
     if (!requestId) {
@@ -94,6 +96,7 @@ export class RunAgentSession {
     let conversation: ChatMessage[] = task?.conversation.length ? [...task.conversation] : [];
     let runState = createAgentRunState(task?.completedSteps ?? 0);
     let outputContinuations = 0;
+    let preserveCollaborationContext = false;
 
     const rebuildConversation = async () => {
       const rebuilt = await this.conversationBuilder.build({
@@ -104,7 +107,7 @@ export class RunAgentSession {
     };
 
     if (conversation.length === 0) await rebuildConversation();
-    await this.checkpoint(task, 'running', runState.completedSteps, currentMessages, conversation);
+    await checkpointAgentTask(task, 'running', runState.completedSteps, currentMessages, conversation);
 
     const runStepLimit = Math.min(runState.completedSteps + MAX_AGENT_STEPS_PER_RUN, MAX_AGENT_TASK_STEPS);
     while (runState.phase === 'ready' && runState.completedSteps < runStepLimit) {
@@ -128,9 +131,13 @@ export class RunAgentSession {
         const projectedConversation = projectConversationForModel(conversation, contextProjectionPolicy(inputContextTokens));
         const outcome = await this.modelRequester.execute({ settings, messages: projectedConversation.messages, tools: tools.definitions, eventSink, requestId, signal });
         assistantMessage = outcome.response;
-        await this.recordModelSpan(task, requestId, step, modelStartedAt, outcome.model, 'succeeded', assistantMessage.finishReason, assistantMessage.usage);
+        await recordAgentModelSpan(this.tracer, task, {
+          requestId, step, startedAt: modelStartedAt, model: outcome.model, status: 'succeeded',
+          ...(assistantMessage.finishReason ? { finishReason: assistantMessage.finishReason } : {}),
+          ...(assistantMessage.usage ? { usage: assistantMessage.usage } : {}),
+        });
       } catch (error) {
-        await this.recordModelSpan(task, requestId, step, modelStartedAt, settings.model, 'failed');
+        await recordAgentModelSpan(this.tracer, task, { requestId, step, startedAt: modelStartedAt, model: settings.model, status: 'failed' });
         throw error;
       }
 
@@ -138,8 +145,13 @@ export class RunAgentSession {
       const toolCalls = Array.isArray(assistantMessage.tool_calls) ? assistantMessage.tool_calls : [];
       const requiresContinuation = toolCalls.length === 0
         && shouldContinueModelOutput(assistantMessage.finishReason, outputContinuations);
+      const backgroundResults = toolCalls.length === 0 && !requiresContinuation
+        ? await collaboration?.waitForBackgroundResults(signal) ?? []
+        : [];
+      const collaborationContinuation = buildAgentCollaborationContinuation(backgroundResults);
       runState = transitionAgentRun(runState, {
-        type: 'model_response', hasToolCalls: toolCalls.length > 0, requiresContinuation,
+        type: 'model_response', hasToolCalls: toolCalls.length > 0,
+        requiresContinuation: requiresContinuation || collaborationContinuation.length > 0,
       });
 
       conversation.push({
@@ -149,11 +161,18 @@ export class RunAgentSession {
       });
 
       if (toolCalls.length === 0) {
+        if (collaborationContinuation.length > 0) {
+          conversation.push(...collaborationContinuation);
+          preserveCollaborationContext = true;
+          await checkpointAgentTask(task, 'running', runState.completedSteps, currentMessages, conversation);
+          eventSink.emitChunk(requestId, '\n\n');
+          continue;
+        }
         if (requiresContinuation) {
           outputContinuations += 1;
           currentMessages.push({ id: `continuation-${Date.now()}-${outputContinuations}`, sender: 'agent', content });
           conversation.push({ role: 'user', content: OUTPUT_CONTINUATION_PROMPT });
-          await this.checkpoint(task, 'running', runState.completedSteps, currentMessages, conversation);
+          await checkpointAgentTask(task, 'running', runState.completedSteps, currentMessages, conversation);
           eventSink.emitChunk(requestId, '\n\n');
           continue;
         }
@@ -162,7 +181,7 @@ export class RunAgentSession {
         } else if (assistantMessage.finishReason === 'stream_closed') {
           eventSink.emitChunk(requestId, '\n\n[Stream từ server đóng trước khi gửi tín hiệu kết thúc. Nội dung phía trên có thể chưa hoàn chỉnh.]');
         }
-        await this.checkpoint(task, 'completed', runState.completedSteps, currentMessages, conversation);
+        await checkpointAgentTask(task, 'completed', runState.completedSteps, currentMessages, conversation);
         eventSink.emitDone(requestId);
         return { status: 'completed' as const, completedSteps: runState.completedSteps };
       }
@@ -201,10 +220,10 @@ export class RunAgentSession {
 
       const roughConversationTokens = estimateConversationTokens(conversation);
       const hasFreshSupplementalMessages = toolResults.some((result) => result.supplementalMessages?.length);
-      if (roughConversationTokens > inputContextTokens && !hasFreshSupplementalMessages) {
+      if (roughConversationTokens > inputContextTokens && !hasFreshSupplementalMessages && !preserveCollaborationContext) {
         await rebuildConversation();
       }
-      await this.checkpoint(task, 'running', runState.completedSteps, currentMessages, conversation);
+      await checkpointAgentTask(task, 'running', runState.completedSteps, currentMessages, conversation);
       runState = transitionAgentRun(runState, { type: 'checkpoint_saved' });
     }
 
@@ -213,35 +232,10 @@ export class RunAgentSession {
     const budgetMessage = runState.completedSteps >= MAX_AGENT_TASK_STEPS
       ? `\n\nAgent dừng vì đã dùng hết ngân sách ${MAX_AGENT_TASK_STEPS} bước của tác vụ.`
       : `\n\nAgent đã checkpoint sau ${runState.completedSteps} bước. Bạn có thể tiếp tục tác vụ.`;
-    await this.checkpoint(task, 'paused', runState.completedSteps, currentMessages, conversation);
+    await checkpointAgentTask(task, 'paused', runState.completedSteps, currentMessages, conversation);
     eventSink.emitChunk(requestId, budgetMessage);
     eventSink.emitDone(requestId);
     return { status: 'paused' as const, completedSteps: runState.completedSteps };
-  }
-
-  private async checkpoint(
-    task: AgentTaskRun | undefined,
-    status: AgentTaskCheckpoint['status'],
-    completedSteps: number,
-    messages: Message[],
-    conversation: ChatMessage[],
-  ) {
-    if (!task?.onCheckpoint) return;
-    await task.onCheckpoint({
-      id: task.id,
-      traceId: task.traceId,
-      workspaceRoot: task.workspaceRoot,
-      status,
-      completedSteps,
-      messages,
-      conversation,
-      knowledgeContext: task.knowledgeContext,
-    });
-  }
-
-  private async recordModelSpan(task: AgentTaskRun | undefined, requestId: string, step: number, startedAt: string, model: string, status: 'succeeded' | 'failed', finishReason?: string, usage?: { inputTokens: number; outputTokens: number; totalTokens: number; cachedInputTokens?: number; cacheCreationInputTokens?: number }) {
-    if (!task) return;
-    await this.tracer.recordSpan({ kind: 'model_call', traceId: task.traceId, taskId: task.id, requestId, step, startedAt, endedAt: new Date().toISOString(), status, model, finishReason, usage }).catch(() => undefined);
   }
 
 }

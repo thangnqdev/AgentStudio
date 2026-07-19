@@ -94,6 +94,16 @@ export const AgentBridge = {
     return window.agentStudio.writeWorkspaceFile(payload);
   },
 
+  async listWorkspaceFiles(payload: Parameters<NonNullable<Window['agentStudio']>['listWorkspaceFiles']>[0]) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.listWorkspaceFiles(payload);
+  },
+
+  async readWorkspaceFile(payload: Parameters<NonNullable<Window['agentStudio']>['readWorkspaceFile']>[0]) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.readWorkspaceFile(payload);
+  },
+
   async loadChatHistory() {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     return window.agentStudio.loadChatHistory();
