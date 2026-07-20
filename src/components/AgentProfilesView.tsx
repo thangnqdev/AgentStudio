@@ -27,7 +27,7 @@ export function AgentProfilesView() {
                 <label className="flex items-center gap-2 whitespace-nowrap text-[12px]"><input type="checkbox" checked={profile.enabled} disabled={!profile.trusted} onChange={(event) => void setEnabled(profile.id, event.target.checked)} /> Bật</label>
               </div>
               <div className="mt-3 flex items-center justify-between border-t border-outline-variant pt-3">
-                <span className={`text-[12px] ${profile.trusted ? 'text-[#2e7d32]' : 'text-error'}`}>{profile.trusted ? 'Đã tin cậy — agent chính có thể giao việc.' : 'Chưa tin cậy — nội dung hồ sơ chưa được sử dụng.'}</span>
+                <span className={`text-[12px] ${profile.trusted ? 'text-success' : 'text-error'}`}>{profile.trusted ? 'Đã tin cậy — agent chính có thể giao việc.' : 'Chưa tin cậy — nội dung hồ sơ chưa được sử dụng.'}</span>
                 <button onClick={() => void setTrusted(profile.id, !profile.trusted)} className="settings-action">{profile.trusted ? 'Thu hồi tin cậy' : 'Đánh dấu tin cậy'}</button>
               </div>
             </article>

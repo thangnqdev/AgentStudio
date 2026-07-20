@@ -41,7 +41,7 @@ export function PluginSettingsPanel() {
               </label>
             </div>
             <div className="mt-3 flex items-center justify-between gap-4 border-t border-outline-variant pt-3">
-              <span className={`text-[12px] ${plugin.trusted ? 'text-[#2e7d32]' : 'text-error'}`}>
+              <span className={`text-[12px] ${plugin.trusted ? 'text-success' : 'text-error'}`}>
                 {plugin.trusted ? 'Đã tin cậy đúng content hash.' : 'Chưa tin cậy — plugin không ảnh hưởng runtime.'}
               </span>
               <button onClick={() => void setTrusted(plugin.id, !plugin.trusted)} className="settings-action">

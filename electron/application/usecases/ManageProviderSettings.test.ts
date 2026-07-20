@@ -40,6 +40,7 @@ function settings(provider?: StoredProvider): StoredSettings {
     fallbackModelId: null,
     permissionMode: 'workspace-write',
     workspacePath: '/workspace',
+    themePreference: 'system',
   };
 }
 

@@ -23,7 +23,7 @@ export function ProviderList({
         <h3 className="font-ui-label-bold text-[16px] text-primary">Danh sách cấu hình</h3>
         <button
           onClick={onAdd}
-          className="px-3 py-1.5 bg-secondary text-white rounded font-ui-label-bold text-[13px] flex items-center gap-1 hover:bg-[#7D2C11] transition-colors"
+          className="px-3 py-1.5 bg-secondary text-on-secondary rounded font-ui-label-bold text-[13px] flex items-center gap-1 hover:bg-secondary-hover transition-colors"
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
           Thêm mới
@@ -45,7 +45,7 @@ export function ProviderList({
                 <span className="flex items-center gap-2 mb-1">
                   <span className="font-ui-label-bold text-[15px] text-on-surface">{provider.name}</span>
                   {isActive && (
-                    <span className="px-2 py-0.5 bg-primary text-white text-[10px] rounded uppercase font-ui-label-bold tracking-wider">
+                    <span className="px-2 py-0.5 bg-primary text-on-primary text-[10px] rounded uppercase font-ui-label-bold tracking-wider">
                       Mặc định
                     </span>
                   )}

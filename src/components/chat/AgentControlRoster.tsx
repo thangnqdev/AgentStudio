@@ -34,7 +34,7 @@ function RosterSection(props: RosterProps & { title: string; attention?: boolean
   if (!props.participants.length) return null;
   return (
     <section>
-      <p className={`px-2 py-1 text-[9px] font-semibold uppercase tracking-wide ${props.attention ? 'text-[#a64600]' : 'text-on-surface-variant/70'}`}>{props.title} <span className="font-normal">{props.participants.length}</span></p>
+      <p className={`px-2 py-1 text-[9px] font-semibold uppercase tracking-wide ${props.attention ? 'text-warning' : 'text-on-surface-variant/70'}`}>{props.title} <span className="font-normal">{props.participants.length}</span></p>
       <div className="space-y-0.5"><RosterRows participants={props.participants} selectedId={props.selectedId} onSelect={props.onSelect} /></div>
     </section>
   );
@@ -50,7 +50,7 @@ function RosterRow({ participant, selected, onSelect }: { participant: AgentCont
   const currentAction = [...participant.actions].reverse().find((action) => action.status === 'running' || action.status === 'awaiting_approval');
   return (
     <button type="button" role="option" aria-selected={selected} onClick={() => onSelect(participant.id)} className={`w-full rounded-md border px-2.5 py-2 text-left transition-colors ${selected ? 'border-secondary/35 bg-secondary/[0.07]' : 'border-transparent hover:border-outline-variant/60 hover:bg-surface-container-low'}`}>
-      <div className="flex items-center gap-2"><AgentStatusIndicator status={participant.status} /><span className="min-w-0 flex-1 truncate text-[11px] font-ui-label-bold text-primary">{participant.name}</span>{participant.pendingAction && <span className="material-symbols-outlined text-[15px] text-[#ed6c02]" title="Chờ duyệt">approval_delegation</span>}</div>
+      <div className="flex items-center gap-2"><AgentStatusIndicator status={participant.status} /><span className="min-w-0 flex-1 truncate text-[11px] font-ui-label-bold text-primary">{participant.name}</span>{participant.pendingAction && <span className="material-symbols-outlined text-[15px] text-warning" title="Chờ duyệt">approval_delegation</span>}</div>
       <p className="mt-0.5 truncate pl-4 text-[9px] text-on-surface-variant">{agentRoleLabel(participant.role)}{participant.description ? ` · ${participant.description}` : ''}</p>
       <p className={`mt-0.5 truncate pl-4 text-[9px] ${currentAction ? 'text-secondary' : 'text-on-surface-variant/70'}`}>{currentAction ? (currentAction.status === 'awaiting_approval' ? 'Đang chờ bạn cho phép' : toolActivityLabel(currentAction.toolName)) : `${agentStatusLabel(participant.status)}${participant.completedSteps !== undefined ? ` · ${participant.completedSteps} bước` : ''}`}</p>
     </button>

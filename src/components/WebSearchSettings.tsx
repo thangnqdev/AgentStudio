@@ -63,7 +63,7 @@ export function WebSearchSettings() {
         )}
         <div className="flex items-center gap-3">
           <button type="button" onClick={save} className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13px] font-ui-label-bold text-on-primary"><span className="material-symbols-outlined text-[16px]">save</span>Lưu web search</button>
-          {saved && <span className="text-[13px] text-[#27642a]">Đã lưu</span>}
+          {saved && <span className="text-[13px] text-success">Đã lưu</span>}
           {error && <span className="text-[13px] text-error">{error}</span>}
         </div>
       </div>

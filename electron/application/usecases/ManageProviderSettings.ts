@@ -65,6 +65,7 @@ export class ManageProviderSettings {
       fallbackModelId: validFallbackModel(activeProvider, activeModelId, input.fallbackModelId),
       permissionMode: input.permissionMode ?? 'workspace-write',
       workspacePath: this.dependencies.defaultWorkspacePath(),
+      themePreference: 'system',
     };
     await this.settings.saveStoredSettings(settings);
     return toPublicSettings(settings);

@@ -85,6 +85,7 @@ type SettingsChangedPayload = {
 };
 type SettingsChangedListener = (payload: SettingsChangedPayload) => void;
 type AttachmentType = 'text' | 'image' | 'audio' | 'video';
+type ThemePreference = 'system' | 'light' | 'dark';
 
 type EventChannel = 'ai:chat:chunk' | 'ai:chat:done' | 'ai:chat:error' | 'ai:chat:action' | 'ai:chat:task-status' | 'ai:chat:interaction' | 'ai:chat:plan-mode' | 'ai:chat:worktree';
 
@@ -172,6 +173,8 @@ contextBridge.exposeInMainWorld('agentStudio', {
   setFallbackModel: (modelId: string) => ipcRenderer.invoke('settings:set-fallback-model', modelId),
   setPermissionMode: (mode: string) => ipcRenderer.invoke('settings:set-permission-mode', mode),
   onSettingsChanged: (listener: SettingsChangedListener) => subscribeSettingsChanged(listener),
+  loadThemePreference: () => ipcRenderer.invoke('theme:load'),
+  saveThemePreference: (preference: ThemePreference) => ipcRenderer.invoke('theme:save', preference),
   loadWebSearchSettings: () => ipcRenderer.invoke('web-search:load-settings'),
   saveWebSearchSettings: (payload: unknown) => ipcRenderer.invoke('web-search:save-settings', payload),
   loadRemoteTriggerSettings: () => ipcRenderer.invoke('remote-trigger:load-settings'),

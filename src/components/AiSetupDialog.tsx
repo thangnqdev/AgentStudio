@@ -4,8 +4,8 @@ type AiSetupDialogProps = {
 
 export function AiSetupDialog({ onOpenSettings }: AiSetupDialogProps) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-6 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby="ai-setup-title">
-      <div className="w-full max-w-[460px] rounded-2xl border border-outline-variant bg-surface p-7 shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-overlay px-6 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby="ai-setup-title">
+      <div className="w-full max-w-[460px] rounded-2xl border border-outline-variant bg-surface p-7 shadow-[0_24px_70px_var(--theme-shadow)]">
         <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <span className="material-symbols-outlined text-[28px]">smart_toy</span>
         </div>

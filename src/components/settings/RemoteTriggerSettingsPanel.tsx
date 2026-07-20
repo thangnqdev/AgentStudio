@@ -45,7 +45,7 @@ export function RemoteTriggerSettingsPanel() {
           </label>
           <div className="flex items-center gap-3">
             <button type="button" onClick={save} className="rounded-lg bg-primary px-4 py-2 text-[13px] font-ui-label-bold text-on-primary">Lưu Remote Trigger</button>
-            {saved && <span className="text-[13px] text-[#27642a]">Đã lưu</span>}
+            {saved && <span className="text-[13px] text-success">Đã lưu</span>}
             {localError && <span className="text-[13px] text-error">{localError}</span>}
           </div>
         </div>

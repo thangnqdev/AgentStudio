@@ -1,8 +1,22 @@
 import { BrowserWindow } from 'electron';
+import type { ResolvedTheme } from '../domain/entities/theme.js';
 
 const SPLASH_TIMEOUT_MS = 10_000;
 
-const splashPage = `<!doctype html>
+const SPLASH_PALETTES = {
+  light: {
+    background: '#ffffff', border: '#e7e7e7', text: '#242424', muted: '#7b766f',
+    loader: '#f1f1f1', accent: '#9c4326', logoBackground: '#ffffff', logoBorder: '#e7e7e7',
+  },
+  dark: {
+    background: '#18181a', border: '#34343a', text: '#e8e8ea', muted: '#a0a0a8',
+    loader: '#2e2e32', accent: '#e07a5a', logoBackground: '#222225', logoBorder: '#3a3a40',
+  },
+} satisfies Record<ResolvedTheme, Record<string, string>>;
+
+function buildSplashPage(theme: ResolvedTheme): string {
+  const palette = SPLASH_PALETTES[theme];
+  return `<!doctype html>
 <html lang="vi">
   <head>
     <meta charset="utf-8" />
@@ -17,12 +31,12 @@ const splashPage = `<!doctype html>
         display: flex;
         justify-content: center;
         align-items: center;
-        color: #242424;
+        color: ${palette.text};
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background-color: #ffffff;
+        background-color: ${palette.background};
         position: relative;
         border-radius: 12px;
-        border: 1px solid #e7e7e7;
+        border: 1px solid ${palette.border};
       }
       
       .container {
@@ -58,11 +72,11 @@ const splashPage = `<!doctype html>
         font-size: 22px; 
         font-weight: 600; 
         letter-spacing: -0.5px;
-        color: #242424;
+        color: ${palette.text};
       }
       p { 
         margin: 0; 
-        color: #7b766f; 
+        color: ${palette.muted};
         font-size: 13px; 
         font-weight: 400;
       }
@@ -71,7 +85,7 @@ const splashPage = `<!doctype html>
         margin-top: 32px;
         width: 140px;
         height: 2px;
-        background: #f1f1f1;
+        background: ${palette.loader};
         border-radius: 2px;
         overflow: hidden;
         position: relative;
@@ -83,7 +97,7 @@ const splashPage = `<!doctype html>
         left: 0;
         height: 100%;
         width: 30%;
-        background: #9c4326;
+        background: ${palette.accent};
         border-radius: 2px;
         animation: progress-slide 1.5s infinite ease-in-out;
       }
@@ -98,9 +112,9 @@ const splashPage = `<!doctype html>
     <div class="container">
       <div class="logo-wrapper">
         <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-          <rect width="100" height="100" rx="22" fill="#ffffff" stroke="#e7e7e7" stroke-width="2"/>
-          <path d="M50 25 L25 75 L38 75 L50 48 L62 75 L75 75 Z" fill="#242424" />
-          <circle cx="50" cy="62" r="6" fill="#9c4326" />
+          <rect width="100" height="100" rx="22" fill="${palette.logoBackground}" stroke="${palette.logoBorder}" stroke-width="2"/>
+          <path d="M50 25 L25 75 L38 75 L50 48 L62 75 L75 75 Z" fill="${palette.text}" />
+          <circle cx="50" cy="62" r="6" fill="${palette.accent}" />
         </svg>
       </div>
       <div class="title-container">
@@ -113,6 +127,7 @@ const splashPage = `<!doctype html>
     </div>
   </body>
 </html>`;
+}
 
 export class SplashWindow {
   private window: BrowserWindow | null = null;
@@ -123,7 +138,7 @@ export class SplashWindow {
     this.getMainWindow = getMainWindow;
   }
 
-  show(): void {
+  show(theme: ResolvedTheme): void {
     this.window = new BrowserWindow({
       width: 420,
       height: 280,
@@ -140,7 +155,7 @@ export class SplashWindow {
       show: false,
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
     });
-    this.window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashPage)}`);
+    this.window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(buildSplashPage(theme))}`);
     this.window.once('ready-to-show', () => this.window?.show());
     this.timeoutId = setTimeout(() => this.revealMainWindow(), SPLASH_TIMEOUT_MS);
   }

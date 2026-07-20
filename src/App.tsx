@@ -74,7 +74,7 @@ function App() {
   if (!bridgeAvailable) return <BridgeUnavailableView />;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white font-ui-body text-on-surface">
+    <div className="flex h-screen w-screen overflow-hidden bg-background font-ui-body text-on-surface">
       <Sidebar />
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopAppBar agentMetrics={agentControl.snapshot.metrics} />
@@ -82,7 +82,7 @@ function App() {
           <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
             {activeWorkspaceTabId ? <MainContent view={activeView} /> : <WorkspaceLauncher />}
           </main>
-          {isUtilityDockOpen && <button type="button" aria-label="Đóng cánh phải" onClick={() => setUtilityDockOpen(false)} className="absolute inset-0 z-20 hidden bg-black/10 max-[980px]:block" />}
+          {isUtilityDockOpen && <button type="button" aria-label="Đóng cánh phải" onClick={() => setUtilityDockOpen(false)} className="absolute inset-0 z-20 hidden bg-overlay max-[980px]:block" />}
           <UtilityDock control={agentControl} />
         </div>
       </section>

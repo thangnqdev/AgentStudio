@@ -181,7 +181,7 @@ export function PromptComposer() {
   return (
     <div className="absolute bottom-4 left-1/2 w-full max-w-[720px] -translate-x-1/2 px-5">
       <div
-        className="relative flex flex-col gap-1.5 rounded-2xl border border-black/[0.09] bg-white p-2 shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all focus-within:border-black/20 focus-within:shadow-[0_10px_36px_rgba(0,0,0,0.10)]"
+        className="relative flex flex-col gap-1.5 rounded-2xl border border-outline-variant/60 bg-surface p-2 shadow-[0_8px_30px_var(--theme-shadow)] transition-all focus-within:border-outline focus-within:shadow-[0_10px_36px_var(--theme-shadow)]"
       >
         {isCommandPaletteOpen && <ComposerCommandPalette commands={commands} selectedIndex={selectedCommandIndex} onSelect={selectCommand} />}
         <ComposerPickerLayer
@@ -207,7 +207,7 @@ export function PromptComposer() {
           <textarea
             ref={textareaRef}
             id="prompt-input"
-            className="w-full max-h-32 resize-none border-none bg-transparent px-2 py-2 font-ui-body text-[14px] text-[#2d2d2d] outline-none placeholder:text-[#aaa] focus:ring-0"
+            className="w-full max-h-32 resize-none border-none bg-transparent px-2 py-2 font-ui-body text-[14px] text-on-surface outline-none placeholder:text-on-surface-variant focus:ring-0"
             placeholder="Làm bất cứ điều gì"
             rows={1}
             value={input}
@@ -218,7 +218,7 @@ export function PromptComposer() {
           <div className="flex items-center gap-1 pb-1 pr-1">
             <button
               onClick={handleFileClick}
-              className="rounded-lg p-2 text-[#888] transition-colors hover:bg-black/[0.04] hover:text-[#222]"
+              className="rounded-lg p-2 text-on-surface-variant transition-colors hover:bg-interactive-hover hover:text-on-surface"
               title="Đính kèm tệp"
             >
               <span className="material-symbols-outlined text-[20px]">add</span>
@@ -230,9 +230,9 @@ export function PromptComposer() {
               disabled={!isAgentBusy && !canSubmit}
               className={`w-8 h-8 flex items-center justify-center rounded-full transition-all shadow-sm
                 ${isAgentBusy
-                  ? 'bg-error text-white hover:bg-error/90 cursor-pointer'
+                  ? 'bg-error text-on-error hover:bg-error/90 cursor-pointer'
                   : canSubmit
-                    ? 'bg-secondary text-white hover:bg-[#7D2C11] cursor-pointer'
+                    ? 'bg-secondary text-on-secondary hover:bg-secondary-hover cursor-pointer'
                     : 'bg-surface-container text-on-surface-variant/40 cursor-not-allowed'
                 }`}
               title={isAgentBusy ? 'Dừng phản hồi' : !hasAiConfiguration ? 'Cần cấu hình AI trước' : canSubmit ? 'Gửi tin nhắn (Enter)' : 'Nhập tin nhắn trước'}

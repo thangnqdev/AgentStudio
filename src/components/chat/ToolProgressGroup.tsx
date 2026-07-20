@@ -59,12 +59,12 @@ function AttentionToolProgress(props: {
   const isError = props.summary.tone === 'error';
   const retryable = props.actions.some((action) => action.status === 'error') && props.onRetry;
   return (
-    <section className={`my-2 overflow-hidden rounded-xl border ${isError ? 'border-error/30 bg-error-container/25' : 'border-[#ed6c02]/35 bg-[#ed6c02]/5'}`} aria-label={props.summary.title}>
+    <section className={`my-2 overflow-hidden rounded-xl border ${isError ? 'border-error/30 bg-error-container/25' : 'border-warning/35 bg-warning-container/25'}`} aria-label={props.summary.title}>
       <button
         type="button" aria-expanded={props.open} aria-controls={props.detailsId} onClick={props.onToggle}
         className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-secondary"
       >
-        <span className={`material-symbols-outlined text-[18px] ${isError ? 'text-error' : 'text-[#a64600]'}`} aria-hidden="true">{props.summary.icon}</span>
+        <span className={`material-symbols-outlined text-[18px] ${isError ? 'text-error' : 'text-warning'}`} aria-hidden="true">{props.summary.icon}</span>
         <span className="shrink-0 text-[12px] font-ui-label-bold text-on-surface" role="status" aria-live="polite" aria-atomic="true">{props.summary.title}</span>
         {props.summary.preview && <span className="min-w-0 flex-1 truncate text-[12px] text-on-surface-variant" title={props.summary.preview}>{props.summary.preview}</span>}
         <span className="material-symbols-outlined ml-auto text-[16px] text-on-surface-variant" aria-hidden="true">{props.open ? 'expand_less' : 'expand_more'}</span>
@@ -131,11 +131,11 @@ function ToolProgressItem(props: {
 
 function ToolStatusIndicator({ tone }: { tone: 'working' | 'success' }) {
   if (tone === 'working') return <span className="tool-status-pulse h-2 w-2 shrink-0 rounded-full bg-secondary" aria-hidden="true" />;
-  return <span className="material-symbols-outlined shrink-0 text-[18px] text-[#2e7d32]" aria-hidden="true">check_circle</span>;
+  return <span className="material-symbols-outlined shrink-0 text-[18px] text-success" aria-hidden="true">check_circle</span>;
 }
 
 function ActionStatusDot({ status }: { status: AgentAction['status'] }) {
-  const className = status === 'ok' ? 'bg-[#388e3c]' : status === 'running' ? 'tool-status-pulse bg-secondary' : status === 'awaiting_approval' ? 'bg-[#ed6c02]' : 'bg-error';
+  const className = status === 'ok' ? 'bg-success' : status === 'running' ? 'tool-status-pulse bg-secondary' : status === 'awaiting_approval' ? 'bg-warning' : 'bg-error';
   return <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${className}`} aria-hidden="true" />;
 }
 

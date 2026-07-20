@@ -22,6 +22,7 @@ import type { BackgroundCommandNotice } from '../domain/entities/backgroundComma
 import type { LifecycleHookSummary } from '../domain/entities/lifecycleHook';
 import type { ManualCompactionPayload, ManualCompactionResult } from '../domain/entities/manualCompaction';
 import type { WorkspaceFileContent, WorkspaceFileEntry } from '../domain/entities/workspaceFile';
+import type { ThemePreference } from '../domain/entities/theme';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -208,6 +209,8 @@ declare global {
       setFallbackModel: (modelId: string) => Promise<AppSettings>;
       setPermissionMode: (mode: PermissionMode) => Promise<AppSettings>;
       onSettingsChanged: (listener: (settings: AppSettings) => void) => () => void;
+      loadThemePreference: () => Promise<IpcResult<ThemePreference>>;
+      saveThemePreference: (preference: ThemePreference) => Promise<IpcResult<ThemePreference>>;
       loadWebSearchSettings: () => Promise<WebSearchSettingsResult>;
       saveWebSearchSettings: (payload: { provider: WebSearchProvider; baseUrl?: string; apiKey?: string; model?: string }) => Promise<WebSearchSettingsResult>;
       loadRemoteTriggerSettings: () => Promise<IpcResult<PublicRemoteTriggerSettings>>;

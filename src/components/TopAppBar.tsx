@@ -31,34 +31,34 @@ export function TopAppBar({ agentMetrics }: { agentMetrics: AgentControlSnapshot
   };
 
   return (
-    <header className="flex h-10 shrink-0 items-stretch border-b border-black/[0.08] bg-[#f5f5f5]" style={dragStyle}>
+    <header className="flex h-10 shrink-0 items-stretch border-b border-outline-variant/60 bg-toolbar" style={dragStyle}>
       {!isSidebarOpen && (
-        <button type="button" onClick={() => setSidebarOpen(true)} className="flex w-10 shrink-0 items-center justify-center text-[#777] hover:bg-black/[0.04]" style={noDragStyle} title="Mở thanh bên">
+        <button type="button" onClick={() => setSidebarOpen(true)} className="flex w-10 shrink-0 items-center justify-center text-on-surface-variant hover:bg-interactive-hover" style={noDragStyle} title="Mở thanh bên">
           <span className="material-symbols-outlined text-[17px]">left_panel_open</span>
         </button>
       )}
       <WorkspaceTabBar />
       <div className="ml-auto flex shrink-0 items-center gap-1 px-2" style={noDragStyle}>
         {update.status === 'available' && (
-          <button type="button" onClick={() => void download()} className="rounded-md bg-[#242424] px-2 py-1 text-[10px] font-medium text-white">Cập nhật {update.version}</button>
+          <button type="button" onClick={() => void download()} className="rounded-md bg-primary px-2 py-1 text-[10px] font-medium text-on-primary">Cập nhật {update.version}</button>
         )}
-        {update.status === 'downloading' && <span className="px-2 text-[10px] text-[#777]">Đang tải {update.progress ?? 0}%</span>}
+        {update.status === 'downloading' && <span className="px-2 text-[10px] text-on-surface-variant">Đang tải {update.progress ?? 0}%</span>}
         {update.status === 'downloaded' && (
-          <button type="button" onClick={() => void install()} className="rounded-md bg-[#242424] px-2 py-1 text-[10px] font-medium text-white">Khởi động lại</button>
+          <button type="button" onClick={() => void install()} className="rounded-md bg-primary px-2 py-1 text-[10px] font-medium text-on-primary">Khởi động lại</button>
         )}
-        <button type="button" onClick={handleSelectWorkspace} className="flex h-7 max-w-[190px] items-center gap-1.5 rounded-md px-2 text-[11px] text-[#666] hover:bg-black/[0.05]" title={projectPath ?? 'Chọn workspace'}>
+        <button type="button" onClick={handleSelectWorkspace} className="flex h-7 max-w-[190px] items-center gap-1.5 rounded-md px-2 text-[11px] text-on-surface-variant hover:bg-interactive-hover" title={projectPath ?? 'Chọn workspace'}>
           <span className="material-symbols-outlined text-[15px]">folder</span>
           <span className="max-w-[110px] truncate">{basename(projectPath) || 'Mở'}</span>
           <span className="material-symbols-outlined text-[13px]">expand_more</span>
         </button>
         {currentBranch && (
-          <span className="hidden max-w-[105px] items-center gap-1 truncate rounded-md px-2 py-1 font-mono text-[10px] text-[#777] min-[1180px]:flex">
+          <span className="hidden max-w-[105px] items-center gap-1 truncate rounded-md px-2 py-1 font-mono text-[10px] text-on-surface-variant min-[1180px]:flex">
             <span className="material-symbols-outlined text-[13px]">account_tree</span>{currentBranch}
           </span>
         )}
-        <button type="button" onClick={toggleUtilityDock} className={`relative flex h-7 w-7 items-center justify-center rounded-md ${isUtilityDockOpen ? 'bg-black/[0.07] text-[#222]' : 'text-[#777] hover:bg-black/[0.05]'}`} title={isUtilityDockOpen ? 'Thu gọn hoạt động và công cụ' : 'Mở hoạt động và công cụ'} aria-label={isUtilityDockOpen ? 'Thu gọn cánh phải' : 'Mở cánh phải'}>
+        <button type="button" onClick={toggleUtilityDock} className={`relative flex h-7 w-7 items-center justify-center rounded-md ${isUtilityDockOpen ? 'bg-interactive-selected text-on-surface' : 'text-on-surface-variant hover:bg-interactive-hover'}`} title={isUtilityDockOpen ? 'Thu gọn hoạt động và công cụ' : 'Mở hoạt động và công cụ'} aria-label={isUtilityDockOpen ? 'Thu gọn cánh phải' : 'Mở cánh phải'}>
           <span className="material-symbols-outlined text-[16px]">{isUtilityDockOpen ? 'right_panel_close' : 'right_panel_open'}</span>
-          {agentMetrics.attention > 0 ? <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-[#f5f5f5]" /> : agentMetrics.working > 0 ? <span className="absolute right-0 top-0 h-2 w-2 animate-pulse rounded-full bg-green-600 ring-2 ring-[#f5f5f5]" /> : null}
+          {agentMetrics.attention > 0 ? <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-warning ring-2 ring-toolbar" /> : agentMetrics.working > 0 ? <span className="absolute right-0 top-0 h-2 w-2 animate-pulse rounded-full bg-success ring-2 ring-toolbar" /> : null}
         </button>
       </div>
     </header>

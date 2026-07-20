@@ -11,7 +11,7 @@ export function McpSettingsPanel() {
     <section id="mcp-settings" tabIndex={-1} className="outline-none">
       <div className="flex items-center justify-between mb-2">
         <h3 className="font-ui-label-bold text-[16px] text-primary">Model Context Protocol</h3>
-        <button onClick={() => setEditing('new')} className="px-3 py-1.5 bg-secondary text-white rounded text-[13px]">Thêm server</button>
+        <button onClick={() => setEditing('new')} className="px-3 py-1.5 bg-secondary text-on-secondary rounded text-[13px]">Thêm server</button>
       </div>
       <p className="text-[13px] text-on-surface-variant mb-4">Server chỉ được thêm từ UI. stdio chạy bằng command + args, không qua shell và chỉ nhận safe env cùng credentials đã cấu hình.</p>
       {editing && <McpServerForm server={editing === 'new' ? undefined : editing} onCancel={() => setEditing(null)} onSave={handleSave} />}
@@ -24,7 +24,7 @@ export function McpSettingsPanel() {
                 <div className="flex items-center gap-2"><h4 className="font-ui-label-bold text-[14px]">{server.name}</h4><Status state={server.state} /></div>
                 <p className="text-[11px] font-code-base text-on-surface-variant mt-1 break-all">{describeTransport(server)}</p>
                 <p className="text-[12px] mt-1">{server.toolCount} tools · risk: {server.defaultRisk}{server.autoStart ? ' · auto-start' : ''}{server.hasCredentials ? ' · credential saved' : ''}</p>
-                {server.state === 'needs-auth' && <p className="text-[12px] text-[#ed6c02] mt-1">Cần xác thực OAuth trong trình duyệt.</p>}
+                {server.state === 'needs-auth' && <p className="text-[12px] text-warning mt-1">Cần xác thực OAuth trong trình duyệt.</p>}
                 {server.error && <p className="text-[12px] text-error mt-1">{server.error}</p>}
               </div>
               <div className="flex items-start gap-2">
@@ -46,13 +46,13 @@ export function McpSettingsPanel() {
 
 function Status({ state }: { state: McpServerStatus['state'] }) {
   const color = state === 'connected'
-    ? 'bg-[#2e7d32]'
+    ? 'bg-success text-on-success'
     : state === 'error'
-      ? 'bg-error'
+      ? 'bg-error text-on-error'
       : state === 'needs-auth'
-        ? 'bg-[#ed6c02]'
-        : 'bg-on-surface-variant';
-  return <span className={`text-white text-[10px] uppercase px-2 py-0.5 rounded ${color}`}>{state}</span>;
+        ? 'bg-warning text-on-warning'
+        : 'bg-surface-container-high text-on-surface-variant';
+  return <span className={`text-[10px] uppercase px-2 py-0.5 rounded ${color}`}>{state}</span>;
 }
 
 function describeTransport(server: McpServerStatus) {

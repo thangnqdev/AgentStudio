@@ -1,4 +1,5 @@
 import type { PermissionMode } from './agent.js';
+import type { ThemePreference } from './theme.js';
 
 export interface ModelMetadata {
   id: string;
@@ -24,6 +25,7 @@ export interface StoredSettings {
   fallbackModelId: string | null;
   permissionMode: PermissionMode;
   workspacePath: string;
+  themePreference: ThemePreference;
 }
 
 export interface SaveProviderInput {

@@ -32,8 +32,8 @@ export function AgentInspector(props: {
       {item.description && <div className="mt-3 rounded-lg bg-surface-container-low px-3 py-2"><p className="text-[9px] font-ui-label-bold uppercase tracking-wide text-on-surface-variant">Nhiệm vụ</p><p className="mt-1 whitespace-pre-wrap text-[11px] text-primary">{item.description}</p></div>}
 
       {item.pendingAction && item.workerId && (
-        <div className="mt-3 rounded-lg border border-[#ed6c02]/40 bg-[#ed6c02]/5 p-3 text-[11px]">
-          <div className="flex items-center gap-2 font-ui-label-bold text-[#a64600]"><span className="material-symbols-outlined text-[17px]">approval_delegation</span>Agent đang chờ phê duyệt</div>
+        <div className="mt-3 rounded-lg border border-warning/40 bg-warning-container/35 p-3 text-[11px]">
+          <div className="flex items-center gap-2 font-ui-label-bold text-warning"><span className="material-symbols-outlined text-[17px]">approval_delegation</span>Agent đang chờ phê duyệt</div>
           <p className="mt-2 break-words font-code-base text-[10px] text-primary">{item.pendingAction.toolName}: {item.pendingAction.args}</p>
           <div className="mt-2 flex gap-2">
             <button type="button" onClick={() => props.onApprove(item.workerId!, item.pendingAction!.id, true)} className="rounded bg-primary px-3 py-1.5 text-on-primary">Cho phép</button>

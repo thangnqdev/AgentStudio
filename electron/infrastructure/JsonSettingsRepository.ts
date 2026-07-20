@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { StoredProvider, StoredSettings } from '../domain/entities/settings.js';
 import type { ISettingsRepository } from '../domain/ports/ISettingsRepository.js';
 import { normalizeModelList, normalizePermissionMode } from '../application/services/providerSettings.js';
+import { normalizeThemePreference } from '../application/services/themePreference.js';
 import { writePrivateFileAtomic } from './storage/privateFile.js';
 
 export type { ModelMetadata, StoredProvider, StoredSettings } from '../domain/entities/settings.js';
@@ -16,6 +17,7 @@ const DEFAULT_SETTINGS: StoredSettings = {
   fallbackModelId: null,
   permissionMode: 'workspace-write',
   workspacePath: process.cwd(),
+  themePreference: 'system',
 };
 
 export class JsonSettingsRepository implements ISettingsRepository {
@@ -37,6 +39,7 @@ export class JsonSettingsRepository implements ISettingsRepository {
       fallbackModelId: DEFAULT_SETTINGS.fallbackModelId,
       permissionMode: DEFAULT_SETTINGS.permissionMode,
       workspacePath: DEFAULT_SETTINGS.workspacePath,
+      themePreference: DEFAULT_SETTINGS.themePreference,
     };
   }
 
@@ -53,6 +56,7 @@ export class JsonSettingsRepository implements ISettingsRepository {
         fallbackModelId: typeof parsed.fallbackModelId === 'string' ? parsed.fallbackModelId : null,
         permissionMode: normalizePermissionMode(parsed.permissionMode),
         workspacePath: typeof parsed.workspacePath === 'string' && parsed.workspacePath ? parsed.workspacePath : process.cwd(),
+        themePreference: normalizeThemePreference(parsed.themePreference),
       };
     } catch (error) {
       if (!isMissingFile(error)) throw new Error('Persisted settings are invalid.', { cause: error });

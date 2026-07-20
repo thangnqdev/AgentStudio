@@ -35,14 +35,14 @@ export function Sidebar() {
   const { createTask, openSurface, openTask } = useWorkspaceTabs();
 
   return (
-    <nav className={`flex h-full shrink-0 flex-col overflow-hidden border-r border-black/[0.08] bg-[#f3f4f5] transition-[width] duration-200 ${isSidebarOpen ? 'w-[264px]' : 'w-0 border-r-0'}`}>
+    <nav className={`flex h-full shrink-0 flex-col overflow-hidden border-r border-outline-variant/60 bg-sidebar transition-[width] duration-200 ${isSidebarOpen ? 'w-[264px]' : 'w-0 border-r-0'}`}>
       <div className="flex h-9 shrink-0 items-center" style={dragStyle}><MacTrafficLights /></div>
       <div className="flex items-center px-3 pb-2">
-        <button type="button" className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-black/[0.04]">
-          <span className="truncate text-[13px] font-semibold text-[#333]">AgentStudio</span>
-          <span className="material-symbols-outlined text-[13px] text-[#888]">expand_more</span>
+        <button type="button" className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-interactive-hover">
+          <span className="truncate text-[13px] font-semibold text-on-surface">AgentStudio</span>
+          <span className="material-symbols-outlined text-[13px] text-on-surface-variant">expand_more</span>
         </button>
-        <button type="button" onClick={() => setSidebarOpen(false)} className="flex h-7 w-7 items-center justify-center rounded-md text-[#888] hover:bg-black/[0.05]" title="Đóng thanh bên">
+        <button type="button" onClick={() => setSidebarOpen(false)} className="flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant hover:bg-interactive-hover" title="Đóng thanh bên">
           <span className="material-symbols-outlined text-[16px]">left_panel_close</span>
         </button>
       </div>
@@ -53,35 +53,35 @@ export function Sidebar() {
       </div>
 
       <div className="mt-5 flex min-h-0 flex-1 flex-col">
-        <div className="flex items-center justify-between px-3 text-[10px] font-medium text-[#999]">
+        <div className="flex items-center justify-between px-3 text-[10px] font-medium text-on-surface-variant">
           <span>Dự án</span>
-          <button type="button" onClick={() => createTask()} className="flex h-5 w-5 items-center justify-center rounded hover:bg-black/[0.05]" title="Tác vụ mới"><span className="material-symbols-outlined text-[14px]">add</span></button>
+          <button type="button" onClick={() => createTask()} className="flex h-5 w-5 items-center justify-center rounded hover:bg-interactive-hover" title="Tác vụ mới"><span className="material-symbols-outlined text-[14px]">add</span></button>
         </div>
-        <div className="mt-2 flex items-center gap-2 px-3 text-[11px] font-medium text-[#666]">
+        <div className="mt-2 flex items-center gap-2 px-3 text-[11px] font-medium text-on-surface-variant">
           <span className="material-symbols-outlined text-[14px]">folder</span>
           <span className="truncate">{basename(projectPath) || 'Workspace'}</span>
         </div>
         <div className="mt-1 flex-1 overflow-y-auto px-2 pb-3">
           {threads.map((thread) => (
             <div key={thread.id} className="group flex items-center">
-              <button type="button" onClick={() => openTask(thread.id, thread.title)} className={`min-w-0 flex-1 truncate rounded-md px-3 py-1.5 text-left text-[11px] ${thread.id === activeThreadId && activeView === 'tasks' ? 'bg-black/[0.055] text-[#303030]' : 'text-[#666] hover:bg-black/[0.04]'}`} title={thread.title}>{thread.title}</button>
+              <button type="button" onClick={() => openTask(thread.id, thread.title)} className={`min-w-0 flex-1 truncate rounded-md px-3 py-1.5 text-left text-[11px] ${thread.id === activeThreadId && activeView === 'tasks' ? 'bg-interactive-selected text-on-surface' : 'text-on-surface-variant hover:bg-interactive-hover'}`} title={thread.title}>{thread.title}</button>
               {threads.length > 1 && (
-                <button type="button" onClick={() => deleteThread(thread.id)} className="hidden h-6 w-6 items-center justify-center rounded text-[#999] hover:bg-black/[0.05] hover:text-error group-hover:flex" title="Xóa tác vụ"><span className="material-symbols-outlined text-[13px]">close</span></button>
+                <button type="button" onClick={() => deleteThread(thread.id)} className="hidden h-6 w-6 items-center justify-center rounded text-on-surface-variant hover:bg-interactive-hover hover:text-error group-hover:flex" title="Xóa tác vụ"><span className="material-symbols-outlined text-[13px]">close</span></button>
               )}
             </div>
           ))}
         </div>
       </div>
 
-      <div className="border-t border-black/[0.06] px-2 py-2">
+      <div className="border-t border-outline-variant/60 px-2 py-2">
         <details className="group mb-1">
-          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-[#777] hover:bg-black/[0.04]">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-on-surface-variant hover:bg-interactive-hover">
             <span className="material-symbols-outlined text-[15px]">more_horiz</span><span>Công cụ khác</span>
           </summary>
           <div className="pb-1 pl-2">{TOOL_ITEMS.map((item) => <SidebarNavItem key={item.surface} item={item} active={activeView === item.surface} onOpen={openSurface} />)}</div>
         </details>
         <SidebarButton label="Cài đặt" icon="settings" active={activeView === 'settings'} onClick={() => openSurface('settings')} />
-        <div className="flex items-center justify-between px-2 pt-2 text-[9px] text-[#aaa]"><span>AgentStudio</span><span>{appVersion ? `v${appVersion}` : ''}</span></div>
+        <div className="flex items-center justify-between px-2 pt-2 text-[9px] text-on-surface-variant"><span>AgentStudio</span><span>{appVersion ? `v${appVersion}` : ''}</span></div>
       </div>
     </nav>
   );
@@ -93,7 +93,7 @@ function SidebarNavItem({ item, active, onOpen }: { item: SidebarItem; active: b
 
 function SidebarButton({ label, icon, active = false, onClick }: { label: string; icon: string; active?: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[11px] ${active ? 'bg-black/[0.055] font-medium text-[#303030]' : 'text-[#5f5f5f] hover:bg-black/[0.04]'}`}>
+    <button type="button" onClick={onClick} className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[11px] ${active ? 'bg-interactive-selected font-medium text-on-surface' : 'text-on-surface-variant hover:bg-interactive-hover'}`}>
       <span className="material-symbols-outlined text-[15px]">{icon}</span><span className="truncate">{label}</span>
     </button>
   );

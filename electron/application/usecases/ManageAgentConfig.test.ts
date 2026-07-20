@@ -11,7 +11,7 @@ function harness() {
       models: [{ id: 'model-a', contextWindow: 8_192 }, { id: 'model-b', contextWindow: 16_384 }],
     }],
     activeProviderId: 'provider-1', activeModelId: 'model-a', fallbackModelId: 'model-b',
-    permissionMode: 'workspace-write', workspacePath: '/workspace',
+    permissionMode: 'workspace-write', workspacePath: '/workspace', themePreference: 'system',
   };
   const saveStoredSettings = vi.fn(async (settings: StoredSettings) => { stored = structuredClone(settings); });
   const repository: ISettingsRepository = {

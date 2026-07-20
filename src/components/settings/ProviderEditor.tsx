@@ -94,7 +94,7 @@ export function ProviderEditor({
           />
         </div>
         {errorMessage && <p className="text-[13px] text-error">{errorMessage}</p>}
-        {successMessage && <p className="text-[13px] text-[#2e7d32]">{successMessage}</p>}
+        {successMessage && <p className="text-[13px] text-success">{successMessage}</p>}
 
         {draft.models.length > 0 && (
           <div className="pt-4 border-t border-outline-variant">

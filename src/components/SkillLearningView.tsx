@@ -43,7 +43,7 @@ function CandidateCard({ candidate, busy, evaluate, decide, promote }: { candida
     <article className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5">
       <div className="flex justify-between gap-4">
         <div>
-          <span className={`${candidate.status === 'promoted' || candidate.status === 'approved' ? 'bg-[#2e7d32]' : candidate.status === 'rejected' ? 'bg-error' : 'bg-secondary'} text-white text-[9px] uppercase rounded px-2 py-0.5`}>
+          <span className={`${candidate.status === 'promoted' || candidate.status === 'approved' ? 'bg-success text-on-success' : candidate.status === 'rejected' ? 'bg-error text-on-error' : 'bg-secondary text-on-secondary'} text-[9px] uppercase rounded px-2 py-0.5`}>
             {statusText}
           </span>
           <strong className="ml-2 text-[14px]">{candidate.name}@{candidate.skillVersion}</strong>
@@ -60,7 +60,7 @@ function CandidateCard({ candidate, busy, evaluate, decide, promote }: { candida
       {candidate.evaluation && (
         <div className="grid grid-cols-4 gap-2 mt-3">
           {candidate.evaluation.results.map((result) => (
-            <div key={result.testId} className={`rounded p-2 text-[10px] ${result.passed ? 'bg-[#e8f5e9] text-[#1b5e20]' : 'bg-error-container text-error'}`}>
+            <div key={result.testId} className={`rounded p-2 text-[10px] ${result.passed ? 'bg-success-container text-on-success-container' : 'bg-error-container text-error'}`}>
               {result.testId}: {result.passed ? 'đạt' : 'lỗi'}
             </div>
           ))}

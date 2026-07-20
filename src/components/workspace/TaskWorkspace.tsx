@@ -3,7 +3,7 @@ import { PromptComposer } from '../PromptComposer';
 
 export function TaskWorkspace() {
   return (
-    <div className="flex flex-1 min-h-0 bg-white">
+    <div className="flex flex-1 min-h-0 bg-surface">
       <section className="relative flex min-w-0 flex-1 flex-col">
         <ChatArea />
         <PromptComposer />

@@ -84,13 +84,13 @@ function Candidate({ candidate, busy, onEvaluate, onPromote }: {
   onPromote: () => void;
 }) {
   const badge = candidate.status === 'evaluated'
-    ? 'bg-[#2e7d32]'
-    : candidate.status === 'rejected' ? 'bg-error' : 'bg-secondary';
+    ? 'bg-success text-on-success'
+    : candidate.status === 'rejected' ? 'bg-error text-on-error' : 'bg-secondary text-on-secondary';
   return (
     <article className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
       <div className="flex justify-between gap-3">
         <div>
-          <span className={`${badge} text-white text-[9px] uppercase rounded px-2 py-0.5`}>{candidate.status}</span>
+          <span className={`${badge} text-[9px] uppercase rounded px-2 py-0.5`}>{candidate.status}</span>
           <span className="font-code-base text-[10px] ml-2">{candidate.id}</span>
           <p className="text-[11px] mt-2">Thay đổi: {candidate.changedKeys.join(', ')}</p>
           {candidate.evaluation && (

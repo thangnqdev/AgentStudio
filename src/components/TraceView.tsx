@@ -47,6 +47,6 @@ function formatModelUsage(usage: NonNullable<AgentSpan['usage']>) {
 }
 
 function Status({ value }: { value: TraceStatus }) {
-  const color = value === 'succeeded' ? 'bg-[#2e7d32]' : value === 'failed' || value === 'denied' ? 'bg-error' : value === 'paused' ? 'bg-secondary' : 'bg-primary';
-  return <span className={`${color} text-white rounded px-2 py-0.5 text-[10px] uppercase`}>{value}</span>;
+  const color = value === 'succeeded' ? 'bg-success text-on-success' : value === 'failed' || value === 'denied' ? 'bg-error text-on-error' : value === 'paused' ? 'bg-secondary text-on-secondary' : 'bg-primary text-on-primary';
+  return <span className={`${color} rounded px-2 py-0.5 text-[10px] uppercase`}>{value}</span>;
 }

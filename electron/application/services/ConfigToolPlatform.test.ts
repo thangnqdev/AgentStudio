@@ -11,7 +11,7 @@ function harness() {
       models: [{ id: 'model-a' }, { id: 'model-b' }],
     }],
     activeProviderId: 'provider', activeModelId: 'model-a', fallbackModelId: null,
-    permissionMode: 'workspace-write', workspacePath: '/workspace',
+    permissionMode: 'workspace-write', workspacePath: '/workspace', themePreference: 'system',
   };
   const repository: ISettingsRepository = {
     loadStoredSettings: async () => structuredClone(settings),

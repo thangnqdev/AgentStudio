@@ -5,8 +5,9 @@ import { SkillSettingsPanel } from './settings/SkillSettingsPanel';
 import { WebSearchSettings } from './WebSearchSettings';
 import { PluginSettingsPanel } from './settings/PluginSettingsPanel';
 import { RemoteTriggerSettingsPanel } from './settings/RemoteTriggerSettingsPanel';
+import { AppearanceSettingsPanel } from './settings/AppearanceSettingsPanel';
 
-type TabId = 'providers' | 'search' | 'mcp' | 'skills' | 'plugins' | 'remote';
+type TabId = 'appearance' | 'providers' | 'search' | 'mcp' | 'skills' | 'plugins' | 'remote';
 
 interface Tab {
   id: TabId;
@@ -15,6 +16,7 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
+  { id: 'appearance', label: 'Giao diện', icon: 'contrast' },
   { id: 'providers', label: 'AI Providers', icon: 'smart_toy' },
   { id: 'search', label: 'Web Search', icon: 'travel_explore' },
   { id: 'mcp', label: 'MCP', icon: 'hub' },
@@ -62,6 +64,7 @@ export function SettingsView() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[760px] mx-auto w-full px-6 py-8">
           {activeTab === 'providers' && <ProviderSettingsPanel />}
+          {activeTab === 'appearance' && <AppearanceSettingsPanel />}
           {activeTab === 'search' && <WebSearchSettings />}
           {activeTab === 'mcp' && <McpSettingsPanel />}
           {activeTab === 'skills' && <SkillSettingsPanel />}

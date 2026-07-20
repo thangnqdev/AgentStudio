@@ -57,7 +57,7 @@ function PlanInteraction({ interaction, onRespond }: {
         <button type="button" onClick={() => onRespond({ accepted: false })} className="settings-action">
           {exiting ? 'Yêu cầu chỉnh sửa' : 'Không, triển khai ngay'}
         </button>
-        <button type="button" onClick={() => onRespond({ accepted: true })} className="rounded-lg bg-secondary px-4 py-2 text-[12px] font-ui-label-bold text-on-secondary hover:bg-[#7D2C11]">
+        <button type="button" onClick={() => onRespond({ accepted: true })} className="rounded-lg bg-secondary px-4 py-2 text-[12px] font-ui-label-bold text-on-secondary hover:bg-secondary-hover">
           {exiting ? 'Phê duyệt & bắt đầu code' : 'Đồng ý vào Plan Mode'}
         </button>
       </div>
@@ -112,7 +112,7 @@ function QuestionInteraction({ interaction, onRespond }: {
               <div className="space-y-2">
                 {question.options.map((option) => (
                   <label key={option.label} className={`flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors ${selected.includes(option.label) ? 'border-secondary bg-secondary/5' : 'border-outline-variant hover:bg-surface-container-low'}`}>
-                    <input type={question.multiSelect ? 'checkbox' : 'radio'} name={`question-${questionIndex}`} checked={selected.includes(option.label)} onChange={() => toggle(question, questionIndex, option.label)} className="mt-1 accent-[#9c4326]" />
+                    <input type={question.multiSelect ? 'checkbox' : 'radio'} name={`question-${questionIndex}`} checked={selected.includes(option.label)} onChange={() => toggle(question, questionIndex, option.label)} className="mt-1 accent-secondary" />
                     <span><span className="block text-[13px] font-medium text-primary">{option.label}</span><span className="block text-[11px] text-on-surface-variant">{option.description}</span></span>
                   </label>
                 ))}

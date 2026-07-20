@@ -43,7 +43,7 @@ export function WorkspaceTabBar() {
               key={tab.id}
               type="button"
               onClick={() => activate(tab.id)}
-              className={`group relative flex h-10 max-w-[230px] min-w-[132px] items-center gap-2 border-r border-black/[0.07] px-3 text-[12px] transition ${active ? 'bg-white text-[#242424]' : 'bg-[#f5f5f5] text-[#777] hover:bg-[#fafafa]'}`}
+              className={`group relative flex h-10 max-w-[230px] min-w-[132px] items-center gap-2 border-r border-outline-variant/60 px-3 text-[12px] transition ${active ? 'bg-surface text-on-surface' : 'bg-toolbar text-on-surface-variant hover:bg-surface-container-low'}`}
               title={threadTitle ?? tab.title}
             >
               <span className="material-symbols-outlined shrink-0 text-[15px]">{SURFACE_ICONS[tab.surface] ?? 'draft'}</span>
@@ -53,10 +53,10 @@ export function WorkspaceTabBar() {
                 tabIndex={0}
                 onClick={(event) => { event.stopPropagation(); close(tab.id); }}
                 onKeyDown={(event) => { if (event.key === 'Enter') close(tab.id); }}
-                className="material-symbols-outlined flex h-5 w-5 shrink-0 items-center justify-center rounded text-[14px] opacity-0 hover:bg-black/[0.06] group-hover:opacity-100"
+                className="material-symbols-outlined flex h-5 w-5 shrink-0 items-center justify-center rounded text-[14px] opacity-0 hover:bg-interactive-hover group-hover:opacity-100"
                 aria-label={`Đóng ${threadTitle ?? tab.title}`}
               >close</span>
-              {active && <span className="absolute inset-x-0 bottom-0 h-[2px] bg-[#202020]" />}
+              {active && <span className="absolute inset-x-0 bottom-0 h-[2px] bg-primary" />}
             </button>
           );
         })}
@@ -65,18 +65,18 @@ export function WorkspaceTabBar() {
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
-          className="flex h-10 w-10 items-center justify-center text-[#777] hover:bg-black/[0.04] hover:text-[#222]"
+          className="flex h-10 w-10 items-center justify-center text-on-surface-variant hover:bg-interactive-hover hover:text-on-surface"
           title="Thêm tab"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
         </button>
         {menuOpen && (
-          <div className="absolute left-0 top-[42px] z-50 w-[245px] rounded-xl border border-black/10 bg-white p-1.5 shadow-[0_12px_38px_rgba(0,0,0,0.16)]">
+          <div className="absolute left-0 top-[42px] z-50 w-[245px] rounded-xl border border-outline-variant/60 bg-surface p-1.5 shadow-[0_12px_38px_var(--theme-shadow)]">
             {WORKSPACE_LAUNCH_OPTIONS.slice(1).map((option) => (
-              <button key={option.action} type="button" onClick={() => open(option.action)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-[#f3f3f3]">
-                <span className="material-symbols-outlined text-[16px] text-[#666]">{option.icon}</span>
-                <span className="flex-1 text-[12px] text-[#303030]">{option.label}</span>
-                {option.shortcut && <kbd className="text-[10px] text-[#aaa]">{option.shortcut}</kbd>}
+              <button key={option.action} type="button" onClick={() => open(option.action)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-surface-container">
+                <span className="material-symbols-outlined text-[16px] text-on-surface-variant">{option.icon}</span>
+                <span className="flex-1 text-[12px] text-on-surface">{option.label}</span>
+                {option.shortcut && <kbd className="text-[10px] text-on-surface-variant">{option.shortcut}</kbd>}
               </button>
             ))}
           </div>

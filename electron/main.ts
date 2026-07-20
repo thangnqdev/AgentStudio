@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, nativeTheme } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,6 +43,10 @@ import { HttpProviderModelCatalog } from './infrastructure/providers/HttpProvide
 import { ManageProviderSettings } from './application/usecases/ManageProviderSettings.js';
 import { randomUUID } from 'node:crypto';
 import { backgroundCommandNotifier } from './backgroundCommandRuntime.js';
+import { registerThemeIpc } from './ipc/registerThemeIpc.js';
+import { ManageThemePreference } from './application/usecases/ManageThemePreference.js';
+import { resolveThemePreference } from './application/services/themePreference.js';
+import type { ResolvedTheme, ThemePreference } from './domain/entities/theme.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
@@ -52,14 +56,16 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.
 
 let win: BrowserWindow | null = null;
 let appUpdate: ManageAppUpdate | null = null;
+let windowTheme: ResolvedTheme = 'light';
 const splashWindow = new SplashWindow(() => win);
+const themePreference = new ManageThemePreference(settingsRepo);
 const providerSettings = new ManageProviderSettings(
   settingsRepo,
   new HttpProviderModelCatalog(),
   { createId: randomUUID, defaultWorkspacePath: () => process.cwd() },
 );
 
-function createWindow() {
+function createWindow(theme: ResolvedTheme) {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC || '', 'favicon.svg'),
     webPreferences: {
@@ -76,7 +82,7 @@ function createWindow() {
     minHeight: 600,
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 16 },
-    backgroundColor: '#fdf8f7',
+    backgroundColor: theme === 'dark' ? '#18181a' : '#ffffff',
     frame: process.platform !== 'darwin',
     show: false,
   });
@@ -118,6 +124,7 @@ function registerIpcHandlers() {
   registerManualCompactionIpc();
   if (appUpdate) registerUpdateIpc(() => win, appUpdate);
   registerStartupIpc(() => win, splashWindow, backgroundCommandNotifier);
+  registerThemeIpc(themePreference);
 }
 
 app.on('window-all-closed', () => {
@@ -132,13 +139,20 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    createWindow(windowTheme);
   }
 });
 
-app.whenReady().then(() => {
-  splashWindow.show();
-  createWindow();
+app.whenReady().then(async () => {
+  let preference: ThemePreference = 'system';
+  try {
+    preference = await themePreference.load();
+  } catch (error) {
+    console.error('Failed to load theme preference', error);
+  }
+  windowTheme = resolveThemePreference(preference, nativeTheme.shouldUseDarkColors);
+  splashWindow.show(windowTheme);
+  createWindow(windowTheme);
   appUpdate = new ManageAppUpdate(new ElectronAutoUpdater());
   registerIpcHandlers();
   void workspaceManager.getWorkspaceRoot().then((workspaceRoot) => mcpServerManager.startAuto(workspaceRoot));

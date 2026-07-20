@@ -23,6 +23,7 @@ describe('buildAgentProviderSettings', () => {
       fallbackModelId: 'fallback',
       permissionMode: 'workspace-write',
       workspacePath: '/workspace',
+      themePreference: 'system',
     };
 
     const result = buildAgentProviderSettings({

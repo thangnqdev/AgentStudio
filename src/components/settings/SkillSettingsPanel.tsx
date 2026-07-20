@@ -30,7 +30,7 @@ export function SkillSettingsPanel() {
               </label>
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-outline-variant pt-3">
-              <span className={`text-[12px] ${skill.trusted ? 'text-[#2e7d32]' : 'text-error'}`}>
+              <span className={`text-[12px] ${skill.trusted ? 'text-success' : 'text-error'}`}>
                 {skill.trusted ? 'Đã tin cậy — instructions có thể vào system prompt.' : 'Chưa tin cậy — không được load.'}
               </span>
               <button onClick={() => void setTrusted(skill.id, !skill.trusted)} className="px-3 py-1 rounded border border-outline-variant text-[12px] hover:bg-surface-container">

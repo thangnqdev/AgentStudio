@@ -20,17 +20,17 @@ export function UtilityDockLauncher(props: {
   if (!props.open) return null;
 
   return (
-    <div ref={menuRef} className="absolute right-2 top-10 z-50 w-[280px] rounded-xl border border-black/10 bg-white p-1.5 shadow-[0_14px_42px_rgba(0,0,0,0.18)]">
-      <p className="px-2.5 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-[#999]">Mở trong cánh phải</p>
+    <div ref={menuRef} className="absolute right-2 top-10 z-50 w-[280px] rounded-xl border border-outline-variant/60 bg-surface p-1.5 shadow-[0_14px_42px_var(--theme-shadow)]">
+      <p className="px-2.5 pb-1.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">Mở trong cánh phải</p>
       {UTILITY_DOCK_OPTIONS.map((option) => (
         <button key={option.surface} type="button" onClick={() => {
           props.onClose();
           if (option.surface === 'activity') props.onOpenActivity();
           else props.onOpenTool(option.surface);
-        }} className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-[#f3f3f3]">
-          <span className="material-symbols-outlined text-[17px] text-[#666]">{option.icon}</span>
-          <span className="min-w-0 flex-1"><span className="block text-[12px] text-[#303030]">{option.label}</span><span className="block truncate text-[10px] text-[#999]">{option.description}</span></span>
-          {option.shortcut && <kbd className="text-[10px] text-[#aaa]">{option.shortcut}</kbd>}
+        }} className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-surface-container">
+          <span className="material-symbols-outlined text-[17px] text-on-surface-variant">{option.icon}</span>
+          <span className="min-w-0 flex-1"><span className="block text-[12px] text-on-surface">{option.label}</span><span className="block truncate text-[10px] text-on-surface-variant">{option.description}</span></span>
+          {option.shortcut && <kbd className="text-[10px] text-on-surface-variant">{option.shortcut}</kbd>}
         </button>
       ))}
     </div>

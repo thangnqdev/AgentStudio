@@ -13,7 +13,7 @@ export function WorkerActivityTimeline({ actions }: { actions: AgentAction[] }) 
       <div className="space-y-1">
         {actions.slice(-5).reverse().map((action) => (
           <div key={action.id} className="flex items-center gap-2 text-[10px]">
-            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${action.status === 'ok' ? 'bg-[#388e3c]' : action.status === 'running' ? 'animate-pulse bg-secondary' : action.status === 'awaiting_approval' ? 'bg-[#ed6c02]' : 'bg-error'}`} />
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${action.status === 'ok' ? 'bg-success' : action.status === 'running' ? 'animate-pulse bg-secondary' : action.status === 'awaiting_approval' ? 'bg-warning' : 'bg-error'}`} />
             <span className="shrink-0 text-primary" title={action.toolName}>{toolActivityLabel(action.toolName)}</span>
             <span className="shrink-0 text-on-surface-variant">{STATUS[action.status]}</span>
             <span className="min-w-0 flex-1 truncate text-on-surface-variant/70" title={action.output || action.args}>{action.output || action.args}</span>

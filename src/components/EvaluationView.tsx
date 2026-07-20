@@ -46,7 +46,7 @@ function ReportCard({ report, onExport }: { report: AgentEvaluationReport; onExp
       <div className="flex justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <span className={`${report.passed ? 'bg-[#2e7d32]' : 'bg-error'} text-white text-[10px] uppercase rounded px-2 py-0.5`}>
+            <span className={`${report.passed ? 'bg-success text-on-success' : 'bg-error text-on-error'} text-[10px] uppercase rounded px-2 py-0.5`}>
               {report.passed ? 'passed' : 'failed'}
             </span>
             <strong className="text-[16px]">{(report.aggregateScore * 100).toFixed(1)}%</strong>

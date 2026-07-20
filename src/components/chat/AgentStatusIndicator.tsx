@@ -3,9 +3,9 @@ import { agentStatusLabel } from '../../application/services/agentDisplay';
 
 const STATUS_META: Record<AgentControlStatus, { label: string; dot: string; chip: string }> = {
   active: { label: agentStatusLabel('active'), dot: 'animate-pulse bg-secondary', chip: 'bg-secondary/10 text-secondary' },
-  idle: { label: 'Sẵn sàng', dot: 'bg-[#388e3c]', chip: 'bg-[#388e3c]/10 text-[#2e7d32]' },
-  paused: { label: 'Tạm dừng', dot: 'bg-[#ed6c02]', chip: 'bg-[#ed6c02]/10 text-[#a64600]' },
-  completed: { label: 'Hoàn tất', dot: 'bg-[#388e3c]', chip: 'bg-[#388e3c]/10 text-[#2e7d32]' },
+  idle: { label: 'Sẵn sàng', dot: 'bg-success', chip: 'bg-success/10 text-success' },
+  paused: { label: 'Tạm dừng', dot: 'bg-warning', chip: 'bg-warning/10 text-warning' },
+  completed: { label: 'Hoàn tất', dot: 'bg-success', chip: 'bg-success/10 text-success' },
   failed: { label: 'Gặp lỗi', dot: 'bg-error', chip: 'bg-error/10 text-error' },
   killed: { label: 'Đã dừng', dot: 'bg-outline', chip: 'bg-surface-container-high text-on-surface-variant' },
 };
