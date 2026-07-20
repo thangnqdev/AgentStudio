@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatThread } from '../../domain/entities/chatThread';
 import type { Message } from '../../domain/entities/message';
-import { syncActiveThread } from './chatThreadState';
+import { findRetryUserMessage, syncActiveThread } from './chatThreadState';
 
 const NOW = new Date('2026-07-14T10:00:00.000Z');
 
@@ -69,5 +69,24 @@ describe('syncActiveThread', () => {
     );
     expect(result.activeTask).toBe('Release investigation');
     expect(result.threads[0]).toMatchObject({ title: 'Release investigation', customTitle: true });
+  });
+});
+
+describe('findRetryUserMessage', () => {
+  it('finds the user request immediately preceding a failed agent response', () => {
+    const user = message('Sửa giao diện tool');
+    const messages: Message[] = [
+      user,
+      { id: 'system-1', sender: 'system', content: 'Đang xử lý', timestamp: NOW },
+      { id: 'agent-1', sender: 'agent', content: 'Lỗi', timestamp: NOW, status: 'error' },
+    ];
+
+    expect(findRetryUserMessage(messages, 'agent-1')).toBe(user);
+  });
+
+  it('does not retry an unknown or non-agent message', () => {
+    const messages = [message('Không chạy lại')];
+    expect(findRetryUserMessage(messages, 'message-1')).toBeNull();
+    expect(findRetryUserMessage(messages, 'missing')).toBeNull();
   });
 });

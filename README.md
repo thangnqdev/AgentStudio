@@ -1,384 +1,71 @@
-# AgentStudio — Architect AI
+# AgentStudio
 
-Reference-client implementation status and the ordered remaining roadmap are tracked in [`docs/reference-client-parity.md`](docs/reference-client-parity.md).
+AgentStudio là ứng dụng desktop giúp người dùng giao việc cho AI agent trong một dự án mã nguồn mà không phải thao tác trực tiếp với terminal hay API. Ứng dụng tập trung vào trải nghiệm dễ hiểu, kiểm soát quyền rõ ràng và khả năng theo dõi những gì agent đang thực hiện.
 
-An **Electron + React + TypeScript** desktop application for AI-powered coding agent sessions.
+## AgentStudio làm được gì?
 
-## Tech Stack
+- Kết nối các nhà cung cấp tương thích OpenAI API, chọn model chính và model dự phòng.
+- Trao đổi với agent theo từng tác vụ, lưu lịch sử cục bộ và tiếp tục phiên bị gián đoạn.
+- Cho phép agent đọc, tìm kiếm, chỉnh sửa tệp, chạy lệnh và nghiên cứu web trong phạm vi được cấp.
+- Hiển thị tiến độ tool bằng ngôn ngữ dễ hiểu; yêu cầu xác nhận riêng cho hành động nhạy cảm.
+- Phân công agent hỗ trợ, quản lý nhóm agent, đầu việc, mailbox và tiến độ song song.
+- Quản lý cơ sở tri thức, MCP server, skill, workflow, đánh giá, trace và tối ưu an toàn.
+- Duyệt tệp, mở terminal và theo dõi hoạt động ngay trong workspace của ứng dụng.
 
-| Layer | Technology |
-|---|---|
-| Desktop shell | Electron 43 |
-| UI Framework | React 19 + TypeScript 6 |
-| Build tool | Vite 8 + vite-plugin-electron |
-| Styling | TailwindCSS v4 |
-| State management | Zustand 5 |
-| Icons | Material Symbols Outlined |
-| Fonts | Inter, JetBrains Mono, Newsreader |
-| Linting | Oxlint |
+AgentStudio hiện phát hành chính thức cho Windows. Các giới hạn tương thích và phần chưa hoàn thiện được ghi rõ trong [bảng đối chiếu tính năng](docs/reference-client-parity.md).
 
-## Getting Started
+## Bắt đầu nhanh
+
+Yêu cầu môi trường phát triển:
+
+- Node.js 22
+- npm
+- Windows 10/11 để đóng gói và kiểm tra bản cài chính thức
 
 ```bash
-# Install dependencies
 npm install
-
-# Start in development mode (Electron + Vite HMR)
 npm run dev
-
-# Build for production
-npm run build
-
-# Lint
-npm run lint
-
-# Unit tests
-npm test
 ```
 
-## Phát hành & tự cập nhật
-
-Bản cài Windows dùng NSIS và kiểm tra bản phát hành mới trên GitHub Releases. Khi có bản mới,
-người dùng đã cài app sẽ thấy nút **Cập nhật**, tự chọn tải xuống, rồi bấm **Cài & khởi động lại**.
-
-Để phát hành một bản mới:
+Các lệnh kiểm tra thường dùng:
 
 ```bash
-# 1. Tăng version (bắt buộc: updater chỉ nhận version cao hơn)
-npm version patch
-
-# 2. Đẩy commit và tag v* lên GitHub
-git push origin master --follow-tags
+npm run lint
+npm test
+npm run build
 ```
 
-Workflow `.github/workflows/release.yml` sẽ build Windows installer, tạo GitHub Release và tải
-lên file cài đặt cùng `latest.yml`. Có thể tạo bản phát hành cục bộ với `npm run release` khi
-đã đặt biến môi trường `GH_TOKEN`. Release repository phải công khai; nếu dùng repository riêng,
-người dùng cuối không thể nhận update mà không có cơ chế xác thực riêng.
+Sau khi mở ứng dụng, vào **Cài đặt** để:
 
-## Knowledge Indexing
+1. Thêm provider, Base URL và API key.
+2. Nhập model thủ công hoặc chọn **Lưu & quét model**.
+3. Chọn workspace và chế độ quyền phù hợp.
+4. Tạo một tác vụ mới rồi mô tả kết quả bạn muốn.
 
-- Knowledge sources can be added individually or synchronized from the current workspace for the running app session.
-- Workspace sync indexes supported text and code files, ignores dependency/build directories, and excludes `.env` and common key/certificate files.
-- TypeScript, TSX, JavaScript, and JSX sources are chunked by AST symbols; unsupported languages retain the text chunking fallback.
-- Documents persist their chunking version and embedding profile. Changing the embedding endpoint or model requires reindexing rather than mixing incompatible vectors.
+## Ba chế độ quyền
 
-### Vector Storage Gate
+| Chế độ | Phạm vi |
+|---|---|
+| Chỉ xem | Agent chỉ được đọc và phân tích. |
+| Chỉnh sửa trong dự án | Cho phép thay đổi trong workspace; hành động ghi/chạy lệnh có thể cần xác nhận. |
+| Toàn quyền dự án | Cho phép phạm vi rộng hơn và chạy lệnh không sandbox; chỉ dùng với dự án đáng tin cậy. |
 
-The current JSON store remains appropriate for small knowledge bases. Move to a vector database only after the evaluation corpus shows unacceptable retrieval latency or recall at the intended chunk count. The migration must retain SQLite-or-equivalent metadata, a benchmark suite, index-version migration, and Electron packaging tests; ANN alone is not a quality improvement.
+Quy tắc `deny` và `ask` của người dùng hoặc workspace vẫn có thể siết quyền thêm. Xem [mô hình bảo mật](docs/bao-mat.md) trước khi dùng chế độ toàn quyền.
 
-### Knowledge Evaluation Harness
+## Tài liệu
 
-- Generate reviewable, chunk-anchored candidate queries with `npm run eval:knowledge -- generate <knowledge-store.json> <dataset.json>`.
-- After reviewing `cases[].relevantChunkIds`, run the benchmark with `npm run eval:knowledge -- run <dataset.json> <report.json>`.
-- Reports include Recall@k, Precision@k, MRR, nDCG, per-case misses, and mean/p50/p95/p99 latency. Generated cases are candidates, not trusted ground truth until reviewed.
+- [Mục lục tài liệu](docs/README.md)
+- [Hướng dẫn sử dụng](docs/huong-dan-su-dung.md)
+- [Kiến trúc hệ thống](docs/kien-truc.md)
+- [Bảo mật và dữ liệu](docs/bao-mat.md)
+- [Phát triển và phát hành](docs/phat-trien-va-phat-hanh.md)
+- [Lịch sử thay đổi](CHANGELOG.md)
+- [Bảng đối chiếu tính năng và roadmap](docs/reference-client-parity.md)
 
-## Tool Platform
+## Công nghệ chính
 
-- Local tools are registered from one typed catalog, shared by the model schema and execution policy.
-- For OpenAI-compatible providers that stringify nested array/object arguments, AgentStudio performs one bounded schema-directed JSON decode and then applies the same strict validation; scalar strings are never coerced.
-- `glob` finds files recursively and `grep` returns bounded `path:line` evidence. Both skip dependency/build trees, do not follow symlinks, support cancellation, and remain subject to path-scoped permission rules.
-- `read_file` and the deferred `Read` alias return text slices, notebook cells, validated images, or rendered PDF pages. PDFs above 10 pages require an explicit range of at most 20 pages; page rendering uses `pdfinfo`/`pdftoppm` from Poppler with argument arrays, a filtered environment, temporary cleanup, and bounded aggregate output. Images/PDF pages are sent to the configured multimodal provider, so do not read unrelated private media.
-- Composer attachments are authorized only from a real local `File` selected or dropped by the user. Preload exchanges that selection for a one-hour opaque capability; main process pins the regular file's identity, size and modification time, rejects symlinks and changed/oversized files, and never trusts a renderer-declared path. Capabilities, local paths, preview URLs and attachment bytes are removed from persisted chat history as well as durable agent checkpoints. Both renderer projection and strict main validation enforce that boundary, so an expired attachment must be selected again instead of silently rereading a path after restart.
-- Read-only tools run automatically. In `workspace-write`, file writes and shell commands require explicit per-action approval and remain workspace-scoped/sandboxed. In `danger-full-access`, tools run automatically by default, commands are unsandboxed, and absolute file paths are allowed; explicit central `ask`/`deny` rules still take precedence.
-- Tool audit records persist locally as JSONL with a hashed workspace identifier. File contents and tool arguments are not written to that audit log.
-- `apply_patch` performs one exact, unambiguous replacement so edits do not need to resend a complete file.
-- Foreground and background command output is returned to the configured model provider. Do not run commands that print credentials or unrelated private data; the filtered child environment reduces accidental leakage but cannot sanitize files a permitted command deliberately reads.
-- Typing `/` in the composer opens a keyboard-navigable command palette. `/model` and `/permissions` open dedicated pickers backed by persisted settings; `/resume` (alias `/continue`) searches up to 100 paused/failed agent tasks in the current workspace by normalized title, error text or task ID and resumes the selected durable checkpoint. `/rename` opens a focused dialog and persists a custom title that later messages do not overwrite; `/context` renders estimated used/remaining model context as a bounded grid; `/status` summarizes the active app/provider/model/permission/workspace/Git state; `/hooks` lists sanitized metadata for the effective declarative hooks; `/compact` replaces older local history with a deterministic summary while retaining recent original messages. `/config`, `/agents`, `/mcp`, `/tasks`, `/knowledge`, `/traces`, `/capabilities`, `/clear`, and `/new` execute local UI/thread actions. `/plan` inserts an explicit Plan Mode request for review before sending.
-- Manual `/compact` is main-owned and provider-free. Renderer projection excludes attachment bytes, preview URLs and authorization capabilities; main validates unique message IDs under a 1,000-message/12-million-text-character boundary and refuses a result unless at least one old message is removed and the approximate context is smaller. An optional 2,000-character preservation note is retained verbatim in the bounded local-derived summary rather than triggering a model rewrite. The renderer applies only the returned summary plus keep-ID set, and only if the active thread and exact message-array snapshot are unchanged; the inserted summary is historical `agent` content, never a renderer-authored `system` message.
-- Manual compaction boundary: [`docs/adr/0021-bounded-manual-context-compaction.md`](docs/adr/0021-bounded-manual-context-compaction.md).
-- The deferred `Config` tool can read or update only the active model, fallback model, and default permission mode. Reads never expose provider URLs or credentials; every mutation is validated, persisted, blocked during Plan Mode, requires explicit local approval even in `danger-full-access`, and synchronizes the active agent runtime with the renderer.
+Electron 43, React 19, TypeScript 6, Vite 8, Tailwind CSS 4, Zustand 5 và Vitest 4.
 
-### Provider & Model Configuration
+## Trạng thái dự án
 
-- **Lưu provider** persists the connection and a newline/comma-separated manual model list without requiring a network request.
-- **Lưu & quét model** explicitly queries the provider catalog. A scan failure no longer prevents users from saving a manual provider configuration.
-- When the renderer is opened outside Electron or preload fails, the app shows a dedicated bridge diagnostic instead of reporting the issue as a provider/model error.
-- OpenAI-compatible streaming uses a bounded SSE decoder that accepts optional `data:` spacing, arbitrary transport chunks and an unterminated final frame. Content-array/cumulative deltas and fragmented or index-less tool calls are normalized under explicit content/tool-count/argument limits. Usage accepts standard `prompt_tokens_details.cached_tokens` plus compatible `cache_read_input_tokens`/`cache_creation_input_tokens`; normalized cache hit/write counts persist in model-call traces without recording prompts or responses.
-- Provider stream boundary: [`docs/adr/0020-bounded-openai-stream-normalization.md`](docs/adr/0020-bounded-openai-stream-normalization.md).
-
-### Permission Rules
-
-- Workspace rules live in `.agentstudio/permissions.json` and may only tighten policy with `ask` or `deny`.
-- User rules live under Electron `userData/permissions/rules.json` and may use `allow`, `ask`, or `deny`.
-- Precedence is `deny` → `ask` → `allow`; `deny` also overrides `danger-full-access`, while no rule can weaken `read-only`.
-- Rules require `effect` and `toolGlob`; optional constraints are `risk`, `pathGlob`, `domainGlob`, and `commandPrefix`. `domainGlob` matches the normalized hostname of tools with a URL argument. Globs support `*` and `?`.
-
-```json
-{
-  "rules": [
-    { "id": "deny-delete", "effect": "deny", "toolGlob": "run_command", "commandPrefix": "rm " },
-    { "id": "ask-secrets", "effect": "ask", "toolGlob": "read_file", "pathGlob": "config/*" },
-    { "id": "allow-docs-fetch", "effect": "allow", "toolGlob": "WebFetch", "domainGlob": "docs.example.com" }
-  ]
-}
-```
-
-### Agent Skills
-
-- Skills are discovered from app `userData/skills`, `~/.agents/skills`, `.agents/skills`, and `.agent/skills`.
-- A skill must have valid YAML-frontmatter `SKILL.md`, and must be explicitly trusted and enabled in Settings before its instructions can enter the agent prompt.
-- Skill `allowed-tools` metadata never bypasses the central tool policy. Skill scripts are not executed automatically.
-
-### Project Instructions
-
-- Every fresh or resumed session loads bounded workspace-root guidance from `AGENTS.md`, `CLAUDE.md`, `.claude/CLAUDE.md`, and `.claude/CLAUDE.local.md`.
-- Instruction files are read without following symlinks and enter both root-agent and read-only-subagent prompts with their source labels.
-- Project text is workspace-authored guidance: it cannot grant permissions, authorize data egress, reveal credentials, or override the central tool policy.
-
-### Declarative Lifecycle Hooks
-
-- Workspace hooks live in `.agentstudio/hooks.json`. AgentStudio executes `InstructionsLoaded`, `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `PermissionDenied`, renderer `Notification`, `TaskCreated`, `TaskCompleted`, `SubagentStart`, `SubagentStop`, `TeammateIdle`, `Elicitation`/`ElicitationResult`, `WorktreeCreate`, `WorktreeRemove`, worktree-root `CwdChanged`, `ConfigChange`, successful local `FileChanged`, `PreCompact`/`PostCompact`, `Stop`, `StopFailure`, and `SessionEnd`; unsupported lifecycle events such as CLI-only `Setup` are rejected instead of silently appearing active.
-- Hook actions are deliberately capability-free: `add_context`, `deny_tool`, `require_approval`, `block_task`, and `audit`. `block_task` is valid only for task lifecycle events and rolls back creation/completion. There is no hook action that grants a permission, executes a shell command, invokes a model, or sends an HTTP request.
-- `PreToolUse` restrictions are translated into workspace permission rules, so they also apply to read-only subagents. A malformed hook file fails closed before tool execution.
-- Instruction-load, permission, notification, subagent, teammate-idle, elicitation, worktree, cwd-change, config-change, file-change, compaction and session-stop/end events are audit-only. Tool/notification-kind/agent/teammate/interaction-kind/branch/setting/path matchers may select permission, notification, subagent, teammate, elicitation, worktree, cwd, config and file-change events, but these hooks cannot modify arguments, grant authority, change an approval decision, alter a completed mutation, stop a model response, or inject context. `Notification` currently fires only after a background-command completion toast is actually sent to an attached renderer, matches `background-command:<status>`, and keeps the workspace wrapper in main. `Elicitation`/`ElicitationResult` bracket only `AskUserQuestion`, match the constant `questions`, and never expose question or answer text to hook audit. `TeammateIdle` runs only after the authenticated team idle envelope has been delivered and matches the persisted teammate name. `CwdChanged` fires after a durable `EnterWorktree` switch and after `ExitWorktree` returns to the original root; one-off command working directories are not persistent session changes. `FileChanged` receives a workspace-relative path after a successful `Write`/`Edit`/`NotebookEdit`; shell/MCP/external mutations are not inferred. The same best-effort composite sink still notifies LSP even if hook dispatch fails. Compaction dispatch brackets successful conversation rebuilding in root and child-worker loops plus effective main-owned `/compact`; a child may request only the two bounded compaction event names while the parent supplies workspace/request/task identity. Hook failures do not change the model context.
-- Hook files are bounded, cannot be symlinks, and are read only from the current workspace. Applied hook identities and labels are written to a private JSONL audit file without hook context, tool arguments, output, or the raw workspace path.
-- The read-only `/hooks` panel exposes only normalized hook ID/event/matcher/action-type metadata. Context bodies, denial/approval reasons and audit labels remain in the main process.
-
-```json
-{
-  "version": 1,
-  "hooks": {
-    "SessionStart": [
-      {
-        "id": "project-checks",
-        "actions": [{ "type": "add_context", "content": "Run focused tests before the full gate." }]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "id": "review-shell",
-        "matcher": "run_*",
-        "actions": [
-          { "type": "require_approval", "reason": "Review every shell command." },
-          { "type": "audit", "label": "shell-review" }
-        ]
-      }
-    ],
-    "TaskCompleted": [
-      {
-        "id": "require-verification",
-        "matcher": "*release*",
-        "actions": [{ "type": "block_task", "reason": "Verify the release before closing this task." }]
-      }
-    ]
-  }
-}
-```
-
-- Architecture decision and security boundary: [`docs/adr/0008-declarative-lifecycle-hooks.md`](docs/adr/0008-declarative-lifecycle-hooks.md).
-
-### Declarative Plugins
-
-- AgentStudio discovers local plugin bundles from Electron `userData/plugins/*` and `.agentstudio/plugins/*`. Each bundle uses the familiar `.claude-plugin/plugin.json` manifest location.
-- Declarative hooks and stdio language servers are supported. LSP config may live in `.lsp.json` or `manifest.lspServers`; commands are spawned with argument arrays and a filtered environment. Repository LSP config is never executed unless its plugin's exact content hash is explicitly trusted and enabled.
-- A plugin receives a content-bound identity derived from its root, manifest, hook files, and LSP files. It must be explicitly trusted and enabled in **Settings → Declarative Plugins**; changing any active source produces a new untrusted identity.
-- The catalog reports `skills`, `agents`, `commands`, and `mcpServers` declared by a manifest, but this phase activates only declarative hooks. Other components remain visible as unsupported instead of being executed through a side door.
-- Persisted Claude-style command, prompt-model, HTTP, and agent hooks are rejected. Existing skill, agent-profile, and MCP trust gates remain authoritative.
-
-```json
-{
-  "name": "strict-review-pack",
-  "version": "1.0.0",
-  "description": "Workspace review policy",
-  "hooks": "hooks/hooks.json"
-}
-```
-
-The external hook file may use `{ "hooks": { ... } }` or AgentStudio's versioned `{ "version": 1, "hooks": { ... } }` envelope.
-
-### Durable Agent Tasks
-
-- Running tasks checkpoint to an append-only JSONL journal. Restart recovery pauses interrupted tasks, a torn final record is repaired before the next append, and oversized journals compact atomically.
-- A paused or failed task can resume in place, or continue on an independent branch. A branch preserves the source context and conversation, records `parentTaskId` lineage, receives a fresh trace and step budget, and never mutates the source task.
-- Running tasks cannot be forked because their latest in-memory tool/model state may not yet be durable. Branch depth is bounded at 20.
-
-### Model-facing Task Supervisor
-
-- The model can use `task_create`, `task_get`, `task_list`, and `task_update` to track non-trivial work, ownership, status, metadata, and dependency edges. Dependency updates are atomic and two-way; self-dependencies and cycles are rejected.
-- Each task board is scoped to the chat-thread ID, with a durable agent-task fallback for non-UI callers. Follow-up turns in one chat share the board, while a new chat starts clean. Boards live in private Electron `userData` storage under hashed filenames and never create files in the workspace.
-- IDs increase monotonically even after deletion. Deleting a task removes every inbound and outbound dependency; `task_list` hides blockers that are already completed.
-- Task mutations do not touch the workspace and therefore do not require file-write approval. They are still serialized, strictly validated, size-bounded, lifecycle-hooked, and audited through the existing agent tool path.
-- Architecture decision: [`docs/adr/0009-model-facing-task-supervisor.md`](docs/adr/0009-model-facing-task-supervisor.md).
-
-### Background Command Supervisor
-
-- `run_command` accepts `run_in_background=true` and immediately returns a session-scoped task ID. The model can use `task_output` with blocking or polling semantics, and `task_stop` to terminate a running process tree.
-- Deferred reference aliases (`Bash`, `PowerShell`, `TaskOutput`, `TaskStop`, `AgentOutputTool`, `BashOutputTool`, and `KillShell`) share this supervisor. Alias names are normalized before permission and lifecycle-hook matching, so compatibility does not create a policy bypass.
-- `PowerShell` selects a real `pwsh`/Windows PowerShell executable. It currently requires `danger-full-access`; workspace-write fails closed because the POSIX sandbox profile cannot safely expose the complete PowerShell runtime.
-- Foreground and background commands use the same OS-specific sandbox specification and filtered environment. Starting/stopping remains execute risk; reading task output is read risk.
-- Output streams to private Electron `userData` storage instead of model memory or the workspace. Files are owner-only and no-follow opened, retrieval returns a bounded tail, and timeout/output limits terminate runaway commands with explicit status evidence.
-- Tasks survive follow-up turns and desktop-app restarts. Each command runs below a detached, bounded sidecar that atomically checkpoints status and heartbeat beside its private output. A new app process can recover `TaskOutput` and can stop the same process tree through a 256-bit file capability; it never authorizes termination from a persisted PID. Bounded historical tool results let the model reuse the exact task ID, which also means earlier command output can be sent to the configured provider again. A different chat cannot guess/read/stop tasks.
-- Normal app shutdown deliberately leaves these bounded sidecars running until command completion, explicit stop, the ten-minute timeout, or the 5GB output guard. State records include the command and description in owner-only Electron `userData`. Newly terminal commands are claimed once and injected as escaped, bounded, untrusted runtime context at the root model's next step or the next user turn; `TaskOutput` remains available for explicit retrieval. An open renderer also receives a separate one-shot toast with status/exit code and a shortcut to the owning chat, without exposing raw command output. AgentStudio does not wake a closed desktop process solely to show that toast.
-- Architecture decision and durability boundary: [`docs/adr/0010-background-command-supervisor.md`](docs/adr/0010-background-command-supervisor.md).
-
-### Structured Questions & Plan Mode
-
-- The root agent can call `AskUserQuestion` with one to four validated questions. Each question has two to four unique options, single- or multi-select behavior, an automatic **Other** answer, optional Markdown preview, and optional user notes.
-- `EnterPlanMode` asks for explicit consent before entering a read-only research phase. While active, the main-process permission policy blocks write, execute, and network mutations before the normal approval flow; local reads, task bookkeeping, structured questions, and web research remain available.
-- `ExitPlanMode` presents a concrete Markdown plan for approval. A rejection keeps Plan Mode active; approval first stores the plan under private Electron `userData` storage, then closes the mode and notifies the renderer from the authoritative main-process state.
-- Interactive requests are scoped to the active chat request, support cancellation, and wait up to ten minutes instead of inheriting the short tool timeout. Subagents do not receive these interactive tools.
-- Answers, selected previews, notes, and approved plan text become tool results and are therefore sent to the configured model provider. Do not include credentials or unrelated private data. Approved plans persist across app restarts, but an unapproved active Plan Mode session currently does not.
-- Architecture decision and security boundary: [`docs/adr/0011-structured-interaction-plan-mode.md`](docs/adr/0011-structured-interaction-plan-mode.md).
-
-### Managed Agent Worktrees
-
-- The root agent can call `EnterWorktree` only after an explicit user request. AgentStudio creates an application-owned Git worktree below private Electron `userData`, switches every local tool, command, hook, skill, task, subagent, permission check, and audit record to that root, and shows the active branch in the chat UI.
-- Worktree state is scoped to the chat and persisted across follow-up turns and app restarts. Restore verifies the checkout path, registered Git worktree, branch, and common repository directory before trusting it.
-- `ExitWorktree` with `keep` preserves the directory and branch. `remove` rejects uncommitted files, commits since entry, and unknown Git state unless the user explicitly confirms permanent loss and the model retries with `discard_changes=true`.
-- Git commands use argument arrays and a filtered environment. Models cannot choose an arbitrary output directory, and cleanup touches only an ownership-verified AgentStudio worktree.
-- Architecture decision and remaining optional parity gaps: [`docs/adr/0012-managed-agent-worktrees.md`](docs/adr/0012-managed-agent-worktrees.md).
-
-### Read-only Subagents
-
-- The root model can use `delegate_task` for bounded `explore`, `review`, or `plan` work. Delegation is classified as network risk and therefore follows the same central approval rules as every other tool.
-- Each subagent gets at most eight model steps, a 12,000-character task prompt, a 40,000-character final result, and only the local `list_files`, `read_file`, `glob`, `grep`, and `load_skill` tools.
-- Subagents always run in `read-only`, cannot delegate recursively, and cannot open an interactive approval prompt. A matching `ask` or `deny` rule blocks the child tool call rather than weakening policy.
-- Custom profiles are discovered from `userData/agents`, `~/.agents/agents`, `.agents/agents`, `.agent/agents`, and `.claude/agents`. Both user and workspace profiles require explicit trust and enablement in **Agent Profiles**.
-- Profile identity is bound to a content hash. Editing metadata or instructions creates a new untrusted identity, and a second hash check at load time closes the discover/load race.
-
-```md
----
-name: strict-reviewer
-description: Review correctness and cite file evidence
-tools: [list_files, read_file]
----
-Check assumptions, identify concrete failure modes, and clearly label uncertainty.
-```
-
-- Architecture decision and invariants: [`docs/adr/0007-bounded-subagents-and-profiles.md`](docs/adr/0007-bounded-subagents-and-profiles.md).
-
-### Addressable Agent Workers
-
-- The model can call the reference-compatible `Agent` tool with a stable ID/name, optional model/profile override, reduced permission mode, foreground or background lifecycle, `cwd`, and `isolation: "worktree"`.
-- Workers use the production agent loop and normal tool policy rather than the legacy read-only catalog. A child can read, edit, test, search, use MCP, manage tasks, and run commands only when its inherited permission mode allows those actions.
-- `SendMessage` queues instructions for the next tool-round boundary. Sending to a stopped worker resumes its persisted transcript in the background; sending to `*` broadcasts only within the current chat scope.
-- Worker transcripts, pending messages, and completion notifications persist in private hashed files below Electron `userData`. Interrupted workers recover as paused, never as falsely completed.
-- Background worker status and approvals use a long-lived renderer event path, so they remain visible after the parent chat stream finishes. Completion notifications re-enter the parent model at the next available tool boundary or follow-up turn.
-- A clean worker worktree is removed automatically. If the worker changed files or created commits, AgentStudio preserves the worktree and returns its path and branch.
-- Nested workers are bounded to three levels and must run synchronously. A child permission mode cannot exceed its parent.
-- Architecture decision and remaining team-runtime boundary: [`docs/adr/0013-addressable-agent-workers.md`](docs/adr/0013-addressable-agent-workers.md).
-
-### Persistent Agent Teams
-
-- `TeamCreate` creates one durable team and one shared task list for the active chat. `TeamDelete` succeeds only after every teammate is no longer running.
-- A named `Agent` joins the active team, always runs asynchronously, and receives a unique suffixed name when necessary. The roster is flat: teammates cannot spawn more named teammates.
-- Team `SendMessage` supports direct messages, sender-excluding broadcasts, task assignments, plan responses, and correlated graceful shutdown requests/responses.
-- Teammates share task ownership and dependency state. Starting an unowned task auto-claims it; assigning an owner persists a mailbox notification and wakes that teammate.
-- Private team files use hashed scope identities, atomic owner-only writes, and bounded validation. IPC exposes roster/count/summary metadata, never full mailbox content.
-- The chat UI restores and streams team roster state across turns and application restarts. Interrupted workers recover as idle/paused instead of being shown as active.
-- A collapsible multi-agent control center combines the team roster, standalone subagents, live status totals, pending approvals, current tools, results, errors, and preserved worktrees in one place. Selecting an agent opens its task and activity inspector, while the Activity and Mailbox tabs provide a newest-first coordination feed across the whole scope.
-- The control center prioritizes agents waiting for approval, supports allow/deny and stop actions through the existing typed application hooks, and adapts from a side-by-side desktop layout to a stacked narrow-window view.
-- Team messages use an authenticated private local socket/pipe protocol with durable claim/ACK/retry storage, correlated permission/sandbox/plan controls, and scoped replay-resistant credentials.
-- Production worker model/conversation loops run in filtered child processes. Bootstrap credentials use a private inherited FD; tools, approvals, hooks, audit, checkpoints and trace persistence remain in Electron main through bounded strict RPC, so a child cannot increase its inherited authority.
-- Architecture decision and remaining process boundary: [`docs/adr/0014-persistent-agent-team-runtime.md`](docs/adr/0014-persistent-agent-team-runtime.md).
-
-### Scheduled and Remote Triggers
-
-- Exact deferred `CronCreate`, `CronDelete`, and `CronList` tools support strict five-field local schedules, one-shot or recurring jobs, private durable lead schedules, teammate session schedules, bounded ownership, cross-process claim locking, and mailbox retry on failed delivery.
-- Durable jobs catch up when the relevant chat/worker scope is active again. AgentStudio does not install an OS service or wake a closed application.
-- Exact `RemoteTrigger` is absent until explicitly enabled in Settings. It calls only the configured HTTPS (or loopback HTTP) API, keeps the bearer token encrypted in the main process, redacts it if a hostile endpoint echoes it, rejects redirects, and bounds requests to 20 seconds and responses to 100,000 bytes.
-- Remote calls remain `network` risk and therefore still pass central permission, approval, hook, audit and tracing controls.
-- Architecture decision and security boundary: [`docs/adr/0016-scheduled-and-remote-trigger-boundary.md`](docs/adr/0016-scheduled-and-remote-trigger-boundary.md).
-
-### MCP Servers
-
-- MCP servers are added only through Settings; models, repository files, and skills cannot register or launch servers.
-- stdio servers use command/argument arrays without a shell and receive only the MCP SDK safe environment plus explicitly configured encrypted environment credentials.
-- Streamable HTTP requires HTTPS except on localhost. Static bearer tokens and OAuth 2 client-credentials authentication are supported; secrets use Electron `safeStorage` when available.
-- Server tool metadata and output are marked untrusted. Each server receives a local default risk classification, and all MCP calls pass through the same approval and audit pipeline as local tools.
-- Lifecycle controls include start, stop, auto-start, connection status, error reporting, pagination-aware tool discovery, request timeout, and shutdown cleanup.
-- A server in `needs-auth` state exposes an explicit **Xác thực** action in Settings. Main process starts the PKCE loopback flow, validates and opens only HTTPS/loopback authorization URLs, then the panel polls local status until the server reconnects.
-- A connected MCP server whose configured name normalizes to `ide` may send the reference-compatible `selection_changed` and `at_mentioned` notifications. AgentStudio snapshots the newest selection for each root request and consumes at-mentions once on the next request. Both accept only files inside the current workspace and apply normal `read_file` rules without an approval side channel. Selection text is escaped/capped at 2,000 characters; at-mentioned regular files are no-follow read with the shared 200 KB input bound, requested line range, per-item/aggregate context caps, and an untrusted-data label. Other MCP servers cannot inject IDE context.
-- IDE selection design and trust boundary: [`docs/adr/0019-mcp-ide-selection-context.md`](docs/adr/0019-mcp-ide-selection-context.md).
-
-### Deferred Tool Search
-
-- `ToolSearch` stays visible while complete schemas for MCP and selected specialized built-ins remain deferred, reducing repeated model context cost.
-- Exact `select:ToolName,OtherTool`, keyword, required-term, and MCP-prefix search return bounded full schemas. A selected tool becomes callable on the next model turn and still passes through normal permission, approval, hook, audit, trace, and workspace routing.
-- The underlying catalog is refreshed every model step, so MCP tools connected during a session are discoverable. Validated loaded-tool names are restored from durable root/worker transcripts after pause, restart, or local context compaction.
-- Architecture decision and invariants: [`docs/adr/0015-deferred-tool-search-runtime.md`](docs/adr/0015-deferred-tool-search-runtime.md).
-
-## Unified Observability
-
-- Every durable agent task owns one stable `traceId` that survives pause, failure recovery, and resume.
-- Typed spans cover model calls, tool calls, retrieval, approvals, checkpoints, and versioned evaluations. Tool and approval spans retain task/step/parent linkage without storing arguments or output.
-- OpenAI-compatible streaming requests ask for usage metadata and persist only bounded input/output/total/cached token counts. Providers that reject `stream_options` are retried once without it; arbitrary model prices are never guessed, so USD remains unknown until explicit pricing is configured.
-- Traces are append-only JSONL under Electron `userData/observability`; files use owner-only permissions where supported.
-- The **Quan sát agent** view lists local trajectories, displays sanitized span metadata, and exports a selected trace as JSONL.
-- Prompts, chat content, retrieval queries/results, tool arguments/output, API keys, credentials, workspace paths, and provider URLs are not part of the trace schema and are rejected by runtime validation.
-- Architecture decision and invariants: [`docs/adr/0001-unified-observability.md`](docs/adr/0001-unified-observability.md).
-
-## Agent-wide Evaluation
-
-- `npm run eval:agent -- [report.json]` runs a versioned deterministic runtime suite and exits non-zero when aggregate or dimension thresholds regress.
-- The suite uses a scripted local model without network/API cost, but runs the production session loop, permission/approval path, filesystem tools, checkpoints, tracing and lexical retrieval against isolated temporary workspaces. Observations are collected from runtime state and disk, not embedded as passing fixture results.
-- It grades task outcome, tool selection, code-change scope/assertions, policy violations, trajectory efficiency and knowledge retrieval in one report. This is a runtime contract regression, not a benchmark of live-model reasoning quality.
-- Retrieval evaluation reuses the existing Recall@k, reciprocal-rank and nDCG implementation rather than defining a second metric path.
-- Evaluators receive a deep-cloned, frozen fixture and have no task repository, tool executor or policy mutation capability. Every score includes fixture/evaluator provenance and semantic versions.
-- Reports persist as owner-only JSONL under Electron `userData/evaluations`; the **Đánh giá agent** view can run the golden suite and export a selected report.
-- New reports use schema v2 and persist the exact runtime optimizer snapshot plus a canonical digest. Legacy v1 reports remain readable but cannot authorize optimizer promotion.
-- Architecture decision and invariants: [`docs/adr/0002-agent-wide-evaluation.md`](docs/adr/0002-agent-wide-evaluation.md).
-
-## Workflow Runtime
-
-- Versioned DAG workflows support sequence, equality-based branch, bounded retry, durable approval and parallel read-only action nodes.
-- Each transition persists a `NodeCheckpoint`; paused approval runs resume from the same node and do not replay successful predecessors.
-- Parallel children are rejected unless every child is a uniquely owned `read` action. Cycles, unbounded retries, arbitrary expressions and parallel writes are rejected by domain validation.
-- The built-in **Local Agent Readiness** workflow checks workspace/provider/knowledge state, demonstrates parallel reads and pauses for explicit approval without changing tool permissions.
-- The **Workflows** view starts runs, displays node executions and submits approve/deny decisions through typed IPC.
-- Architecture decision and invariants: [`docs/adr/0003-workflow-runtime.md`](docs/adr/0003-workflow-runtime.md).
-
-## Capability Registry
-
-- Local tools, connected MCP tools, knowledge retrieval, trusted skills, web search and PTY terminal appear in one typed, read-only inventory.
-- Each snapshot reports availability, risk, explicit cost confidence, sample count, success rate, mean/p95 latency and categorized failures derived from sanitized traces.
-- The **Capabilities** view shows the inventory and advisory ranking. Recommendations contain no tool arguments, executor access or permission mutation; execution still passes through the existing central policy.
-- Unknown metrics and costs remain `null`/`unknown` instead of being treated as zero.
-- Architecture decision and invariants: [`docs/adr/0004-capability-registry.md`](docs/adr/0004-capability-registry.md).
-
-## Safe Optimizer
-
-- The active tuning snapshot is limited to retrieval top-K/weights, an allow-listed model, context budget, bounded workflow retry count, command timeout and skill-ranking weight.
-- Candidates are immutable snapshots tied to an active revision. **Evaluate** automatically runs the same versioned suite once with the active snapshot and once with the candidate snapshot.
-- The evaluator requires each report's exact config snapshot and canonical digest to match the expected baseline/candidate. Manually paired, legacy, stale, or mismatched reports cannot authorize promotion.
-- Promotion requires a strict measured improvement; ties, failed reports and stale candidates are rejected. Every promotion retains the previous full snapshot for rollback.
-- Runtime consumers read the active snapshot for retrieval, context compaction, model selection, workflow retry, command timeout and skill ranking. Optimizer state contains no permission, approval, credential, command or path fields.
-- Architecture decision and invariants: [`docs/adr/0005-safe-optimizer.md`](docs/adr/0005-safe-optimizer.md).
-
-## Signed Skill Learning
-
-- A succeeded sanitized trace can produce one candidate playbook from successful tool names/order only. Prompts, file content, arguments, outputs, paths and retrieved text are not available to the generator.
-- Every candidate includes versioned generated tests. The capability-free evaluator has no model, tool, network, filesystem or policy port and cannot mutate the candidate snapshot.
-- Evaluation does not imply approval. The **Skill Learning** view requires an explicit local-user approve/reject action before promotion becomes available.
-- Promotion writes only to Electron `userData/skills`, signs the exact versioned `SKILL.md` with an owner-only local key, and stores a signature manifest. The catalog rejects a tampered learned skill.
-- Promoted skills still enter the existing trust/enable workflow and never bypass central tool policy. Source files and production runtime code are never edited by learning.
-- Architecture decision and invariants: [`docs/adr/0006-signed-skill-learning.md`](docs/adr/0006-signed-skill-learning.md).
-
-## Project Structure
-
-```
-AgentStudio/
-├── electron/
-│   ├── domain/         # Entities and ports
-│   ├── application/    # Use-cases and orchestration
-│   ├── infrastructure/ # Filesystem, providers, tools, persistence
-│   ├── ipc/            # Thin validated controllers
-│   ├── main.ts         # Composition/bootstrap
-│   └── preload.ts      # Narrow context bridge
-├── src/
-│   ├── domain/         # Renderer-side entities and pure rules
-│   ├── application/    # Hooks and UI orchestration
-│   ├── infrastructure/ # Typed IPC adapters
-│   ├── components/     # React UI components
-│   ├── store/          # Zustand UI state slices
-│   ├── App.tsx
-│   └── index.css       # TailwindCSS v4 design tokens
-└── public/
-```
-
-## Architecture
-
-- **State**: Composed Zustand slices manage renderer UI state; durable tasks, settings, traces and policies remain in main-process repositories/use-cases.
-- **Routing**: Simple state-based view switching via `activeView` in the store (no external router needed).
-- **IPC**: Narrow APIs are exposed through `contextBridge`; renderer components call application hooks/adapters, and validated main-process controllers delegate to use-cases.
+AgentStudio đang được phát triển tích cực. Đây là công cụ có khả năng đọc tệp, gửi dữ liệu tới model provider và thực thi lệnh khi được cấp quyền; hãy dùng workspace thử nghiệm và sao lưu mã nguồn quan trọng trước khi trao quyền ghi hoặc toàn quyền.

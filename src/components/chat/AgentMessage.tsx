@@ -7,7 +7,7 @@ import { CodeBlock } from './CodeBlock';
 import { AgentMarkdown } from './AgentMarkdown';
 import { ToolProgressGroup } from './ToolProgressGroup';
 
-export function AgentMessage({ msg }: { msg: Message }) {
+export function AgentMessage({ msg, onRetry }: { msg: Message; onRetry?: () => void }) {
   const activeActions = useAppStore((s) => s.agentActions);
 
   if (!msg.content && msg.status === 'sending') return null;
@@ -21,7 +21,7 @@ export function AgentMessage({ msg }: { msg: Message }) {
       <div className="min-w-0 flex-1">
         {blocks.map((block, index) => {
           if (block.type === 'think') return <ThinkStep key={`think-${index}`} text={block.value} />;
-          if (block.type === 'tool-group') return <ToolProgressGroup key={`tools-${index}`} actions={block.actions} />;
+          if (block.type === 'tool-group') return <ToolProgressGroup key={`tools-${index}`} actions={block.actions} onRetry={onRetry} />;
           if (block.type === 'code') return <CodeBlock key={`code-${index}`} language={block.language} code={block.value} />;
           return <AgentMarkdown key={`text-${index}`} text={block.value} />;
         })}

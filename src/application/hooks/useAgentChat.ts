@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import type { Message } from '../../domain/entities/message';
 import { AgentBridge } from '../../infrastructure/ipc/agentStudioBridge';
+import { findRetryUserMessage } from '../services/chatThreadState';
 
 export function useAgentChat() {
   const addMessage = useAppStore((s) => s.addMessage);
@@ -122,6 +123,12 @@ export function useAgentChat() {
     startAgentResponse(messagesToSend);
   };
 
+  const retryAgentResponse = (agentMessageId: string) => {
+    const target = findRetryUserMessage(useAppStore.getState().messages, agentMessageId);
+    if (target) return startAgentResponse(replaceUserMessageAndTrim(target.id, target.content));
+    return Promise.resolve();
+  };
+
   const resumeAgentTask = (taskId: string) => startAgentResponse([], taskId);
 
   const forkAgentTask = async (taskId: string) => {
@@ -134,6 +141,7 @@ export function useAgentChat() {
     startAgentResponse,
     stopAgentResponse,
     handleRegenerate,
+    retryAgentResponse,
     resumeAgentTask,
     forkAgentTask,
   };

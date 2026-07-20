@@ -20,7 +20,7 @@ export function ChatArea() {
   const isAgentTyping = useAppStore((s) => s.isAgentTyping);
   const resumableTask = useAppStore((s) => s.resumableTask);
   const pendingInteraction = useAppStore((s) => s.pendingInteraction);
-  const { forkAgentTask, handleRegenerate, resumeAgentTask } = useAgentChat();
+  const { forkAgentTask, handleRegenerate, resumeAgentTask, retryAgentResponse } = useAgentChat();
 
   const [isDragging, setIsDragging] = useState(false);
   const [isForking, setIsForking] = useState(false);
@@ -106,7 +106,7 @@ export function ChatArea() {
                 </MessageErrorBoundary>
               ) : msg.sender === 'agent' ? (
                 <MessageErrorBoundary key={msg.id}>
-                  <AgentMessage msg={msg} />
+                  <AgentMessage msg={msg} onRetry={() => void retryAgentResponse(msg.id)} />
                 </MessageErrorBoundary>
               ) : (
                 <MessageErrorBoundary key={msg.id}>

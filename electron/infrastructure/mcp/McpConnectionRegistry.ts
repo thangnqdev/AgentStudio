@@ -37,7 +37,7 @@ export class McpConnectionRegistry implements McpConnectionSource, IMcpAuthServe
     this.states.set(config.id, { state: 'starting' });
     let client: Client | undefined;
     try {
-      client = new Client({ name: 'agent-studio', version: '0.1.3' }, {
+      client = new Client({ name: 'agent-studio', version: '0.6.0' }, {
         capabilities: {},
         listChanged: { resources: {
           onChanged: (error, resources) => {

@@ -44,3 +44,13 @@ export function syncActiveThread(
     activeTask: title,
   };
 }
+
+export function findRetryUserMessage(messages: Message[], agentMessageId: string): Message | null {
+  const agentIndex = messages.findIndex((message) => message.id === agentMessageId && message.sender === 'agent');
+  if (agentIndex < 0) return null;
+  for (let index = agentIndex - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.sender === 'user') return message;
+  }
+  return null;
+}

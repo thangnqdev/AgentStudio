@@ -150,6 +150,10 @@
     color: #777;
   }
   .dock-icon-button:hover { background: rgba(0, 0, 0, 0.05); color: #222; }
+  .tool-status-pulse {
+    animation: tool-status-pulse 1.4s ease-in-out infinite;
+    transform-origin: center;
+  }
   
   ::-webkit-scrollbar {
     width: 6px;
@@ -165,4 +169,13 @@
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(0,0,0,0.2);
   }
+}
+
+@keyframes tool-status-pulse {
+  0%, 100% { opacity: 0.42; transform: scale(0.82); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-status-pulse { animation: none; }
 }
