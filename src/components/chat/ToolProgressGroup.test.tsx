@@ -4,17 +4,17 @@ import type { AgentAction } from '../../domain/entities/message';
 import { ToolProgressGroup } from './ToolProgressGroup';
 
 describe('ToolProgressGroup', () => {
-  it('renders a running tool as compact live text without the details frame', () => {
+  it('renders a running tool as a compact single line', () => {
     const html = renderToStaticMarkup(<ToolProgressGroup actions={[action('ToolSearch', 'running')]} />);
 
     expect(html).toContain('Đang tìm công cụ phù hợp…');
     expect(html).toContain('tool-status-pulse');
     expect(html).toContain('aria-live="polite"');
-    expect(html).toContain('Chi tiết');
+    expect(html).not.toContain('Chi tiết');
     expect(html).not.toContain('raw-running-args');
   });
 
-  it('renders a completed tool as compact success text with hidden details', () => {
+  it('renders a completed tool as a compact single success line', () => {
     const html = renderToStaticMarkup(<ToolProgressGroup actions={[action('ToolSearch', 'ok')]} />);
 
     expect(html).toContain('Đã tìm thấy công cụ phù hợp');
@@ -22,15 +22,13 @@ describe('ToolProgressGroup', () => {
     expect(html).not.toContain('raw-running-args');
   });
 
-  it('keeps approval actions in an attention card with technical details collapsed', () => {
+  it('keeps approval actions in an attention card with technical details hidden by default', () => {
     const html = renderToStaticMarkup(<ToolProgressGroup actions={[action('run_command', 'awaiting_approval')]} />);
 
     expect(html).toContain('1 bước cần bạn cho phép');
     expect(html).toContain('Cho phép');
     expect(html).toContain('Từ chối');
-    expect(html).toContain('<details');
-    expect(html).not.toContain('<details open');
-    expect(html).toContain('Chi tiết kỹ thuật');
+    expect(html).not.toContain('Chi tiết kỹ thuật');
   });
 
   it('keeps errors in an attention card and offers a real retry action', () => {

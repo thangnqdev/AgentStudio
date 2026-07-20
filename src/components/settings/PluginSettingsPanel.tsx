@@ -3,7 +3,7 @@ import { usePlugins } from '../../application/hooks/usePlugins';
 export function PluginSettingsPanel() {
   const { plugins, loading, error, refresh, setEnabled, setTrusted } = usePlugins();
   return (
-    <section className="border-t border-outline-variant pt-8">
+    <section>
       <div className="flex items-center justify-between mb-2">
         <h3 className="font-ui-label-bold text-[16px] text-primary">Declarative Plugins</h3>
         <button onClick={() => void refresh()} className="text-[13px] text-secondary hover:underline">Quét lại</button>

@@ -25,7 +25,7 @@ export function WebSearchSettings() {
   };
 
   return (
-    <section className="border-t border-outline-variant pt-8">
+    <section>
       <div className="mb-4">
         <h3 className="font-ui-label-bold text-[16px] text-primary">Web Search Connector</h3>
         <p className="mt-1 text-[13px] leading-5 text-on-surface-variant">

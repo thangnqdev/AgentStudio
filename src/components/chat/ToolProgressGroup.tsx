@@ -30,19 +30,16 @@ export function ToolProgressGroup({ actions, onRetry }: ToolProgressGroupProps) 
   }
 
   return (
-    <section className="my-2" aria-label={summary.title}>
+    <section className="my-1" aria-label={summary.title}>
       <button
         type="button" aria-expanded={open} aria-controls={detailsId} onClick={toggle}
-        className="group flex min-h-9 w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-on-surface-variant transition-colors hover:bg-surface-container-low focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
+        className="group flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-on-surface-variant transition-colors hover:bg-surface-container-low focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
       >
         <ToolStatusIndicator tone={summary.tone} />
         <span className="shrink-0 text-[12px] font-medium text-on-surface" role="status" aria-live="polite" aria-atomic="true">{summary.title}</span>
-        {summary.preview && <span className="min-w-0 flex-1 truncate text-[12px] text-on-surface-variant" title={summary.preview}>{summary.preview}</span>}
-        <span className="ml-auto shrink-0 text-[11px] font-medium text-on-surface-variant group-hover:text-on-surface">{open ? 'Ẩn chi tiết' : 'Chi tiết'}</span>
-        <span className="material-symbols-outlined text-[15px] text-on-surface-variant/70" aria-hidden="true">{open ? 'expand_less' : 'expand_more'}</span>
       </button>
       {open && (
-        <div id={detailsId} className="mt-1 overflow-hidden rounded-lg border border-outline-variant/50 bg-surface-container-low/60">
+        <div id={detailsId} className="mt-0.5">
           <ToolDetailsList actions={actions} onApproval={respondToApproval} />
         </div>
       )}
@@ -98,24 +95,31 @@ function ToolProgressItem(props: {
   const { action } = props;
   const hint = toolActionHint(action);
   const technicalDetails = formatTechnicalDetails(action);
+  const [expanded, setExpanded] = useState(false);
+  const hasTechnicalDetails = Boolean(technicalDetails);
+
   return (
-    <li className="border-b border-outline-variant/30 px-1.5 py-2 last:border-0">
-      <div className="flex min-h-7 items-center gap-2">
+    <li className="border-b border-outline-variant/30 last:border-0">
+      <button
+        type="button"
+        disabled={!hasTechnicalDetails}
+        onClick={() => hasTechnicalDetails && setExpanded((v) => !v)}
+        className={`flex min-h-7 w-full items-center gap-2 px-1.5 py-2 text-left ${
+          hasTechnicalDetails ? 'cursor-pointer hover:bg-surface-container-low/60 rounded-md' : 'cursor-default'
+        }`}
+      >
         <ActionStatusDot status={action.status} />
         <span className="shrink-0 text-[12px] font-medium text-on-surface">{toolActionLabel(action)}</span>
         {hint && <span className="min-w-0 flex-1 truncate text-[12px] text-on-surface-variant" title={hint}>{hint}</span>}
         <span className="ml-auto shrink-0 text-[11px] text-on-surface-variant">{STATUS_LABELS[action.status]}</span>
-      </div>
-      {action.status === 'error' && <p className="mt-1 pl-3.5 text-[12px] text-error">Không thể hoàn tất bước này.</p>}
-      {action.status === 'denied' && <p className="mt-1 pl-3.5 text-[12px] text-on-surface-variant">Bạn đã từ chối bước này.</p>}
-      {technicalDetails && (
-        <details className="mt-1 pl-3.5">
-          <summary className="w-fit cursor-pointer text-[11px] font-medium text-on-surface-variant hover:text-on-surface">Chi tiết kỹ thuật</summary>
-          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-surface-container px-3 py-2 font-code-base text-[11px] leading-5 text-on-surface-variant">{technicalDetails}</pre>
-        </details>
+      </button>
+      {action.status === 'error' && <p className="mt-1 px-1.5 pb-2 text-[12px] text-error">Không thể hoàn tất bước này.</p>}
+      {action.status === 'denied' && <p className="mt-1 px-1.5 pb-2 text-[12px] text-on-surface-variant">Bạn đã từ chối bước này.</p>}
+      {expanded && technicalDetails && (
+        <pre className="mx-1.5 mb-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-surface-container px-3 py-2 font-code-base text-[11px] leading-5 text-on-surface-variant">{technicalDetails}</pre>
       )}
       {action.status === 'awaiting_approval' && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 pl-3.5">
+        <div className="mb-2 flex flex-wrap items-center gap-2 px-1.5">
           <button type="button" onClick={() => props.onApproval(action, true)} className="min-h-8 rounded-lg bg-primary px-3 py-1.5 text-[12px] font-medium text-on-primary">Cho phép</button>
           {isWebFetch(action) && <button type="button" onClick={() => props.onApproval(action, true, true)} className="min-h-8 rounded-lg border border-primary/30 px-3 py-1.5 text-[12px] text-primary">Luôn cho phép miền</button>}
           <button type="button" onClick={() => props.onApproval(action, false)} className="min-h-8 rounded-lg border border-outline-variant px-3 py-1.5 text-[12px] text-primary">Từ chối</button>

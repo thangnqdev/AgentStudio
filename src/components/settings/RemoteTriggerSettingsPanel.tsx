@@ -24,7 +24,7 @@ export function RemoteTriggerSettingsPanel() {
   };
 
   return (
-    <section className="border-t border-outline-variant pt-8">
+    <section>
       <h3 className="font-ui-label-bold text-[16px] text-primary">Remote Trigger</h3>
       <p className="mt-1 text-[13px] leading-5 text-on-surface-variant">
         Tắt theo mặc định. Khi bật, agent có thể quản lý trigger qua API đã cấu hình; token được giữ trong main process và không đi vào model hay shell.

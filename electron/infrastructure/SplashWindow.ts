@@ -8,7 +8,7 @@ const splashPage = `<!doctype html>
     <meta charset="utf-8" />
     <style>
       * { box-sizing: border-box; }
-      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
       
       body {
         margin: 0;
@@ -17,158 +17,95 @@ const splashPage = `<!doctype html>
         display: flex;
         justify-content: center;
         align-items: center;
-        color: #ffffff;
-        font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background-color: transparent;
+        color: #242424;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background-color: #ffffff;
         position: relative;
-        border-radius: 16px;
+        border-radius: 12px;
+        border: 1px solid #e7e7e7;
       }
       
-      /* Animated Background Orbs */
-      .bg-orb {
-        position: absolute;
-        width: 300px;
-        height: 300px;
-        border-radius: 50%;
-        filter: blur(70px);
-        opacity: 0.5;
-        animation: orb-float 8s infinite alternate ease-in-out;
-      }
-      .orb-1 {
-        background: linear-gradient(135deg, #FF3366, #FF9933);
-        top: -100px;
-        left: -100px;
-      }
-      .orb-2 {
-        background: linear-gradient(135deg, #7C3AED, #3B82F6);
-        bottom: -150px;
-        right: -50px;
-        animation-delay: -4s;
-      }
-
-      @keyframes orb-float {
-        0% { transform: translate(0, 0) scale(1); }
-        100% { transform: translate(30px, 40px) scale(1.1); }
-      }
-
-      /* Glassmorphism Container */
-      .glass-container {
-        position: relative;
-        z-index: 10;
-        width: 100%;
-        height: 100%;
+      .container {
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        background: rgba(15, 15, 18, 0.7);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 16px;
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+        width: 100%;
+        height: 100%;
       }
 
-      /* Animated Logo Mark */
-      .mark-wrapper {
-        position: relative;
-        margin-bottom: 28px;
-      }
-      .mark-glow {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 72px;
-        height: 72px;
-        background: linear-gradient(135deg, #FF3366, #7C3AED);
-        filter: blur(15px);
-        opacity: 0.6;
-        border-radius: 20px;
-        animation: glow-pulse 3s infinite alternate;
-      }
-      .mark {
-        position: relative;
-        width: 72px;
-        height: 72px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 20px;
-        background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 100%);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        font-size: 36px;
-        font-weight: 700;
-        color: #ffffff;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      .logo-wrapper {
+        margin-bottom: 24px;
+        animation: fade-in 1s ease-out;
       }
 
-      @keyframes glow-pulse {
-        0% { opacity: 0.4; transform: translate(-50%, -50%) scale(0.95); }
-        100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.05); }
+      .logo {
+        width: 64px;
+        height: 64px;
       }
 
-      /* Typography */
+      @keyframes fade-in {
+        0% { opacity: 0; transform: translateY(10px); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
+
       .title-container {
         text-align: center;
+        animation: fade-in 1s ease-out 0.2s both;
       }
       h1 { 
-        margin: 0 0 8px 0; 
-        font-size: 26px; 
+        margin: 0 0 6px 0; 
+        font-size: 22px; 
         font-weight: 600; 
-        letter-spacing: -0.3px;
-        background: linear-gradient(to bottom right, #ffffff, #a1a1aa);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        letter-spacing: -0.5px;
+        color: #242424;
       }
       p { 
         margin: 0; 
-        color: #a1a1aa; 
+        color: #7b766f; 
         font-size: 13px; 
-        font-weight: 300;
-        letter-spacing: 0.2px;
+        font-weight: 400;
       }
 
-      /* Modern Progress Bar */
       .loader-container {
         margin-top: 32px;
-        width: 160px;
-        height: 3px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 3px;
+        width: 140px;
+        height: 2px;
+        background: #f1f1f1;
+        border-radius: 2px;
         overflow: hidden;
         position: relative;
+        animation: fade-in 1s ease-out 0.4s both;
       }
       .loader-bar {
         position: absolute;
         top: 0;
         left: 0;
         height: 100%;
-        width: 40%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
-        border-radius: 3px;
+        width: 30%;
+        background: #9c4326;
+        border-radius: 2px;
         animation: progress-slide 1.5s infinite ease-in-out;
       }
 
       @keyframes progress-slide {
-        0% { left: -40%; }
+        0% { left: -30%; }
         100% { left: 100%; }
       }
     </style>
   </head>
   <body>
-    <div class="bg-orb orb-1"></div>
-    <div class="bg-orb orb-2"></div>
-    
-    <div class="glass-container">
-      <div class="mark-wrapper">
-        <div class="mark-glow"></div>
-        <div class="mark">A</div>
+    <div class="container">
+      <div class="logo-wrapper">
+        <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" rx="22" fill="#ffffff" stroke="#e7e7e7" stroke-width="2"/>
+          <path d="M50 25 L25 75 L38 75 L50 48 L62 75 L75 75 Z" fill="#242424" />
+          <circle cx="50" cy="62" r="6" fill="#9c4326" />
+        </svg>
       </div>
       <div class="title-container">
         <h1>AgentStudio</h1>
-        <p>Đang chuẩn bị không gian làm việc</p>
+        <p>Đang chuẩn bị không gian làm việc...</p>
       </div>
       <div class="loader-container" aria-label="Đang tải">
         <div class="loader-bar"></div>

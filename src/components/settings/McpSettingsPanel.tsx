@@ -8,7 +8,7 @@ export function McpSettingsPanel() {
   const [editing, setEditing] = useState<McpServerStatus | 'new' | null>(null);
   const handleSave = async (payload: SaveMcpServerPayload) => { await save(payload); setEditing(null); };
   return (
-    <section id="mcp-settings" tabIndex={-1} className="border-t border-outline-variant pt-8 outline-none">
+    <section id="mcp-settings" tabIndex={-1} className="outline-none">
       <div className="flex items-center justify-between mb-2">
         <h3 className="font-ui-label-bold text-[16px] text-primary">Model Context Protocol</h3>
         <button onClick={() => setEditing('new')} className="px-3 py-1.5 bg-secondary text-white rounded text-[13px]">Thêm server</button>
