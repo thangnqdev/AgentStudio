@@ -2,6 +2,19 @@
 
 Các thay đổi đáng chú ý của AgentStudio được ghi lại trong tài liệu này.
 
+## [0.7.0] - 2026-07-20
+
+### Thêm mới
+
+- Hỗ trợ Dark mode với các tùy chọn System/Light/Dark.
+
+### Thay đổi
+
+- Thiết kế lại màn hình splash (khởi động).
+- Bố cục tab cho màn hình cài đặt.
+- Dọn dẹp hiển thị tiến độ tool.
+
+
 ## [0.6.0] - 2026-07-20
 
 ### Thay đổi
@@ -48,6 +61,7 @@ Các thay đổi đáng chú ý của AgentStudio được ghi lại trong tài 
 - Child agent nhận environment đã lọc và không thể vượt quyền, sandbox, plan, tool hoặc workspace kế thừa.
 - Attachment, MCP, remote network, path và process dùng capability/validation do main process sở hữu.
 
+[0.7.0]: https://github.com/thangnqdev/AgentStudio/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/thangnqdev/AgentStudio/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/thangnqdev/AgentStudio/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/thangnqdev/AgentStudio/releases/tag/v0.4.0
