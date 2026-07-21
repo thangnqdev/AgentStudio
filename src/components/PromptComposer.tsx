@@ -182,6 +182,12 @@ export function PromptComposer() {
     <div className="absolute bottom-4 left-1/2 w-full max-w-[720px] -translate-x-1/2 px-5">
       <div
         className="relative flex flex-col gap-1.5 rounded-2xl border border-outline-variant/60 bg-surface p-2 shadow-[0_8px_30px_var(--theme-shadow)] transition-all focus-within:border-outline focus-within:shadow-[0_10px_36px_var(--theme-shadow)]"
+        onBlur={(e) => {
+          // Đóng palette khi focus rời khỏi toàn bộ composer (click ra ngoài)
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDismissedCommandInput(input);
+          }
+        }}
       >
         {isCommandPaletteOpen && <ComposerCommandPalette commands={commands} selectedIndex={selectedCommandIndex} onSelect={selectCommand} />}
         <ComposerPickerLayer

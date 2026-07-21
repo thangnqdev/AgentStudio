@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { ComposerCommand } from '../../application/services/composerCommands';
 
 interface ComposerCommandPaletteProps {
@@ -7,6 +8,13 @@ interface ComposerCommandPaletteProps {
 }
 
 export function ComposerCommandPalette({ commands, selectedIndex, onSelect }: ComposerCommandPaletteProps) {
+  const selectedRef = useRef<HTMLButtonElement>(null);
+
+  // Cuộn item được chọn vào viewport khi dùng phím mũi tên
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIndex]);
+
   if (!commands.length) return null;
   return (
     <div className="absolute inset-x-0 bottom-full z-20 mb-2 overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-xl" role="listbox" aria-label="Lệnh nhanh">
@@ -15,6 +23,7 @@ export function ComposerCommandPalette({ commands, selectedIndex, onSelect }: Co
         {commands.map((command, index) => (
           <button
             key={command.name}
+            ref={index === selectedIndex ? selectedRef : undefined}
             type="button"
             role="option"
             aria-selected={index === selectedIndex}
