@@ -13,31 +13,53 @@ export function SidebarProjectExplorer() {
   const activeThreadId = useAppStore((state) => state.activeThreadId);
   const { projects, loading, error, addProject, openProject, removeProject } = useWorkspaceProjects();
 
-  // Ghi nhớ thứ tự threads ổn định — không re-sort khi đổi active thread
+  // Ổn định thứ tự projects — không reorder khi refresh() trả về list mới từ server
+  const stableProjectOrderRef = useRef<string[]>([]);
+  // Ổn định thứ tự threads bên trong project đang active — không re-sort khi đổi active thread
   const stableThreadOrderRef = useRef<Record<string, string[]>>({});
-  const visibleProjects = useMemo(() => projects.map((project) => {
-    const isActive = samePath(project.path, currentPath);
-    if (!isActive) return project;
 
-    const threads = currentThreads.map((thread) => ({
-      id: thread.id,
-      title: thread.title,
-      updatedAt: thread.updatedAt.toISOString(),
-    }));
+  const visibleProjects = useMemo(() => {
+    // Cập nhật stable order: giữ nguyên vị trí cũ, thêm project mới vào cuối
+    const existingPaths = new Set(stableProjectOrderRef.current);
+    const newPaths = projects.map((p) => p.path).filter((path) => !existingPaths.has(path));
+    stableProjectOrderRef.current = [
+      ...stableProjectOrderRef.current.filter((path) => projects.some((p) => p.path === path)),
+      ...newPaths,
+    ];
 
-    // Giữ nguyên thứ tự hiển thị trước đó, chỉ thêm thread mới vào cuối
-    const prevOrder = stableThreadOrderRef.current[project.path] ?? [];
-    const existingIds = new Set(prevOrder);
-    const newIds = threads.map((t) => t.id).filter((id) => !existingIds.has(id));
-    const stableOrder = [...prevOrder.filter((id) => threads.some((t) => t.id === id)), ...newIds];
-    stableThreadOrderRef.current[project.path] = stableOrder;
+    // Sắp xếp projects theo thứ tự ổn định đã lưu
+    const projectMap = new Map(projects.map((p) => [p.path, p]));
+    const sortedProjects = stableProjectOrderRef.current
+      .map((path) => projectMap.get(path))
+      .filter(Boolean) as WorkspaceProjectSummary[];
 
-    const sortedThreads = stableOrder
-      .map((id) => threads.find((t) => t.id === id))
-      .filter(Boolean) as typeof threads;
+    return sortedProjects.map((project) => {
+      const isActive = samePath(project.path, currentPath);
+      if (!isActive) return project;
 
-    return { ...project, activeThreadId, threads: sortedThreads };
-  }), [activeThreadId, currentPath, currentThreads, projects]);
+      const threads = currentThreads.map((thread) => ({
+        id: thread.id,
+        title: thread.title,
+        updatedAt: thread.updatedAt.toISOString(),
+      }));
+
+      // Giữ nguyên thứ tự threads, chỉ append thread mới vào cuối
+      const prevOrder = stableThreadOrderRef.current[project.path] ?? [];
+      const existingIds = new Set(prevOrder);
+      const newIds = threads.map((t) => t.id).filter((id) => !existingIds.has(id));
+      const stableOrder = [
+        ...prevOrder.filter((id) => threads.some((t) => t.id === id)),
+        ...newIds,
+      ];
+      stableThreadOrderRef.current[project.path] = stableOrder;
+
+      const sortedThreads = stableOrder
+        .map((id) => threads.find((t) => t.id === id))
+        .filter(Boolean) as typeof threads;
+
+      return { ...project, activeThreadId, threads: sortedThreads };
+    });
+  }, [activeThreadId, currentPath, currentThreads, projects]);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col px-2" aria-label="Dự án và chat">
