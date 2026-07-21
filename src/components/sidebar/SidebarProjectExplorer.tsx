@@ -62,7 +62,7 @@ export function SidebarProjectExplorer() {
   }, [activeThreadId, currentPath, currentThreads, projects]);
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col px-2" aria-label="Dự án và chat">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-2" aria-label="Dự án và chat">
       <div className="group/header flex items-center gap-1 px-1">
         <button
           type="button"

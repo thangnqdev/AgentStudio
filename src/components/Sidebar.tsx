@@ -33,10 +33,10 @@ export function Sidebar() {
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
   const setSidebarWidth = useAppStore((state) => state.setSidebarWidth);
   const { createTask, openSurface, isTaskSwitchLocked } = useWorkspaceNavigation();
-  const resize = useSidebarResize(sidebarWidth, setSidebarWidth);
+  const { resize, isResizing } = useSidebarResize(sidebarWidth, setSidebarWidth);
 
   return (
-    <nav className={`relative flex h-full shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-200 ${isSidebarOpen ? 'border-r border-outline-variant/60' : 'border-r-0'}`} style={{ width: isSidebarOpen ? `min(38vw, ${sidebarWidth}px)` : 0 }}>
+    <nav className={`relative flex h-full shrink-0 flex-col overflow-hidden bg-sidebar ${isResizing ? '' : 'transition-[width] duration-200'} ${isSidebarOpen ? 'border-r border-outline-variant/60' : 'border-r-0'}`} style={{ width: isSidebarOpen ? `min(38vw, ${sidebarWidth}px)` : 0 }}>
       {isSidebarOpen && <div onPointerDown={resize} className="absolute inset-y-0 right-0 z-40 w-1 cursor-col-resize hover:bg-secondary/30" aria-hidden="true" />}
       <div className="flex h-9 shrink-0 items-center" style={dragStyle}><MacTrafficLights /></div>
       <div className="flex items-center px-3 pb-2">
@@ -60,7 +60,7 @@ export function Sidebar() {
         {PRIMARY_ITEMS.map((item) => <SidebarNavItem key={item.surface} item={item} active={activeView === item.surface} onOpen={openSurface} />)}
       </div>
 
-      <div className="mt-5 flex min-h-0 flex-1"><SidebarProjectExplorer /></div>
+      <div className="mt-5 flex min-h-0 flex-1 overflow-hidden"><SidebarProjectExplorer /></div>
 
       <div className="border-t border-outline-variant/60 px-2 py-2">
         <details className="group mb-1">

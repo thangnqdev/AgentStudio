@@ -1,14 +1,23 @@
-import { useCallback, type PointerEvent } from 'react';
+import { useCallback, useState, type PointerEvent } from 'react';
+
+const MIN_SIDEBAR_WIDTH = 180;
+const MAX_SIDEBAR_WIDTH = 520;
 
 export function useSidebarResize(width: number, onResize: (width: number) => void) {
-  return useCallback((event: PointerEvent<HTMLDivElement>) => {
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResize = useCallback((event: PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = width;
-    const move = (pointerEvent: globalThis.PointerEvent) => {
-      onResize(startWidth + pointerEvent.clientX - startX);
+    setIsResizing(true);
+
+    const move = (e: globalThis.PointerEvent) => {
+      const next = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, startWidth + e.clientX - startX));
+      onResize(next);
     };
     const stop = () => {
+      setIsResizing(false);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', stop);
       document.body.style.cursor = '';
@@ -19,4 +28,6 @@ export function useSidebarResize(width: number, onResize: (width: number) => voi
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', stop);
   }, [onResize, width]);
+
+  return { resize: startResize, isResizing };
 }
