@@ -13,6 +13,7 @@ export function useWorkspaceChatHistory(input: {
   settingsLoaded: boolean;
 }) {
   const replaceChatHistory = useAppStore((state) => state.replaceChatHistory);
+  const requestWorkspaceThread = useAppStore((state) => state.requestWorkspaceThread);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [loadedWorkspace, setLoadedWorkspace] = useState<string | null>(null);
   const notifiedReady = useRef(false);
@@ -27,17 +28,24 @@ export function useWorkspaceChatHistory(input: {
     setHistoryLoaded(false); setLoadedWorkspace(null);
     void AgentBridge.loadChatHistory().then((history) => {
       if (cancelled) return;
-      replaceChatHistory(history.threads, history.activeThreadId);
+      const pendingThreadId = useAppStore.getState().pendingWorkspaceThreadId;
+      const requestedThreadId = pendingThreadId
+        && history.threads.some((thread) => thread.id === pendingThreadId)
+        ? pendingThreadId
+        : history.activeThreadId;
+      replaceChatHistory(history.threads, requestedThreadId);
+      requestWorkspaceThread(null);
       setHistoryLoaded(true); setLoadedWorkspace(input.workspacePath ?? null);
     }).catch((error) => {
       console.error('Failed to load workspace chat history', error);
       if (!cancelled) {
         replaceChatHistory([], null);
+        requestWorkspaceThread(null);
         setHistoryLoaded(true); setLoadedWorkspace(input.workspacePath ?? null);
       }
     });
     return () => { cancelled = true; };
-  }, [input.workspacePath, replaceChatHistory, workspaceEnabled]);
+  }, [input.workspacePath, replaceChatHistory, requestWorkspaceThread, workspaceEnabled]);
 
   const startupReady = input.settingsLoaded && (!workspaceEnabled || loadedWorkspace === input.workspacePath);
   useEffect(() => {

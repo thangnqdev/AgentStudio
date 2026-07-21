@@ -7,6 +7,7 @@ export type PluginStatus = {
   description: string;
   origin: 'user' | 'workspace';
   rootPath: string;
+  managed?: boolean;
   manifestPath: string;
   contentHash: string;
   components: PluginComponent[];

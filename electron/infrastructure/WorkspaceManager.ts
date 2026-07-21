@@ -6,6 +6,7 @@ import { settingsRepo } from './JsonSettingsRepository.js';
 import { resolveSafePath } from './security/resolveSafePath.js';
 import { writePrivateFileAtomic } from './storage/privateFile.js';
 import type { IWorkspaceRootSource } from '../domain/ports/IWorkspaceRootSource.js';
+import { normalizeWorkspacePath, requireWorkspacePath } from '../application/services/workspaceSelection.js';
 
 type ChatHistoryPayload = {
   workspacePath?: string;
@@ -14,9 +15,13 @@ type ChatHistoryPayload = {
 };
 
 export class WorkspaceManager implements IWorkspaceRootSource {
-  async getWorkspaceRoot() {
+  async getSelectedWorkspaceRoot() {
     const settings = await settingsRepo.loadStoredSettings();
-    return settings.workspacePath || process.cwd();
+    return normalizeWorkspacePath(settings.workspacePath) || null;
+  }
+
+  async getWorkspaceRoot() {
+    return requireWorkspacePath(await this.getSelectedWorkspaceRoot());
   }
 
   async resolveWorkspacePath(inputPath: string) {
@@ -29,7 +34,7 @@ export class WorkspaceManager implements IWorkspaceRootSource {
   }
 
   getChatHistoryPath(workspacePath: string) {
-    const normalizedPath = path.resolve(workspacePath || process.cwd());
+    const normalizedPath = path.resolve(requireWorkspacePath(workspacePath));
     const hash = createHash('sha256').update(normalizedPath).digest('hex').slice(0, 24);
     return path.join(this.getChatHistoryDir(), `${hash}.json`);
   }

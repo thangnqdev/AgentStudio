@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { AgentControlParticipant } from '../services/agentControlCenter';
-import { nextTerminalTitle, utilityDockSurfaceTitle } from '../services/utilityDockTabs';
+import { nextTerminalTitle, UTILITY_AGENT_INSPECTOR_KEY, utilityDockSurfaceTitle } from '../services/utilityDockTabs';
 import type { UtilityDockToolSurface } from '../../domain/entities/utilityDock';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -21,7 +21,7 @@ export function useUtilityDock() {
     surface: 'agent',
     title: participant.name,
     agentId: participant.id,
-    reuseKey: `agent:${participant.id}`,
+    reuseKey: UTILITY_AGENT_INSPECTOR_KEY,
   }), [openTab]);
 
   return { openActivity, openTool, openAgent };

@@ -248,6 +248,21 @@
     box-shadow: inset 0 0 40px var(--theme-interactive-hover);
   }
   .scrollbar-none::-webkit-scrollbar { display: none; }
+
+  .settings-shell {
+    container-name: settings-view;
+    container-type: inline-size;
+  }
+
+  .settings-tabs-wide { display: flex; }
+  .settings-tabs-compact { display: none; }
+
+  @container settings-view (max-width: 560px) {
+    .settings-header { padding-inline: 16px; padding-top: 20px; }
+    .settings-content { padding: 20px 16px; }
+    .settings-tabs-wide { display: none; }
+    .settings-tabs-compact { display: block; }
+  }
   .text-ui-body {
     font-size: 13px;
     line-height: 18px;

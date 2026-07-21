@@ -6,6 +6,7 @@ import type { StoredProvider, StoredSettings } from '../domain/entities/settings
 import type { ISettingsRepository } from '../domain/ports/ISettingsRepository.js';
 import { normalizeModelList, normalizePermissionMode } from '../application/services/providerSettings.js';
 import { normalizeThemePreference } from '../application/services/themePreference.js';
+import { normalizeRecentWorkspacePaths, normalizeWorkspacePath } from '../application/services/workspaceSelection.js';
 import { writePrivateFileAtomic } from './storage/privateFile.js';
 
 export type { ModelMetadata, StoredProvider, StoredSettings } from '../domain/entities/settings.js';
@@ -16,7 +17,8 @@ const DEFAULT_SETTINGS: StoredSettings = {
   activeModelId: null,
   fallbackModelId: null,
   permissionMode: 'workspace-write',
-  workspacePath: process.cwd(),
+  workspacePath: '',
+  recentWorkspacePaths: [],
   themePreference: 'system',
 };
 
@@ -39,6 +41,7 @@ export class JsonSettingsRepository implements ISettingsRepository {
       fallbackModelId: DEFAULT_SETTINGS.fallbackModelId,
       permissionMode: DEFAULT_SETTINGS.permissionMode,
       workspacePath: DEFAULT_SETTINGS.workspacePath,
+      recentWorkspacePaths: [...(DEFAULT_SETTINGS.recentWorkspacePaths ?? [])],
       themePreference: DEFAULT_SETTINGS.themePreference,
     };
   }
@@ -55,7 +58,11 @@ export class JsonSettingsRepository implements ISettingsRepository {
         activeModelId: typeof parsed.activeModelId === 'string' ? parsed.activeModelId : null,
         fallbackModelId: typeof parsed.fallbackModelId === 'string' ? parsed.fallbackModelId : null,
         permissionMode: normalizePermissionMode(parsed.permissionMode),
-        workspacePath: typeof parsed.workspacePath === 'string' && parsed.workspacePath ? parsed.workspacePath : process.cwd(),
+        workspacePath: normalizeWorkspacePath(parsed.workspacePath),
+        recentWorkspacePaths: normalizeRecentWorkspacePaths([
+          parsed.workspacePath,
+          ...(Array.isArray(parsed.recentWorkspacePaths) ? parsed.recentWorkspacePaths : []),
+        ]),
         themePreference: normalizeThemePreference(parsed.themePreference),
       };
     } catch (error) {

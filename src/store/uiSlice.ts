@@ -1,5 +1,4 @@
 import type { AppSlice, UiSlice } from './appStoreTypes';
-import { closeWorkspaceTab, openWorkspaceTab, workspaceSurfaceTitle } from '../application/services/workspaceTabs';
 import {
   clampUtilityDockWidth,
   closeUtilityDockTab,
@@ -7,32 +6,24 @@ import {
   openUtilityDockTab,
   UTILITY_ACTIVITY_TAB_ID,
 } from '../application/services/utilityDockTabs';
+import { clampSidebarWidth, DEFAULT_SIDEBAR_WIDTH } from '../application/services/sidebarLayout';
 
 export const createUiSlice: AppSlice<UiSlice> = (set, get) => ({
-  projectPath: 'agent-desktop',
+  projectPath: null,
   currentBranch: null,
-  activeView: 'tasks',
+  activeView: null,
   isSidebarOpen: true,
+  sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   isUtilityDockOpen: false,
-  utilityDockWidth: 400,
+  utilityDockWidth: 380,
   utilityDockTabs: createInitialUtilityDockTabs(),
   activeUtilityDockTabId: UTILITY_ACTIVITY_TAB_ID,
-  workspaceTabs: [],
-  activeWorkspaceTabId: null,
+  pendingWorkspaceThreadId: null,
   setProjectPath: (path) => set({ projectPath: path }),
   setCurrentBranch: (branch) => set({ currentBranch: branch }),
-  setActiveView: (view) => {
-    const state = get();
-    const threadId = view === 'tasks' ? state.activeThreadId ?? undefined : undefined;
-    const result = openWorkspaceTab(state.workspaceTabs, {
-      surface: view,
-      title: view === 'tasks' ? state.activeTask ?? 'Tác vụ mới' : workspaceSurfaceTitle(view),
-      threadId,
-      reuseKey: view === 'tasks' && threadId ? `tasks:${threadId}` : view,
-    }, () => crypto.randomUUID());
-    set({ activeView: view, workspaceTabs: result.tabs, activeWorkspaceTabId: result.activeTabId });
-  },
+  setActiveView: (view) => set({ activeView: view }),
   setSidebarOpen: (open) => set({ isSidebarOpen: open }),
+  setSidebarWidth: (width) => set({ sidebarWidth: clampSidebarWidth(width) }),
   setUtilityDockOpen: (open) => set({ isUtilityDockOpen: open }),
   toggleUtilityDock: () => set((state) => ({ isUtilityDockOpen: !state.isUtilityDockOpen })),
   setUtilityDockWidth: (width) => set({ utilityDockWidth: clampUtilityDockWidth(width) }),
@@ -52,24 +43,5 @@ export const createUiSlice: AppSlice<UiSlice> = (set, get) => ({
     set({ utilityDockTabs: result.tabs, activeUtilityDockTabId: result.activeTabId });
     return result.activeTabId;
   },
-  openWorkspaceTab: (input) => {
-    const result = openWorkspaceTab(get().workspaceTabs, input, () => crypto.randomUUID());
-    set({ workspaceTabs: result.tabs, activeWorkspaceTabId: result.activeTabId, activeView: input.surface });
-    return result.activeTabId;
-  },
-  activateWorkspaceTab: (tabId) => set((state) => {
-    const tab = state.workspaceTabs.find((candidate) => candidate.id === tabId);
-    return tab ? { activeWorkspaceTabId: tabId, activeView: tab.surface } : {};
-  }),
-  closeWorkspaceTab: (tabId) => {
-    const state = get();
-    const result = closeWorkspaceTab(state.workspaceTabs, state.activeWorkspaceTabId, tabId);
-    const activeTab = result.tabs.find((tab) => tab.id === result.activeTabId);
-    set({
-      workspaceTabs: result.tabs,
-      activeWorkspaceTabId: result.activeTabId,
-      ...(activeTab ? { activeView: activeTab.surface } : {}),
-    });
-    return result.activeTabId;
-  },
+  requestWorkspaceThread: (threadId) => set({ pendingWorkspaceThreadId: threadId }),
 });

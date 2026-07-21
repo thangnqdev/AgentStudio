@@ -15,6 +15,8 @@ describe('ManagePlugins', () => {
       discover: async () => [plugin],
       readHooks: async () => [{ id: 'guard', event: 'PreToolUse', matcher: 'run_*', actions: [{ type: 'deny_tool', reason: 'blocked' }] }],
       readLspServers: async () => [],
+      installFromDirectory: async () => undefined,
+      removeManaged: async () => undefined,
     }, {
       load: async () => structuredClone(preferences),
       save: async (next) => { preferences = structuredClone(next); },
@@ -34,6 +36,7 @@ describe('ManagePlugins', () => {
     const server = { name: 'plugin:review-pack:typescript', command: 'typescript-language-server', args: ['--stdio'], extensionToLanguage: { '.ts': 'typescript' } };
     const manager = new ManagePlugins({
       discover: async () => [lspPlugin], readHooks: async () => [], readLspServers: async () => [server],
+      installFromDirectory: async () => undefined, removeManaged: async () => undefined,
     }, {
       load: async () => structuredClone(preferences),
       save: async (next) => { preferences = structuredClone(next); },

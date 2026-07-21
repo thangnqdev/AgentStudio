@@ -1,14 +1,14 @@
-import { useWorkspaceTabs } from '../../application/hooks/useWorkspaceTabs';
+import { useWorkspaceNavigation } from '../../application/hooks/useWorkspaceNavigation';
 import type { WorkspaceLaunchAction } from './workspaceLaunchOptions';
 import { WORKSPACE_LAUNCH_OPTIONS } from './workspaceLaunchOptions';
 
 export function WorkspaceLauncher() {
-  const { createTask, openSurface } = useWorkspaceTabs();
+  const { createTask, openSurface, isTaskSwitchLocked } = useWorkspaceNavigation();
 
   const open = (action: WorkspaceLaunchAction) => {
     if (action === 'new-task') createTask();
     else if (action === 'side-task') createTask(true);
-    else openSurface(action, true);
+    else openSurface(action);
   };
 
   return (
@@ -20,7 +20,7 @@ export function WorkspaceLauncher() {
               <span className="material-symbols-outlined text-[22px] text-on-surface">deployed_code</span>
             </div>
             <h1 className="text-[24px] font-semibold tracking-[-0.03em] text-on-surface">Mở một không gian làm việc</h1>
-            <p className="mt-2 text-[13px] text-on-surface-variant">Bắt đầu tác vụ mới hoặc chọn công cụ cho tab tiếp theo.</p>
+            <p className="mt-2 text-[13px] text-on-surface-variant">Bắt đầu tác vụ mới hoặc chuyển đến công cụ bạn cần.</p>
           </div>
           <div className="grid grid-cols-2 gap-2.5 max-[760px]:grid-cols-1">
             {WORKSPACE_LAUNCH_OPTIONS.map((option) => (
@@ -28,7 +28,9 @@ export function WorkspaceLauncher() {
                 key={option.action}
                 type="button"
                 onClick={() => open(option.action)}
-                className="group flex min-h-[76px] items-center gap-3 rounded-xl border border-outline-variant/60 bg-surface px-4 text-left shadow-[0_1px_2px_var(--theme-shadow)] transition hover:border-outline-variant/80 hover:bg-surface-container-low hover:shadow-sm"
+                disabled={isTaskSwitchLocked && (option.action === 'new-task' || option.action === 'side-task')}
+                title={isTaskSwitchLocked && (option.action === 'new-task' || option.action === 'side-task') ? 'Hãy đợi hoặc dừng agent trước khi đổi tác vụ' : undefined}
+                className="group flex min-h-[76px] items-center gap-3 rounded-xl border border-outline-variant/60 bg-surface px-4 text-left shadow-[0_1px_2px_var(--theme-shadow)] transition hover:border-outline-variant/80 hover:bg-surface-container-low hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-outline-variant/60 disabled:hover:bg-surface"
               >
                 <span className="material-symbols-outlined flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-container text-[19px] text-on-surface-variant group-hover:text-on-surface">
                   {option.icon}

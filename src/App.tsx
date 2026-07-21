@@ -54,10 +54,7 @@ function TerminalSurface() {
 function App() {
   const isSettingsLoaded = useSettingsSync();
   const activeView = useAppStore((state) => state.activeView);
-  const activeWorkspaceTabId = useAppStore((state) => state.activeWorkspaceTabId);
   const settings = useAppStore((state) => state.settings);
-  const isUtilityDockOpen = useAppStore((state) => state.isUtilityDockOpen);
-  const setUtilityDockOpen = useAppStore((state) => state.setUtilityDockOpen);
   const workspacePath = useAppStore((state) => state.settings.workspacePath);
   const threads = useAppStore((state) => state.threads);
   const activeThreadId = useAppStore((state) => state.activeThreadId);
@@ -66,7 +63,7 @@ function App() {
     workspacePath, threads, activeThreadId, settingsLoaded: isSettingsLoaded,
   });
   const agentControl = useAgentControlSnapshot(activeThreadId);
-  const shouldShowAiSetup = Boolean(activeWorkspaceTabId)
+  const shouldShowAiSetup = Boolean(activeView)
     && isSettingsLoaded
     && activeView !== 'settings'
     && !hasUsableAiConfiguration(settings);
@@ -80,9 +77,8 @@ function App() {
         <TopAppBar agentMetrics={agentControl.snapshot.metrics} />
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-            {activeWorkspaceTabId ? <MainContent view={activeView} /> : <WorkspaceLauncher />}
+            {activeView ? <MainContent view={activeView} /> : <WorkspaceLauncher />}
           </main>
-          {isUtilityDockOpen && <button type="button" aria-label="Đóng cánh phải" onClick={() => setUtilityDockOpen(false)} className="absolute inset-0 z-20 hidden bg-overlay max-[980px]:block" />}
           <UtilityDock control={agentControl} />
         </div>
       </section>

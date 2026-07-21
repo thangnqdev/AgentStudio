@@ -8,6 +8,7 @@ import type { SkillDescriptor, SkillOrigin } from '../../domain/entities/skill.j
 import type { ISkillCatalog } from '../../domain/ports/ISkillCatalog.js';
 import { isInsidePath } from '../security/resolveSafePath.js';
 import { verifyLearnedSkill } from '../skillLearning/learnedSkillSignature.js';
+import { ManagedPackageDirectory } from '../packages/ManagedPackageDirectory.js';
 
 const MAX_SKILL_FILE_BYTES = 512_000;
 
@@ -24,10 +25,15 @@ export class FileSystemSkillCatalog implements ISkillCatalog {
     const roots: Array<{ root: string; origin: SkillOrigin }> = this.configuredRoots ?? [
       { root: path.join(app.getPath('userData'), 'skills'), origin: 'user' },
       { root: path.join(os.homedir(), '.agents', 'skills'), origin: 'user' },
-      { root: path.join(workspaceRoot, '.agents', 'skills'), origin: 'workspace' },
-      { root: path.join(workspaceRoot, '.agent', 'skills'), origin: 'workspace' },
+      ...(workspaceRoot ? [
+        { root: path.join(workspaceRoot, '.agents', 'skills'), origin: 'workspace' as const },
+        { root: path.join(workspaceRoot, '.agent', 'skills'), origin: 'workspace' as const },
+      ] : []),
     ];
-    const discovered = await Promise.all(roots.map(({ root, origin }) => this.scanRoot(root, origin)));
+    const managedRoot = this.managedRoot();
+    const discovered = await Promise.all(roots.map(({ root, origin }) => (
+      this.scanRoot(root, origin, Boolean(managedRoot && samePath(root, managedRoot)))
+    )));
     const unique = new Map<string, SkillDescriptor>();
     for (const skill of discovered.flat()) unique.set(skill.id, skill);
     return [...unique.values()].sort((left, right) => left.name.localeCompare(right.name));
@@ -38,7 +44,23 @@ export class FileSystemSkillCatalog implements ISkillCatalog {
     return parseSkillFile(content).body.trim();
   }
 
-  private async scanRoot(root: string, origin: SkillOrigin): Promise<SkillDescriptor[]> {
+  async installFromDirectory(sourcePath: string) {
+    const sourceRoot = await fs.realpath(sourcePath);
+    const parsed = parseSkillFile(await this.readSkillFile(sourceRoot));
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(parsed.metadata.name)) throw new Error('Tên skill phải dùng kebab-case.');
+    const managedRoot = this.managedRoot();
+    if (!managedRoot) throw new Error('Chưa cấu hình thư mục skill do ứng dụng quản lý.');
+    await new ManagedPackageDirectory(managedRoot).install(sourceRoot, parsed.metadata.name);
+  }
+
+  async removeManaged(skill: SkillDescriptor) {
+    if (!skill.managed) throw new Error('Chỉ có thể xóa skill đã nhập vào vùng do ứng dụng quản lý.');
+    const managedRoot = this.managedRoot();
+    if (!managedRoot) throw new Error('Chưa cấu hình thư mục skill do ứng dụng quản lý.');
+    await new ManagedPackageDirectory(managedRoot).remove(skill.rootPath);
+  }
+
+  private async scanRoot(root: string, origin: SkillOrigin, managed: boolean): Promise<SkillDescriptor[]> {
     try {
       const realRoot = await fs.realpath(root);
       const entries = await fs.readdir(realRoot, { withFileTypes: true });
@@ -56,6 +78,7 @@ export class FileSystemSkillCatalog implements ISkillCatalog {
             description: parsed.metadata.description,
             origin,
             rootPath: skillRoot,
+            ...(managed ? { managed: true } : {}),
             compatibility: parsed.metadata.compatibility,
             allowedTools: parsed.metadata.allowedTools,
           } satisfies SkillDescriptor;
@@ -75,6 +98,11 @@ export class FileSystemSkillCatalog implements ISkillCatalog {
     const stat = await fs.stat(skillFile);
     if (!stat.isFile() || stat.size > MAX_SKILL_FILE_BYTES) throw new Error('SKILL.md is missing or too large.');
     return fs.readFile(skillFile, 'utf8');
+  }
+
+  private managedRoot() {
+    if (this.configuredRoots) return this.configuredRoots.find((item) => item.origin === 'user')?.root;
+    return path.join(app.getPath('userData'), 'skills');
   }
 }
 
@@ -101,4 +129,12 @@ function parseSkillFile(content: string) {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function samePath(left: string, right: string) {
+  const normalizedLeft = path.resolve(left);
+  const normalizedRight = path.resolve(right);
+  return process.platform === 'win32'
+    ? normalizedLeft.toLocaleLowerCase() === normalizedRight.toLocaleLowerCase()
+    : normalizedLeft === normalizedRight;
 }

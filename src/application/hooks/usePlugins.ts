@@ -28,5 +28,13 @@ export function usePlugins() {
     try { apply(await PluginBridge.setEnabled({ pluginId, value })); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể cập nhật plugin.'); }
   };
-  return { plugins, loading, error, refresh, setTrusted, setEnabled };
+  const install = async () => {
+    try { apply(await PluginBridge.install()); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể nhập plugin.'); }
+  };
+  const remove = async (pluginId: string) => {
+    try { apply(await PluginBridge.remove(pluginId)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể xóa plugin.'); }
+  };
+  return { plugins, loading, error, refresh, setTrusted, setEnabled, install, remove };
 }

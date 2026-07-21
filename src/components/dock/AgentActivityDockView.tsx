@@ -24,21 +24,21 @@ export function AgentActivityDockView(props: {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-surface">
-      <div className="border-b border-outline-variant/60 px-4 py-3">
+      <section className="border-b border-outline-variant/60 px-3 py-2.5" aria-label="Tổng quan hoạt động">
         <div className="flex items-center justify-between gap-3">
-          <div><h3 className="text-[13px] font-semibold text-on-surface">{summary.title}</h3><p className="mt-0.5 text-[10px] text-on-surface-variant">Cập nhật theo thời gian thực</p></div>
-          <div className="flex items-center gap-1.5 text-[10px] text-on-surface-variant">
+          <div className="min-w-0"><h3 className="truncate text-[12px] font-semibold text-on-surface">{summary.title}</h3><p className="text-[9px] text-on-surface-variant">Cập nhật trực tiếp</p></div>
+          <div className="flex shrink-0 items-center gap-1.5 text-[9px] text-on-surface-variant">
             <span className={`h-2 w-2 rounded-full ${summary.dotClass}`} />
             {summary.status}
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
           <Metric value={snapshot.metrics.total} label="Agent" />
           <Metric value={snapshot.metrics.completed} label="Hoàn tất" />
           <Metric value={snapshot.metrics.attention} label="Cần bạn" attention={snapshot.metrics.attention > 0} />
         </div>
-      </div>
-      <nav className="flex shrink-0 gap-1 border-b border-outline-variant/60 bg-surface-container-low px-3 py-1.5" aria-label="Theo dõi agent">
+      </section>
+      <nav className="flex h-8 shrink-0 items-stretch border-b border-outline-variant/60 bg-surface-container-low px-2" aria-label="Theo dõi agent">
         <Tab active={tab === 'agents'} label="Agent" onClick={() => setTab('agents')} />
         <Tab active={tab === 'activity'} label="Nhật ký" onClick={() => setTab('activity')} />
         <Tab active={tab === 'messages'} label="Trao đổi" onClick={() => setTab('messages')} />
@@ -58,11 +58,11 @@ export function AgentActivityDockView(props: {
 }
 
 function Metric({ value, label, attention = false }: { value: number; label: string; attention?: boolean }) {
-  return <div className={`rounded-lg border px-2.5 py-2 ${attention ? 'border-warning/40 bg-warning-container' : 'border-outline-variant/60 bg-surface-container-low'}`}><p className="text-[15px] font-semibold text-on-surface">{value}</p><p className="text-[9px] text-on-surface-variant">{label}</p></div>;
+  return <div className={`flex min-w-0 items-baseline gap-1 rounded-md border px-2 py-1.5 ${attention ? 'border-warning/40 bg-warning-container' : 'border-outline-variant/60 bg-surface-container-low'}`}><span className="text-[13px] font-semibold text-on-surface">{value}</span><span className="truncate text-[9px] text-on-surface-variant">{label}</span></div>;
 }
 function Tab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={`rounded-md px-2.5 py-1.5 text-[10px] font-medium ${active ? 'bg-surface text-on-surface shadow-sm ring-1 ring-outline-variant/60' : 'text-on-surface-variant hover:bg-surface/80'}`}>{label}</button>;
+  return <button type="button" onClick={onClick} className={`relative px-2.5 text-[10px] font-medium ${active ? 'text-on-surface' : 'text-on-surface-variant hover:bg-surface/70 hover:text-on-surface'}`}>{label}{active && <span className="absolute inset-x-1 bottom-0 h-[2px] bg-primary" />}</button>;
 }
 function EmptyState() {
-  return <div className="px-7 py-14 text-center"><span className="material-symbols-outlined text-[28px] text-on-surface-variant">hub</span><p className="mt-3 text-[12px] font-medium text-on-surface-variant">Chưa có agent phụ</p><p className="mt-1 text-[10px] leading-5 text-on-surface-variant">Khi agent chính chia việc, tiến độ sẽ tự xuất hiện ở đây.</p></div>;
+  return <div className="flex min-h-[180px] h-full items-center justify-center px-7 py-8 text-center"><div><span className="material-symbols-outlined flex h-9 w-9 mx-auto items-center justify-center rounded-lg bg-surface-container text-[21px] text-on-surface-variant">hub</span><p className="mt-3 text-[11px] font-medium text-on-surface">Chưa có agent phụ</p><p className="mt-1 max-w-[250px] text-[10px] leading-4 text-on-surface-variant">Tiến độ sẽ xuất hiện khi agent chính bắt đầu chia việc.</p></div></div>;
 }

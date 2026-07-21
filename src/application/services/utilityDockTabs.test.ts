@@ -6,6 +6,7 @@ import {
   createInitialUtilityDockTabs,
   nextTerminalTitle,
   openUtilityDockTab,
+  UTILITY_AGENT_INSPECTOR_KEY,
 } from './utilityDockTabs';
 
 describe('utilityDockTabs', () => {
@@ -15,16 +16,19 @@ describe('utilityDockTabs', () => {
     ]);
   });
 
-  it('reuses singleton tools and agent detail tabs', () => {
+  it('reuses one drill-down inspector while switching between agents', () => {
     const initial = createInitialUtilityDockTabs();
     const first = openUtilityDockTab(initial, {
-      surface: 'agent', title: 'Kiểm tra giao diện', agentId: 'agent-1', reuseKey: 'agent:agent-1',
+      surface: 'agent', title: 'Agent 1', agentId: 'agent-1', reuseKey: UTILITY_AGENT_INSPECTOR_KEY,
     }, () => 'agent-tab');
     const second = openUtilityDockTab(first.tabs, {
-      surface: 'agent', title: 'Tên mới', agentId: 'agent-1', reuseKey: 'agent:agent-1',
+      surface: 'agent', title: 'Agent 2', agentId: 'agent-2', reuseKey: UTILITY_AGENT_INSPECTOR_KEY,
     }, () => 'unused');
 
-    expect(second).toEqual({ tabs: first.tabs, activeTabId: 'agent-tab' });
+    expect(second.activeTabId).toBe('agent-tab');
+    expect(second.tabs.filter((tab) => tab.surface === 'agent')).toEqual([
+      { id: 'agent-tab', surface: 'agent', title: 'Agent 2', agentId: 'agent-2', closable: true },
+    ]);
   });
 
   it('allows multiple terminal sessions and closes only the selected one', () => {

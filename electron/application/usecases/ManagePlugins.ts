@@ -45,6 +45,21 @@ export class ManagePlugins {
     return this.list(workspaceRoot);
   }
 
+  async install(workspaceRoot: string, sourcePath: string) {
+    await this.catalog.installFromDirectory(sourcePath);
+    return this.list(workspaceRoot);
+  }
+
+  async remove(workspaceRoot: string, pluginId: string) {
+    const plugin = await this.ensureExists(workspaceRoot, pluginId);
+    await this.catalog.removeManaged(plugin);
+    const preferences = await this.preferences.load();
+    preferences.enabledPluginIds = updateSet(preferences.enabledPluginIds, pluginId, false);
+    preferences.trustedPluginIds = updateSet(preferences.trustedPluginIds, pluginId, false);
+    await this.preferences.save(preferences);
+    return this.list(workspaceRoot);
+  }
+
   async listLifecycleHooks(workspaceRoot: string) {
     const active = (await this.list(workspaceRoot)).filter((plugin) => plugin.enabled && plugin.trusted && plugin.components.includes('hooks'));
     const loaded = await Promise.all(active.map(async (plugin) => ({ plugin, hooks: await this.catalog.readHooks(plugin) })));

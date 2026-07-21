@@ -25,6 +25,7 @@ export interface StoredSettings {
   fallbackModelId: string | null;
   permissionMode: PermissionMode;
   workspacePath: string;
+  recentWorkspacePaths?: string[];
   themePreference: ThemePreference;
 }
 

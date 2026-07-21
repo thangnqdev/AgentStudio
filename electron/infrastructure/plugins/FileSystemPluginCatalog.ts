@@ -9,6 +9,7 @@ import type { IPluginCatalog } from '../../domain/ports/IPluginCatalog.js';
 import { isInsidePath, resolveSafeWorkspacePath } from '../security/resolveSafePath.js';
 import type { LspServerConfiguration } from '../../domain/entities/lspServer.js';
 import { loadPluginLspConfigurations } from './pluginLspConfiguration.js';
+import { ManagedPackageDirectory } from '../packages/ManagedPackageDirectory.js';
 
 const MAX_PLUGIN_MANIFEST_BYTES = 128 * 1024;
 const MAX_PLUGINS_PER_ROOT = 50;
@@ -32,9 +33,12 @@ export class FileSystemPluginCatalog implements IPluginCatalog {
   async discover(workspaceRoot: string) {
     const roots = this.configuredRoots ?? [
       { root: path.join(app.getPath('userData'), 'plugins'), origin: 'user' },
-      { root: path.join(workspaceRoot, '.agentstudio', 'plugins'), origin: 'workspace' },
+      ...(workspaceRoot ? [{ root: path.join(workspaceRoot, '.agentstudio', 'plugins'), origin: 'workspace' as const }] : []),
     ] satisfies PluginRoot[];
-    const candidates = await Promise.all(roots.map(({ root, origin }) => this.scanRoot(root, origin)));
+    const managedRoot = this.managedRoot();
+    const candidates = await Promise.all(roots.map(({ root, origin }) => (
+      this.scanRoot(root, origin, Boolean(managedRoot && samePath(root, managedRoot)))
+    )));
     return candidates.flat().sort((left, right) => left.name.localeCompare(right.name));
   }
 
@@ -54,7 +58,22 @@ export class FileSystemPluginCatalog implements IPluginCatalog {
     return loaded.lspServers;
   }
 
-  private async scanRoot(root: string, origin: PluginOrigin) {
+  async installFromDirectory(sourcePath: string) {
+    const sourceRoot = await fs.realpath(sourcePath);
+    const candidate = await this.loadCandidate(sourceRoot, 'user');
+    const managedRoot = this.managedRoot();
+    if (!managedRoot) throw new Error('Chưa cấu hình thư mục plugin do ứng dụng quản lý.');
+    await new ManagedPackageDirectory(managedRoot).install(sourceRoot, candidate.descriptor.name);
+  }
+
+  async removeManaged(plugin: PluginDescriptor) {
+    if (!plugin.managed) throw new Error('Chỉ có thể xóa plugin đã nhập vào vùng do ứng dụng quản lý.');
+    const managedRoot = this.managedRoot();
+    if (!managedRoot) throw new Error('Chưa cấu hình thư mục plugin do ứng dụng quản lý.');
+    await new ManagedPackageDirectory(managedRoot).remove(plugin.rootPath);
+  }
+
+  private async scanRoot(root: string, origin: PluginOrigin, managed: boolean) {
     try {
       const realRoot = await fs.realpath(root);
       const entries = (await fs.readdir(realRoot, { withFileTypes: true }))
@@ -64,7 +83,8 @@ export class FileSystemPluginCatalog implements IPluginCatalog {
         try {
           const pluginRoot = await fs.realpath(path.join(realRoot, entry.name));
           if (!isInsidePath(pluginRoot, realRoot)) return null;
-          return (await this.loadCandidate(pluginRoot, origin)).descriptor;
+          const descriptor = (await this.loadCandidate(pluginRoot, origin)).descriptor;
+          return { ...descriptor, ...(managed ? { managed: true } : {}) };
         } catch {
           return null;
         }
@@ -110,6 +130,11 @@ export class FileSystemPluginCatalog implements IPluginCatalog {
     if (this.configuredPluginDataRoot) return this.configuredPluginDataRoot;
     if (this.configuredRoots) return path.join(path.dirname(pluginRoot), '.agentstudio-plugin-data');
     return path.join(app.getPath('userData'), 'plugin-data');
+  }
+
+  private managedRoot() {
+    if (this.configuredRoots) return this.configuredRoots.find((item) => item.origin === 'user')?.root;
+    return path.join(app.getPath('userData'), 'plugins');
   }
 }
 
@@ -208,4 +233,12 @@ function isMissingPath(error: unknown): error is NodeJS.ErrnoException {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function samePath(left: string, right: string) {
+  const normalizedLeft = path.resolve(left);
+  const normalizedRight = path.resolve(right);
+  return process.platform === 'win32'
+    ? normalizedLeft.toLocaleLowerCase() === normalizedRight.toLocaleLowerCase()
+    : normalizedLeft === normalizedRight;
 }

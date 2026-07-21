@@ -12,15 +12,3 @@ export type WorkspaceSurface =
   | 'terminal'
   | 'browser'
   | 'files';
-
-export type WorkspaceTab = {
-  id: string;
-  surface: WorkspaceSurface;
-  title: string;
-  threadId?: string;
-  sideTask?: boolean;
-};
-
-export type OpenWorkspaceTabInput = Omit<WorkspaceTab, 'id'> & {
-  reuseKey?: string;
-};

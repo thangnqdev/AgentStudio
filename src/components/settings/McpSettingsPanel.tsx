@@ -9,7 +9,7 @@ export function McpSettingsPanel() {
   const handleSave = async (payload: SaveMcpServerPayload) => { await save(payload); setEditing(null); };
   return (
     <section id="mcp-settings" tabIndex={-1} className="outline-none">
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-ui-label-bold text-[16px] text-primary">Model Context Protocol</h3>
         <button onClick={() => setEditing('new')} className="px-3 py-1.5 bg-secondary text-on-secondary rounded text-[13px]">Thêm server</button>
       </div>
@@ -19,15 +19,15 @@ export function McpSettingsPanel() {
       <div className="grid gap-3 mt-4">
         {servers.map((server) => (
           <div key={server.id} className="p-4 rounded-xl border border-outline-variant bg-surface-container-lowest">
-            <div className="flex justify-between gap-4">
-              <div>
+            <div className="flex flex-wrap justify-between gap-4">
+              <div className="min-w-[180px] flex-1">
                 <div className="flex items-center gap-2"><h4 className="font-ui-label-bold text-[14px]">{server.name}</h4><Status state={server.state} /></div>
                 <p className="text-[11px] font-code-base text-on-surface-variant mt-1 break-all">{describeTransport(server)}</p>
                 <p className="text-[12px] mt-1">{server.toolCount} tools · risk: {server.defaultRisk}{server.autoStart ? ' · auto-start' : ''}{server.hasCredentials ? ' · credential saved' : ''}</p>
                 {server.state === 'needs-auth' && <p className="text-[12px] text-warning mt-1">Cần xác thực OAuth trong trình duyệt.</p>}
                 {server.error && <p className="text-[12px] text-error mt-1">{server.error}</p>}
               </div>
-              <div className="flex items-start gap-2">
+              <div className="flex flex-wrap items-start gap-2">
                 {server.state === 'needs-auth' && <button onClick={() => void authenticate(server.id)} className="settings-action">Xác thực</button>}
                 {server.state === 'connected'
                   ? <button onClick={() => void stop(server.id)} className="settings-action">Dừng</button>

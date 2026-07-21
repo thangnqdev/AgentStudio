@@ -36,11 +36,12 @@ import { SplashWindow } from './infrastructure/SplashWindow.js';
 import { configureExternalNavigation } from './infrastructure/ExternalNavigationPolicy.js';
 import { stopWorkspaceKnowledgeSync } from './knowledgeRuntime.js';
 import { ManageAppUpdate } from './application/usecases/ManageAppUpdate.js';
-import { mcpServerManager } from './mcpRuntime.js';
-import { workspaceManager } from './infrastructure/WorkspaceManager.js';
+import { mcpServerManager, startAutoMcpForSelectedWorkspace } from './mcpRuntime.js';
 import { settingsRepo } from './infrastructure/JsonSettingsRepository.js';
+import { workspaceManager } from './infrastructure/WorkspaceManager.js';
 import { HttpProviderModelCatalog } from './infrastructure/providers/HttpProviderModelCatalog.js';
 import { ManageProviderSettings } from './application/usecases/ManageProviderSettings.js';
+import { ManageWorkspaceProjects } from './application/usecases/ManageWorkspaceProjects.js';
 import { randomUUID } from 'node:crypto';
 import { backgroundCommandNotifier } from './backgroundCommandRuntime.js';
 import { registerThemeIpc } from './ipc/registerThemeIpc.js';
@@ -64,6 +65,7 @@ const providerSettings = new ManageProviderSettings(
   new HttpProviderModelCatalog(),
   { createId: randomUUID, defaultWorkspacePath: () => process.cwd() },
 );
+const workspaceProjects = new ManageWorkspaceProjects(settingsRepo, workspaceManager, stopWorkspaceKnowledgeSync);
 
 function createWindow(theme: ResolvedTheme) {
   win = new BrowserWindow({
@@ -98,7 +100,7 @@ function createWindow(theme: ResolvedTheme) {
 function registerIpcHandlers() {
   registerAppIpc(win);
   registerSettingsIpc(providerSettings);
-  registerWorkspaceIpc(win);
+  registerWorkspaceIpc(win, workspaceProjects);
   registerWorkspaceBrowserIpc();
   registerGitIpc();
   registerTerminalIpc();
@@ -108,7 +110,7 @@ function registerIpcHandlers() {
   registerAgentWorkerIpc();
   registerAgentTeamIpc();
   registerWebSearchIpc();
-  registerSkillIpc();
+  registerSkillIpc(win);
   registerMcpIpc();
   registerTraceIpc(win);
   registerEvaluationIpc(win);
@@ -117,7 +119,7 @@ function registerIpcHandlers() {
   registerOptimizerIpc();
   registerSkillLearningIpc();
   registerAgentProfileIpc();
-  registerPluginIpc();
+  registerPluginIpc(win);
   registerRemoteTriggerIpc();
   registerAttachmentIpc();
   registerLifecycleHookIpc();
@@ -155,6 +157,6 @@ app.whenReady().then(async () => {
   createWindow(windowTheme);
   appUpdate = new ManageAppUpdate(new ElectronAutoUpdater());
   registerIpcHandlers();
-  void workspaceManager.getWorkspaceRoot().then((workspaceRoot) => mcpServerManager.startAuto(workspaceRoot));
+  void startAutoMcpForSelectedWorkspace();
   void appUpdate.checkForUpdates();
 });

@@ -5,6 +5,7 @@ import type {
 } from '../../domain/entities/utilityDock';
 
 export const UTILITY_ACTIVITY_TAB_ID = 'utility:activity';
+export const UTILITY_AGENT_INSPECTOR_KEY = 'agent-inspector';
 
 export function createInitialUtilityDockTabs(): UtilityDockTab[] {
   return [{ id: UTILITY_ACTIVITY_TAB_ID, surface: 'activity', title: 'Hoạt động', closable: false }];
@@ -18,7 +19,15 @@ export function openUtilityDockTab(
   const reusable = input.reuseKey
     ? tabs.find((tab) => utilityDockTabKey(tab) === input.reuseKey)
     : undefined;
-  if (reusable) return { tabs, activeTabId: reusable.id };
+  if (reusable) {
+    const { reuseKey: _reuseKey, closable, ...updates } = input;
+    return {
+      tabs: tabs.map((tab) => tab.id === reusable.id
+        ? { ...tab, ...updates, ...(closable === undefined ? {} : { closable }) }
+        : tab),
+      activeTabId: reusable.id,
+    };
+  }
 
   const { reuseKey: _reuseKey, closable = true, ...tab } = input;
   const created = { ...tab, closable, id: createId() };
@@ -36,7 +45,7 @@ export function closeUtilityDockTab(tabs: UtilityDockTab[], activeTabId: string,
 }
 
 export function utilityDockTabKey(tab: Pick<UtilityDockTab, 'surface' | 'agentId'>) {
-  return tab.surface === 'agent' && tab.agentId ? `agent:${tab.agentId}` : tab.surface;
+  return tab.surface === 'agent' ? UTILITY_AGENT_INSPECTOR_KEY : tab.surface;
 }
 
 export function utilityDockSurfaceTitle(surface: Exclude<UtilityDockSurface, 'agent'>) {

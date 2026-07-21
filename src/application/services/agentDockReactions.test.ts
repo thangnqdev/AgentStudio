@@ -15,11 +15,9 @@ describe('getAgentDockReaction', () => {
     expect(getAgentDockReaction(null, snapshot([participant('old')]))).toEqual({ kind: 'none' });
   });
 
-  it('opens once for the first newly spawned worker', () => {
+  it('keeps newly spawned workers in the background', () => {
     const lead = participant('lead', 'lead');
-    expect(getAgentDockReaction(snapshot([lead]), snapshot([lead, participant('worker')]))).toEqual({
-      kind: 'first-worker', participantId: 'worker',
-    });
+    expect(getAgentDockReaction(snapshot([lead]), snapshot([lead, participant('worker')]))).toEqual({ kind: 'none' });
   });
 
   it('prioritizes a new approval request or failure', () => {
@@ -30,7 +28,7 @@ describe('getAgentDockReaction', () => {
     });
   });
 
-  it('keeps subsequent workers in the background', () => {
+  it('also keeps subsequent workers in the background', () => {
     expect(getAgentDockReaction(snapshot([participant('one')]), snapshot([participant('one'), participant('two')]))).toEqual({ kind: 'none' });
   });
 });

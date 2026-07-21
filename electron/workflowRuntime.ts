@@ -8,7 +8,7 @@ import { knowledgeBaseUseCase } from './knowledgeRuntime.js';
 import { optimizerRepository } from './optimizerRuntime.js';
 
 const executor = new LocalWorkflowNodeExecutor({
-  'workspace.available': async () => Boolean(await workspaceManager.getWorkspaceRoot()),
+  'workspace.available': async () => Boolean(await workspaceManager.getSelectedWorkspaceRoot()),
   'provider.configured': async () => { const settings = await settingsRepo.loadStoredSettings(); return Boolean(settings.activeProviderId && settings.activeModelId); },
   'knowledge.available': async () => (await knowledgeBaseUseCase.list(await workspaceManager.getWorkspaceRoot())).totalChunks > 0,
   'workflow.ready': async () => true,

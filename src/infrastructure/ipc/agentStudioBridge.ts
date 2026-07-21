@@ -89,6 +89,21 @@ export const AgentBridge = {
     return window.agentStudio.selectWorkspace();
   },
 
+  async listWorkspaceProjects() {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.listWorkspaceProjects();
+  },
+
+  async activateWorkspace(workspacePath: string) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.activateWorkspace(workspacePath);
+  },
+
+  async removeRecentWorkspace(workspacePath: string) {
+    if (!window.agentStudio) throw new Error('Electron bridge is not available.');
+    return window.agentStudio.removeRecentWorkspace(workspacePath);
+  },
+
   async writeWorkspaceFile(payload: Parameters<NonNullable<Window['agentStudio']>['writeWorkspaceFile']>[0]) {
     if (!window.agentStudio) throw new Error('Electron bridge is not available.');
     return window.agentStudio.writeWorkspaceFile(payload);

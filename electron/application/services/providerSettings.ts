@@ -19,6 +19,7 @@ export function toPublicSettings(settings: StoredSettings) {
     fallbackModelId: settings.fallbackModelId,
     permissionMode: settings.permissionMode,
     workspacePath: settings.workspacePath,
+    recentWorkspacePaths: [...(settings.recentWorkspacePaths ?? [])],
   };
 }
 

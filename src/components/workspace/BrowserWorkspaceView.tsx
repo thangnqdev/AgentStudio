@@ -1,9 +1,9 @@
 import { useWebSearch } from '../../application/hooks/useWebSearch';
-import { useWorkspaceTabs } from '../../application/hooks/useWorkspaceTabs';
+import { useWorkspaceNavigation } from '../../application/hooks/useWorkspaceNavigation';
 
 export function BrowserWorkspaceView() {
   const { settings, error } = useWebSearch();
-  const { createTask, openSurface } = useWorkspaceTabs();
+  const { createTask, openSurface, isTaskSwitchLocked } = useWorkspaceNavigation();
   const connector = settings.provider === 'disabled' ? 'Chưa cấu hình' : settings.provider;
 
   return (
@@ -23,7 +23,7 @@ export function BrowserWorkspaceView() {
             </div>
             <h3 className="text-[16px] font-medium text-on-surface">Bắt đầu nghiên cứu web</h3>
             <p className="mt-2 text-[12px] leading-5 text-on-surface-variant">Agent có thể tìm kiếm, đọc nguồn và tổng hợp kết quả ngay trong một task riêng.</p>
-            <button type="button" onClick={() => createTask()} className="mt-5 rounded-lg bg-primary px-3.5 py-2 text-[12px] font-medium text-on-primary hover:bg-primary/90">
+            <button type="button" onClick={() => createTask()} disabled={isTaskSwitchLocked} title={isTaskSwitchLocked ? 'Hãy đợi hoặc dừng agent trước khi đổi tác vụ' : undefined} className="mt-5 rounded-lg bg-primary px-3.5 py-2 text-[12px] font-medium text-on-primary hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45">
               Tạo tác vụ nghiên cứu
             </button>
           </section>

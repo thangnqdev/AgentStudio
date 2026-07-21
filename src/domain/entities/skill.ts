@@ -4,6 +4,7 @@ export type SkillStatus = {
   description: string;
   origin: 'user' | 'workspace';
   rootPath: string;
+  managed?: boolean;
   compatibility?: string;
   allowedTools?: string[];
   enabled: boolean;

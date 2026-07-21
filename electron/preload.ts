@@ -82,6 +82,7 @@ type SettingsChangedPayload = {
   fallbackModelId: string | null;
   permissionMode: 'read-only' | 'workspace-write' | 'danger-full-access';
   workspacePath: string;
+  recentWorkspacePaths: string[];
 };
 type SettingsChangedListener = (payload: SettingsChangedPayload) => void;
 type AttachmentType = 'text' | 'image' | 'audio' | 'video';
@@ -181,6 +182,9 @@ contextBridge.exposeInMainWorld('agentStudio', {
   saveRemoteTriggerSettings: (payload: unknown) => ipcRenderer.invoke('remote-trigger:save-settings', payload),
   getCurrentWorkspace: () => ipcRenderer.invoke('workspace:get-current'),
   selectWorkspace: () => ipcRenderer.invoke('workspace:select-directory'),
+  listWorkspaceProjects: () => ipcRenderer.invoke('workspace:list-projects'),
+  activateWorkspace: (workspacePath: string) => ipcRenderer.invoke('workspace:activate', workspacePath),
+  removeRecentWorkspace: (workspacePath: string) => ipcRenderer.invoke('workspace:remove-recent', workspacePath),
   writeWorkspaceFile: (payload: unknown) => ipcRenderer.invoke('workspace:write-file', payload),
   listWorkspaceFiles: (payload: unknown) => ipcRenderer.invoke('workspace:list-files', payload),
   readWorkspaceFile: (payload: unknown) => ipcRenderer.invoke('workspace:read-file', payload),
@@ -207,12 +211,16 @@ contextBridge.exposeInMainWorld('agentStudio', {
   listSkills: () => ipcRenderer.invoke('skills:list'),
   setSkillEnabled: (payload: unknown) => ipcRenderer.invoke('skills:set-enabled', payload),
   setSkillTrusted: (payload: unknown) => ipcRenderer.invoke('skills:set-trusted', payload),
+  installSkill: () => ipcRenderer.invoke('skills:install'),
+  removeSkill: (skillId: string) => ipcRenderer.invoke('skills:remove', skillId),
   listAgentProfiles: () => ipcRenderer.invoke('agent-profiles:list'),
   setAgentProfileEnabled: (payload: unknown) => ipcRenderer.invoke('agent-profiles:set-enabled', payload),
   setAgentProfileTrusted: (payload: unknown) => ipcRenderer.invoke('agent-profiles:set-trusted', payload),
   listPlugins: () => ipcRenderer.invoke('plugins:list'),
   setPluginEnabled: (payload: unknown) => ipcRenderer.invoke('plugins:set-enabled', payload),
   setPluginTrusted: (payload: unknown) => ipcRenderer.invoke('plugins:set-trusted', payload),
+  installPlugin: () => ipcRenderer.invoke('plugins:install'),
+  removePlugin: (pluginId: string) => ipcRenderer.invoke('plugins:remove', pluginId),
   listMcpServers: () => ipcRenderer.invoke('mcp:list'),
   saveMcpServer: (payload: unknown) => ipcRenderer.invoke('mcp:save', payload),
   removeMcpServer: (serverId: string) => ipcRenderer.invoke('mcp:remove', serverId),

@@ -1,9 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useAppUpdate } from '../application/hooks/useAppUpdate';
 import { useGitStatus } from '../application/hooks/useGitStatus';
-import { useWindowControls } from '../application/hooks/useWindowControls';
 import { useAppStore } from '../store/useAppStore';
-import { WorkspaceTabBar } from './workspace/WorkspaceTabBar';
 import type { AgentControlSnapshot } from '../application/services/agentControlCenter';
 
 type ElectronDragStyle = CSSProperties & { WebkitAppRegion: 'drag' | 'no-drag' };
@@ -12,7 +10,6 @@ const dragStyle = { WebkitAppRegion: 'drag' } as ElectronDragStyle;
 const noDragStyle = { WebkitAppRegion: 'no-drag' } as ElectronDragStyle;
 
 export function TopAppBar({ agentMetrics }: { agentMetrics: AgentControlSnapshot['metrics'] }) {
-  const projectPath = useAppStore((state) => state.projectPath);
   const currentBranch = useAppStore((state) => state.currentBranch);
   const isSidebarOpen = useAppStore((state) => state.isSidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
@@ -20,15 +17,6 @@ export function TopAppBar({ agentMetrics }: { agentMetrics: AgentControlSnapshot
   const toggleUtilityDock = useAppStore((state) => state.toggleUtilityDock);
   useGitStatus();
   const { update, download, install } = useAppUpdate();
-  const { selectWorkspace } = useWindowControls();
-
-  const handleSelectWorkspace = async () => {
-    try {
-      await selectWorkspace();
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Không chọn được repository.');
-    }
-  };
 
   return (
     <header className="flex h-10 shrink-0 items-stretch border-b border-outline-variant/60 bg-toolbar" style={dragStyle}>
@@ -37,7 +25,7 @@ export function TopAppBar({ agentMetrics }: { agentMetrics: AgentControlSnapshot
           <span className="material-symbols-outlined text-[17px]">left_panel_open</span>
         </button>
       )}
-      <WorkspaceTabBar />
+      <div className="min-w-0 flex-1" />
       <div className="ml-auto flex shrink-0 items-center gap-1 px-2" style={noDragStyle}>
         {update.status === 'available' && (
           <button type="button" onClick={() => void download()} className="rounded-md bg-primary px-2 py-1 text-[10px] font-medium text-on-primary">Cập nhật {update.version}</button>
@@ -46,11 +34,6 @@ export function TopAppBar({ agentMetrics }: { agentMetrics: AgentControlSnapshot
         {update.status === 'downloaded' && (
           <button type="button" onClick={() => void install()} className="rounded-md bg-primary px-2 py-1 text-[10px] font-medium text-on-primary">Khởi động lại</button>
         )}
-        <button type="button" onClick={handleSelectWorkspace} className="flex h-7 max-w-[190px] items-center gap-1.5 rounded-md px-2 text-[11px] text-on-surface-variant hover:bg-interactive-hover" title={projectPath ?? 'Chọn workspace'}>
-          <span className="material-symbols-outlined text-[15px]">folder</span>
-          <span className="max-w-[110px] truncate">{basename(projectPath) || 'Mở'}</span>
-          <span className="material-symbols-outlined text-[13px]">expand_more</span>
-        </button>
         {currentBranch && (
           <span className="hidden max-w-[105px] items-center gap-1 truncate rounded-md px-2 py-1 font-mono text-[10px] text-on-surface-variant min-[1180px]:flex">
             <span className="material-symbols-outlined text-[13px]">account_tree</span>{currentBranch}
@@ -63,8 +46,4 @@ export function TopAppBar({ agentMetrics }: { agentMetrics: AgentControlSnapshot
       </div>
     </header>
   );
-}
-
-function basename(filePath: string | null): string {
-  return filePath?.split(/[\\/]/).filter(Boolean).pop() ?? '';
 }

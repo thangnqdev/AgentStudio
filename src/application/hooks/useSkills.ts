@@ -36,5 +36,14 @@ export function useSkills() {
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể cập nhật skill.'); }
   };
 
-  return { skills, error, loading, refresh, setTrusted, setEnabled };
+  const install = async () => {
+    try { setSkills(unwrap(await CapabilityBridge.installSkill())); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể nhập skill.'); }
+  };
+  const remove = async (skillId: string) => {
+    try { setSkills(unwrap(await CapabilityBridge.removeSkill(skillId))); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể xóa skill.'); }
+  };
+
+  return { skills, error, loading, refresh, setTrusted, setEnabled, install, remove };
 }

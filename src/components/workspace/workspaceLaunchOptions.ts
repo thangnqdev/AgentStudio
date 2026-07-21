@@ -1,4 +1,4 @@
-import type { WorkspaceSurface } from '../../domain/entities/workspaceTab';
+import type { WorkspaceSurface } from '../../domain/entities/workspaceSurface';
 
 export type WorkspaceLaunchAction = WorkspaceSurface | 'new-task' | 'side-task';
 

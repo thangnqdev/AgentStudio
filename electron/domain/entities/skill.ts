@@ -6,6 +6,7 @@ export type SkillDescriptor = {
   description: string;
   origin: SkillOrigin;
   rootPath: string;
+  managed?: boolean;
   compatibility?: string;
   allowedTools?: string[];
 };

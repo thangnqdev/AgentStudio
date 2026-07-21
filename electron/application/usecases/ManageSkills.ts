@@ -42,6 +42,21 @@ export class ManageSkills {
     return this.list(workspaceRoot);
   }
 
+  async install(workspaceRoot: string, sourcePath: string) {
+    await this.catalog.installFromDirectory(sourcePath);
+    return this.list(workspaceRoot);
+  }
+
+  async remove(workspaceRoot: string, skillId: string) {
+    const skill = await this.ensureExists(workspaceRoot, skillId);
+    await this.catalog.removeManaged(skill);
+    const preferences = await this.preferencesRepository.load();
+    preferences.enabledSkillIds = updateSet(preferences.enabledSkillIds, skillId, false);
+    preferences.trustedSkillIds = updateSet(preferences.trustedSkillIds, skillId, false);
+    await this.preferencesRepository.save(preferences);
+    return this.list(workspaceRoot);
+  }
+
   async loadInstructions(workspaceRoot: string, skillId: string) {
     const skill = (await this.list(workspaceRoot)).find((item) => item.id === skillId);
     if (!skill) throw new Error('Skill does not exist.');

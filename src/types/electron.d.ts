@@ -23,6 +23,7 @@ import type { LifecycleHookSummary } from '../domain/entities/lifecycleHook';
 import type { ManualCompactionPayload, ManualCompactionResult } from '../domain/entities/manualCompaction';
 import type { WorkspaceFileContent, WorkspaceFileEntry } from '../domain/entities/workspaceFile';
 import type { ThemePreference } from '../domain/entities/theme';
+import type { WorkspaceActivation, WorkspaceProjectSummary } from '../domain/entities/workspaceProject';
 
 export type SaveProviderPayload = {
   id?: string;
@@ -217,6 +218,9 @@ declare global {
       saveRemoteTriggerSettings: (payload: SaveRemoteTriggerSettingsPayload) => Promise<IpcResult<PublicRemoteTriggerSettings>>;
       getCurrentWorkspace: () => Promise<WorkspacePayload>;
       selectWorkspace: () => Promise<WorkspacePayload>;
+      listWorkspaceProjects: () => Promise<WorkspaceProjectSummary[]>;
+      activateWorkspace: (workspacePath: string) => Promise<IpcResult<WorkspaceActivation>>;
+      removeRecentWorkspace: (workspacePath: string) => Promise<IpcResult<WorkspaceProjectSummary[]>>;
       writeWorkspaceFile: (payload: WriteWorkspaceFilePayload) => Promise<{ success: true; path: string } | { success: false; error: string }>;
       listWorkspaceFiles: (payload: { directory?: string }) => Promise<IpcResult<{ entries: WorkspaceFileEntry[] }>>;
       readWorkspaceFile: (payload: { path: string }) => Promise<IpcResult<{ file: WorkspaceFileContent }>>;
@@ -234,12 +238,16 @@ declare global {
       listSkills: () => Promise<IpcResult<SkillStatus[]>>;
       setSkillEnabled: (payload: { skillId: string; enabled: boolean }) => Promise<IpcResult<SkillStatus[]>>;
       setSkillTrusted: (payload: { skillId: string; trusted: boolean }) => Promise<IpcResult<SkillStatus[]>>;
+      installSkill: () => Promise<IpcResult<SkillStatus[]>>;
+      removeSkill: (skillId: string) => Promise<IpcResult<SkillStatus[]>>;
       listAgentProfiles: () => Promise<IpcResult<AgentProfileStatus[]>>;
       setAgentProfileEnabled: (payload: { profileId: string; value: boolean }) => Promise<IpcResult<AgentProfileStatus[]>>;
       setAgentProfileTrusted: (payload: { profileId: string; value: boolean }) => Promise<IpcResult<AgentProfileStatus[]>>;
       listPlugins: () => Promise<IpcResult<PluginStatus[]>>;
       setPluginEnabled: (payload: { pluginId: string; value: boolean }) => Promise<IpcResult<PluginStatus[]>>;
       setPluginTrusted: (payload: { pluginId: string; value: boolean }) => Promise<IpcResult<PluginStatus[]>>;
+      installPlugin: () => Promise<IpcResult<PluginStatus[]>>;
+      removePlugin: (pluginId: string) => Promise<IpcResult<PluginStatus[]>>;
       listMcpServers: () => Promise<IpcResult<McpServerStatus[]>>;
       saveMcpServer: (payload: SaveMcpServerPayload) => Promise<IpcResult<McpServerStatus[]>>;
       removeMcpServer: (serverId: string) => Promise<IpcResult<McpServerStatus[]>>;

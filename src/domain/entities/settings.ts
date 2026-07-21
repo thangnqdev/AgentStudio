@@ -20,4 +20,5 @@ export interface AppSettings {
   fallbackModelId: string | null;
   permissionMode: PermissionMode;
   workspacePath: string;
+  recentWorkspacePaths?: string[];
 }

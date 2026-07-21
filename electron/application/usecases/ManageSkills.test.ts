@@ -10,7 +10,12 @@ describe('ManageSkills', () => {
   it('loads matching instructions only after explicit trust and enablement', async () => {
     let preferences: SkillPreferences = { enabledSkillIds: [], trustedSkillIds: [] };
     const manager = new ManageSkills(
-      { discover: async () => [frontend], readInstructions: async () => 'Use accessible React components.' },
+      {
+        discover: async () => [frontend],
+        readInstructions: async () => 'Use accessible React components.',
+        installFromDirectory: async () => undefined,
+        removeManaged: async () => undefined,
+      },
       { load: async () => preferences, save: async (next) => { preferences = next; } },
     );
 
@@ -25,7 +30,10 @@ describe('ManageSkills', () => {
   it('disabling trust also disables the skill', async () => {
     let preferences: SkillPreferences = { enabledSkillIds: [frontend.id], trustedSkillIds: [frontend.id] };
     const manager = new ManageSkills(
-      { discover: async () => [frontend], readInstructions: async () => '' },
+      {
+        discover: async () => [frontend], readInstructions: async () => '',
+        installFromDirectory: async () => undefined, removeManaged: async () => undefined,
+      },
       { load: async () => preferences, save: async (next) => { preferences = next; } },
     );
     const skills = await manager.setTrusted('/workspace', frontend.id, false);

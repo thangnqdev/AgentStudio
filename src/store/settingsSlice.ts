@@ -7,7 +7,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   activeModelId: null,
   fallbackModelId: null,
   permissionMode: 'workspace-write',
-  workspacePath: 'chưa có dự án',
+  workspacePath: '',
+  recentWorkspacePaths: [],
 };
 
 export const createSettingsSlice: AppSlice<SettingsSlice> = (set) => ({

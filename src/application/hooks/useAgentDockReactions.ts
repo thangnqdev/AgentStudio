@@ -5,7 +5,6 @@ import { getAgentDockReaction } from '../services/agentDockReactions';
 export function useAgentDockReactions(
   scopeId: string | null,
   snapshot: AgentControlSnapshot,
-  onFirstWorker: () => void,
   onAttention: (participantId: string) => void,
 ) {
   const scopeRef = useRef(scopeId);
@@ -19,7 +18,6 @@ export function useAgentDockReactions(
     }
     const reaction = getAgentDockReaction(previousRef.current, snapshot);
     previousRef.current = snapshot;
-    if (reaction.kind === 'first-worker') onFirstWorker();
     if (reaction.kind === 'attention') onAttention(reaction.participantId);
-  }, [onAttention, onFirstWorker, scopeId, snapshot]);
+  }, [onAttention, scopeId, snapshot]);
 }
